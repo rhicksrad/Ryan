@@ -107,6 +107,7 @@ main { padding: 24px 0 60px; }
   color: var(--text);
   text-decoration: none;
   transition: background-color .15s ease, border-color .15s ease;
+  cursor: pointer;
 }
 .chip:hover { background: #141a21; border-color: color-mix(in srgb, var(--brand) 30%, var(--border)); }
 
