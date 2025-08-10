@@ -12,14 +12,18 @@ function createGameCard(game) {
   const playUrl = `https://rhicksrad.github.io/${game.slug}`;
   const repoUrl = game.repo.startsWith('http') ? game.repo : `https://github.com/${game.repo}`;
 
+  const thumb = game.thumb
+    ? `<img class="thumb-img" src="${game.thumb}" alt="${game.title} cover" loading="lazy" />`
+    : `<div class=\"thumb\" aria-hidden=\"true\">${game.short || game.title}</div>`;
+
   card.innerHTML = `
-    <div class="thumb" aria-hidden="true">${game.short || game.title}</div>
+    ${thumb}
     <div class="card-body">
       <h3 class="game-title">${game.title}</h3>
       <p class="game-desc">${game.description || ''}</p>
       <div class="chip-row">
-        <span class="chip">🎮 <a href="${playUrl}" target="_blank" rel="noopener noreferrer">Play</a></span>
-        <span class="chip">🗂️ <a href="${repoUrl}" target="_blank" rel="noopener noreferrer">Repo</a></span>
+        <a class="chip" href="${playUrl}" target="_blank" rel="noopener noreferrer">🎮 Play</a>
+        <a class="chip" href="${repoUrl}" target="_blank" rel="noopener noreferrer">🗂️ Repo</a>
       </div>
     </div>
   `;

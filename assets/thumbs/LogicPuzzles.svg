@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" width="1200" height="675">
+  <defs>
+    <linearGradient id="bgL" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0c2130"/>
+      <stop offset="1" stop-color="#0b0d10"/>
+    </linearGradient>
+    <linearGradient id="grid" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7c6cff"/>
+      <stop offset="1" stop-color="#00e0b8"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="675" fill="url(#bgL)"/>
+  <g opacity="0.25" stroke="url(#grid)" stroke-width="2">
+    <path d="M200 120 H1000 M200 200 H1000 M200 280 H1000 M200 360 H1000 M200 440 H1000 M200 520 H1000"/>
+    <path d="M200 120 V520 M360 120 V520 M520 120 V520 M680 120 V520 M840 120 V520 M1000 120 V520"/>
+  </g>
+  <text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial" font-size="84" font-weight="800" fill="#EAF4FF">
+    LOGIC PUZZLES
+  </text>
+</svg>
+

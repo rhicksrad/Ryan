@@ -83,6 +83,13 @@ main { padding: 24px 0 60px; }
   font-size: 18px;
 }
 
+.thumb-img {
+  width: 100%;
+  height: auto;
+  display: block;
+  aspect-ratio: 16 / 9;
+}
+
 .card-body { padding: 14px; }
 .game-title { margin: 0; font-size: 18px; font-weight: 700; }
 .game-desc { margin: 8px 0 12px; color: var(--muted); font-size: 14px; min-height: 38px; }
@@ -92,14 +99,16 @@ main { padding: 24px 0 60px; }
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 10px;
+  padding: 6px 12px;
   font-size: 12px;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: #101419;
+  color: var(--text);
+  text-decoration: none;
+  transition: background-color .15s ease, border-color .15s ease;
 }
-.chip a { color: var(--text); text-decoration: none; }
-.chip a:hover { text-decoration: underline; }
+.chip:hover { background: #141a21; border-color: color-mix(in srgb, var(--brand) 30%, var(--border)); }
 
 .empty-state { color: var(--muted); text-align: center; margin-top: 32px; }
 

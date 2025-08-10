@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" width="1200" height="675">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1a0f0f"/>
+      <stop offset="1" stop-color="#320f16"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff4d4d"/>
+      <stop offset="1" stop-color="#ff7a7a"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="675" fill="url(#bg)"/>
+  <g opacity="0.12" fill="#ffffff">
+    <text x="80" y="120" font-size="64">♠︎</text>
+    <text x="260" y="220" font-size="64">♥︎</text>
+    <text x="1080" y="160" font-size="64">♦︎</text>
+    <text x="980" y="560" font-size="64">♣︎</text>
+    <text x="150" y="520" font-size="64">♦︎</text>
+    <text x="520" y="420" font-size="64">♥︎</text>
+  </g>
+  <rect x="100" y="470" width="1000" height="6" fill="url(#accent)" opacity="0.7"/>
+  <text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" font-family="Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial" font-size="76" font-weight="800" fill="#FFE9E9">
+    POKER IN THE FRONT
+  </text>
+</svg>
+

@@ -5,49 +5,40 @@
       "slug": "dotsouls",
       "short": "DOTSOULS",
       "repo": "rhicksrad/dotsouls",
-      "description": "Arcade micro-roguelike. Minimalist action with tight controls."
+      "description": "Arcade micro-roguelike. Minimalist action with tight controls.",
+      "thumb": "assets/thumbs/dotsouls.svg"
     },
     {
       "title": "Poker In The Front",
       "slug": "PokerInTheFront",
       "short": "POKER",
       "repo": "rhicksrad/PokerInTheFront",
-      "description": "Casual five-card draw with a cheeky name."
+      "description": "Casual five-card draw with a cheeky name.",
+      "thumb": "assets/thumbs/PokerInTheFront.svg"
     },
     {
       "title": "Fiver",
       "slug": "Fiver",
       "short": "FIVER",
       "repo": "rhicksrad/Fiver",
-      "description": "Word logic in five moves. Bite-sized brain teaser."
+      "description": "Word logic in five moves. Bite-sized brain teaser.",
+      "thumb": "assets/thumbs/Fiver.svg"
     },
     {
       "title": "8Beat",
       "slug": "8Beat",
       "short": "8BEAT",
       "repo": "rhicksrad/8Beat",
-      "description": "Rhythm mini-game. Hit the beat, chase the streak."
-    },
-    {
-      "title": "envisirad",
-      "slug": "envisirad",
-      "short": "ENVISI",
-      "repo": "rhicksrad/envisirad",
-      "description": "Tiny visualization playground."
+      "description": "Rhythm mini-game. Hit the beat, chase the streak.",
+      "thumb": "assets/thumbs/8Beat.svg"
     },
     {
       "title": "Logic Puzzles",
       "slug": "LogicPuzzles",
       "short": "LOGIC",
       "repo": "rhicksrad/LogicPuzzles",
-      "description": "Classic grid logic puzzles in the browser."
-    },
-    {
-      "title": "JST",
-      "slug": "JST",
-      "short": "JST",
-      "repo": "rhicksrad/JST",
-      "description": "JavaScript toybox and experiments."
+      "description": "Classic grid logic puzzles in the browser.",
+      "thumb": "assets/thumbs/LogicPuzzles.svg"
     }
   ]
 }
