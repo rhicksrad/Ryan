@@ -68,9 +68,27 @@ main { padding: 24px 0 60px; }
   border-radius: 14px;
   box-shadow: var(--shadow);
   overflow: hidden;
-  transition: transform .2s ease, border-color .2s ease;
+  transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease;
+  position: relative;
+  animation: fadeUp .6s ease both;
 }
-.game-card:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--brand) 30%, var(--border)); }
+.game-card:hover {
+  transform: translateY(-4px);
+  border-color: color-mix(in srgb, var(--brand) 35%, var(--border));
+  box-shadow: 0 16px 40px rgba(0,0,0,0.55);
+}
+
+/* Sheen sweep overlay */
+.game-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(130deg, transparent 40%, rgba(255,255,255,0.06) 50%, transparent 60%);
+  transform: translateX(-120%);
+  transition: transform .6s ease;
+  pointer-events: none;
+}
+.game-card:hover::after { transform: translateX(120%); }
 
 .thumb {
   aspect-ratio: 16 / 9;
@@ -88,7 +106,9 @@ main { padding: 24px 0 60px; }
   height: auto;
   display: block;
   aspect-ratio: 16 / 9;
+  transition: transform .35s ease;
 }
+.game-card:hover .thumb-img { transform: scale(1.04); }
 
 .card-body { padding: 14px; }
 .game-title { margin: 0; font-size: 18px; font-weight: 700; }
@@ -110,6 +130,37 @@ main { padding: 24px 0 60px; }
   cursor: pointer;
 }
 .chip:hover { background: #141a21; border-color: color-mix(in srgb, var(--brand) 30%, var(--border)); }
+
+/* Primary action (Play) - first chip */
+.chip-row .chip:first-child {
+  background: linear-gradient(135deg, var(--brand), var(--brand-2));
+  border-color: transparent;
+  color: #0b0d10;
+  font-weight: 600;
+}
+.chip-row .chip:first-child:hover { filter: brightness(1.1); }
+
+/* Focus styles for accessibility */
+.chip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(124,108,255,0.28);
+}
+
+/* Card entrance animation */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Staggered delays for first few cards */
+.games-grid > *:nth-child(1) { animation-delay: .04s; }
+.games-grid > *:nth-child(2) { animation-delay: .08s; }
+.games-grid > *:nth-child(3) { animation-delay: .12s; }
+.games-grid > *:nth-child(4) { animation-delay: .16s; }
+.games-grid > *:nth-child(5) { animation-delay: .20s; }
+.games-grid > *:nth-child(6) { animation-delay: .24s; }
+.games-grid > *:nth-child(7) { animation-delay: .28s; }
+.games-grid > *:nth-child(8) { animation-delay: .32s; }
 
 .empty-state { color: var(--muted); text-align: center; margin-top: 32px; }
 
