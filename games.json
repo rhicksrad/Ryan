@@ -6,7 +6,8 @@
       "short": "DOTSOULS",
       "repo": "rhicksrad/dotsouls",
       "description": "Arcade micro-roguelike. Minimalist action with tight controls.",
-      "thumb": "assets/thumbs/dotsouls.svg"
+      "thumb": "assets/thumbs/dotsouls.svg",
+      "mobile": false
     },
     {
       "title": "Poker In The Front",
@@ -14,7 +15,8 @@
       "short": "POKER",
       "repo": "rhicksrad/PokerInTheFront",
       "description": "Casual five-card draw with a cheeky name.",
-      "thumb": "assets/thumbs/PokerInTheFront.svg"
+      "thumb": "assets/thumbs/PokerInTheFront.svg",
+      "mobile": false
     },
     {
       "title": "Fiver",
@@ -22,15 +24,17 @@
       "short": "FIVER",
       "repo": "rhicksrad/Fiver",
       "description": "Word logic in five moves. Bite-sized brain teaser.",
-      "thumb": "assets/thumbs/Fiver.svg"
+      "thumb": "assets/thumbs/Fiver.svg",
+      "mobile": true
     },
     {
       "title": "8Beat",
       "slug": "8Beat",
       "short": "8BEAT",
       "repo": "rhicksrad/8Beat",
-      "description": "Rhythm mini-game. Hit the beat, chase the streak.",
-      "thumb": "assets/thumbs/8Beat.svg"
+      "description": "Browser music maker. Sequence sounds and play with loops.",
+      "thumb": "assets/thumbs/8Beat.svg",
+      "mobile": false
     },
     {
       "title": "Logic Puzzles",
@@ -38,7 +42,27 @@
       "short": "LOGIC",
       "repo": "rhicksrad/LogicPuzzles",
       "description": "Classic grid logic puzzles in the browser.",
-      "thumb": "assets/thumbs/LogicPuzzles.svg"
+      "thumb": "assets/thumbs/LogicPuzzles.svg",
+      "mobile": false
+    },
+    {
+      "title": "Super Dooper Mega Turbo Breakout",
+      "slug": "Breakout",
+      "short": "BREAKOUT",
+      "repo": "rhicksrad/Breakout",
+      "description": "A turbo-charged brick breaker with power-ups.",
+      "thumb": "assets/thumbs/Breakout.svg",
+      "mobile": false
+    },
+    {
+      "title": "Aircraft Carrier",
+      "slug": "AircraftCarrier",
+      "short": "CARRIER",
+      "repo": "rhicksrad/AircraftCarrier",
+      "description": "Command the deck and manage sorties from the carrier.",
+      "thumb": "assets/thumbs/AircraftCarrier.svg",
+      "mobile": false,
+      "wip": true
     }
   ]
 }

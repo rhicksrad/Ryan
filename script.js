@@ -13,9 +13,12 @@ function createGameCard(game) {
   const repoUrl = game.repo.startsWith('http') ? game.repo : `https://github.com/${game.repo}`;
 
   const thumbSrc = game.thumb ? `${game.thumb}?v=2` : null;
+  const badge = game.wip ? '<span class="badge-wip" title="Under construction">🚧</span>' : '';
   const thumb = thumbSrc
-    ? `<img class=\"thumb-img\" src=\"${thumbSrc}\" alt=\"${game.title} cover\" loading=\"lazy\" />`
-    : `<div class=\"thumb\" aria-hidden=\"true\">${game.short || game.title}</div>`;
+    ? `<div class=\"thumb-wrap\">${badge}<img class=\"thumb-img\" src=\"${thumbSrc}\" alt=\"${game.title} cover\" loading=\"lazy\" /></div>`
+    : `<div class=\"thumb thumb-wrap\" aria-hidden=\"true\">${badge}${game.short || game.title}</div>`;
+
+  const mobileChip = game.mobile ? '<span class="chip info">📱 Mobile-friendly</span>' : '<span class="chip info">🖥️ Desktop only</span>';
 
   card.innerHTML = `
     ${thumb}
@@ -25,6 +28,7 @@ function createGameCard(game) {
       <div class="chip-row">
         <a class="chip" href="${playUrl}" target="_blank" rel="noopener noreferrer">🎮 Play</a>
         <a class="chip" href="${repoUrl}" target="_blank" rel="noopener noreferrer">🗂️ Repo</a>
+        ${mobileChip}
       </div>
     </div>
   `;
