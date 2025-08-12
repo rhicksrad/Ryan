@@ -48,9 +48,8 @@ function render() {
     g.slug.toLowerCase().includes(state.query)
   );
 
-  filtered
-    .sort((a, b) => (a.title.toLowerCase() > b.title.toLowerCase() ? 1 : -1))
-    .forEach(game => grid.appendChild(createGameCard(game)));
+  // Keep original JSON order so you can control ranking
+  filtered.forEach(game => grid.appendChild(createGameCard(game)));
 
   empty.hidden = filtered.length > 0;
 }

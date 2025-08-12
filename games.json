@@ -1,6 +1,15 @@
 {
   "games": [
     {
+      "title": "Euchre",
+      "slug": "Euchre",
+      "short": "EUCHRE",
+      "repo": "rhicksrad/Euchre",
+      "description": "Classic trick-taking card game.",
+      "thumb": "assets/thumbs/Euchre.svg",
+      "mobile": false
+    },
+    {
       "title": "DotSouls",
       "slug": "dotsouls",
       "short": "DOTSOULS",
