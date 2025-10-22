@@ -3,38 +3,20 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Ryan's Games</title>
-    <meta name="description" content="A collection of web games by Ryan Hicks." />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=3" />
+    <title>Ryan Hicks | Creative Developer & Technical Artist</title>
+    <meta
+      name="description"
+      content="Portfolio for Ryan Hicks highlighting technical artistry, interactive prototypes, and game development experiments."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
-    <header class="site-header">
-      <div class="container">
-        <h1>Ryan's Games</h1>
-        <p class="tagline">A fast, clean hub for all my playable experiments and micro-games.</p>
-        <div class="controls">
-          <input id="searchInput" type="search" placeholder="Search games…" aria-label="Search games" />
-        </div>
-      </div>
-    </header>
-
-    <main class="container">
-      <section id="gamesSection">
-        <div id="gamesGrid" class="games-grid" aria-live="polite"></div>
-        <p id="emptyState" class="empty-state" hidden>No games found.</p>
-      </section>
-    </main>
-
-    <footer class="site-footer">
-      <div class="container">
-        <p>© <span id="year"></span> Ryan Hicks</p>
-      </div>
-    </footer>
-
-    <script src="script.js?v=3"></script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
   </body>
-  </html>
-
+</html>
