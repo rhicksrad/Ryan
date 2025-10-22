@@ -2,7 +2,7 @@ export const site = {
   name: 'Ryan Hicks',
   title: 'Creative Developer & Technical Artist',
   tagline: 'Designing lush, kinetic interfaces with a game developer\'s heart.',
-  email: 'ryan@ryansradical.games',
+  email: 'hicksrch@gmail.com',
   githubUser: 'rhicksrad',
   repoSlug: 'Ryan',
   githubProfile: 'https://github.com/rhicksrad',
