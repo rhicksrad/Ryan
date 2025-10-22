@@ -1,9 +1,10 @@
 import SectionHeader from '../components/SectionHeader.jsx';
 import RepoGrid from '../components/RepoGrid.jsx';
+import { site } from '../data/site.js';
 
 function Projects() {
   return (
-    <div className="page">
+    <div className="page projects-page">
       <SectionHeader
         eyebrow="Interactive work"
         title="Latest experiments"
@@ -11,7 +12,7 @@ function Projects() {
       />
       <RepoGrid />
       <div className="page-cta">
-        <a className="button" href="https://github.com/rhicksrad?tab=repositories" target="_blank" rel="noreferrer">
+        <a className="button" href={site.githubProjects} target="_blank" rel="noreferrer">
           View all repositories
         </a>
       </div>

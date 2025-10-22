@@ -1,9 +1,10 @@
 import SectionHeader from '../components/SectionHeader.jsx';
 import { highlights, timeline } from '../data/experience.js';
+import { site } from '../data/site.js';
 
 function Experience() {
   return (
-    <div className="page">
+    <div className="page experience-page">
       <SectionHeader
         eyebrow="Experience"
         title="Craft, collaboration, and community"
@@ -32,12 +33,7 @@ function Experience() {
       </div>
 
       <div className="page-cta">
-        <a
-          className="button ghost"
-          href="https://www.linkedin.com/in/ryan-hicks-10790a206/"
-          target="_blank"
-          rel="noreferrer"
-        >
+        <a className="button ghost" href={site.linkedin} target="_blank" rel="noreferrer">
           Dive into LinkedIn for full history
         </a>
       </div>

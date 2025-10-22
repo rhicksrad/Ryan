@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
+import { site } from '../data/site.js';
 
-const API_URL = 'https://api.github.com/users/rhicksrad/repos?sort=updated&per_page=24';
+const API_URL = `https://api.github.com/users/${site.githubUser}/repos?sort=updated&per_page=24`;
 
 function RepoGrid() {
   const [repos, setRepos] = useState([]);
@@ -33,6 +34,7 @@ function RepoGrid() {
                 topics: repo.topics,
                 updatedAt: repo.updated_at,
                 language: repo.language,
+                stars: repo.stargazers_count,
               })),
           );
           setStatus('success');
@@ -60,7 +62,7 @@ function RepoGrid() {
     return (
       <p className="status error">
         Unable to reach GitHub right now. Check back soon or explore directly on{' '}
-        <a href="https://github.com/rhicksrad" target="_blank" rel="noreferrer">
+        <a href={site.githubProfile} target="_blank" rel="noreferrer">
           GitHub
         </a>
         .
@@ -76,17 +78,18 @@ function RepoGrid() {
     <div className="repo-grid">
       {repos.map((repo) => (
         <article key={repo.id} className="repo-card">
-          <div className="repo-heading">
+          <header className="repo-heading">
             <h3>
               <a href={repo.url} target="_blank" rel="noreferrer">
                 {repo.name}
               </a>
             </h3>
             <p className="repo-meta">
-              {repo.language ? `${repo.language} · ` : ''}
-              Updated {new Date(repo.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+              {repo.language && <span className="repo-language">{repo.language}</span>}
+              <span className="repo-stars">★ {repo.stars}</span>
+              <time dateTime={repo.updatedAt}>Updated {new Date(repo.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</time>
             </p>
-          </div>
+          </header>
           <p className="repo-description">{repo.description ?? 'A new experiment in progress.'}</p>
           {repo.topics && repo.topics.length > 0 && (
             <ul className="repo-topics">

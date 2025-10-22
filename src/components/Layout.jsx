@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useMemo } from 'react';
+import { site, siteLinks } from '../data/site.js';
 
 const navItems = [
   { to: '/', label: 'Home' },
@@ -13,12 +14,22 @@ function Layout() {
 
   return (
     <div className="app-shell">
+      <div className="ambient-grid" aria-hidden="true">
+        <span className="orb orb-one" />
+        <span className="orb orb-two" />
+        <span className="orb orb-three" />
+      </div>
+
       <header className="site-header">
         <div className="inner">
-          <div>
-            <p className="eyebrow">Ryan Hicks</p>
-            <h1 className="site-title">Creative Developer & Technical Artist</h1>
-          </div>
+          <NavLink to="/" className="brand" aria-label="Back to home">
+            <span className="brand-mark">RH</span>
+            <span className="brand-copy">
+              <span className="brand-name">{site.name}</span>
+              <span className="brand-title">{site.title}</span>
+            </span>
+          </NavLink>
+
           <nav aria-label="Primary navigation">
             <ul className="nav-list">
               {navItems.map((item) => (
@@ -30,7 +41,7 @@ function Layout() {
                       isActive ? 'nav-link active' : 'nav-link'
                     }
                   >
-                    {item.label}
+                    <span>{item.label}</span>
                   </NavLink>
                 </li>
               ))}
@@ -45,16 +56,18 @@ function Layout() {
 
       <footer className="site-footer">
         <div className="inner">
-          <p>© {year} Ryan Hicks. Built with Vite, React, and a love for playful code.</p>
+          <div>
+            <p className="footer-eyebrow">Always shipping playful experiments</p>
+            <p className="footer-copy">© {year} {site.name}. {site.tagline}</p>
+          </div>
           <div className="footer-links">
-            <a href="https://github.com/rhicksrad" target="_blank" rel="noreferrer">
+            <a href={site.githubProfile} target="_blank" rel="noreferrer">
               GitHub
             </a>
-            <a
-              href="https://www.linkedin.com/in/ryan-hicks-10790a206/"
-              target="_blank"
-              rel="noreferrer"
-            >
+            <a href={siteLinks.githubActions} target="_blank" rel="noreferrer">
+              GitHub Actions
+            </a>
+            <a href={site.linkedin} target="_blank" rel="noreferrer">
               LinkedIn
             </a>
           </div>
