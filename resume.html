@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Ryan – Resume</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="/css/styles.css" />
+    <style>
+      @page {
+        margin: 1in;
+      }
+      body {
+        background: #fff;
+        color: #111;
+      }
+      .resume {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 2rem;
+      }
+      .resume header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .resume h1 {
+        margin: 0;
+      }
+      .resume section {
+        margin-top: 1.5rem;
+      }
+      .print-btn {
+        margin-top: 1rem;
+      }
+      @media print {
+        .print-btn {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="resume">
+      <header>
+        <div>
+          <h1>Ryan</h1>
+          <p>Infrastructure Engineer</p>
+        </div>
+        <button class="print-btn" type="button" onclick="window.print()">Print</button>
+      </header>
+      <section>
+        <h2>Summary</h2>
+        <p>Thoughtful, careful, technical, concise. TODO</p>
+      </section>
+      <section>
+        <h2>Experience</h2>
+        <p>TODO experience details.</p>
+      </section>
+      <section>
+        <h2>Skills</h2>
+        <ul>
+          <li>Linux</li>
+          <li>Cloud</li>
+          <li>Networking</li>
+          <li>Observability</li>
+          <li>Automation</li>
+          <li>Security</li>
+          <li>SRE</li>
+          <li>CI/CD</li>
+          <li>Containers</li>
+          <li>IaC</li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Ryan – Accessible Profile</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="/css/styles.css" />
+  </head>
+  <body data-theme="dark">
+    <header>
+      <h1>Ryan – Infrastructure Engineer</h1>
+      <button type="button" id="enable-3d">Enable 3D world</button>
+    </header>
+    <main id="fallback-app">
+      <nav>
+        <ul class="top-nav" role="list">
+          <li><a href="#overview">Overview</a></li>
+          <li><a href="#projects">Projects</a></li>
+          <li><a href="#writing">Writing</a></li>
+          <li><a href="#talks">Talks</a></li>
+          <li><a href="#contact">Contact</a></li>
+        </ul>
+      </nav>
+      <article id="content"></article>
+    </main>
+    <footer>
+      <small>&copy; <span data-js="year"></span> Ryan. All rights reserved.</small>
+    </footer>
+    <script type="module">
+      const contentRoot = document.getElementById('content');
+      document.querySelectorAll('[data-js="year"]').forEach((el) => (el.textContent = String(new Date().getFullYear())));
+      document.getElementById('enable-3d')?.addEventListener('click', () => {
+        localStorage.setItem('ryan.motion.allow', 'true');
+        window.location.href = '/';
+      });
+      const render = (section, profile) => {
+        contentRoot.innerHTML = '';
+        const heading = document.createElement('h2');
+        heading.textContent = section;
+        contentRoot.appendChild(heading);
+        switch (section) {
+          case 'Overview': {
+            const intro = document.createElement('p');
+            intro.textContent = profile.bio_short;
+            const long = document.createElement('p');
+            long.textContent = profile.bio_long;
+            contentRoot.append(intro, long);
+            break;
+          }
+          case 'Projects': {
+            profile.projects.forEach((project) => {
+              const card = document.createElement('section');
+              card.className = 'card';
+              card.innerHTML = `<h3>${project.name}</h3><p>${project.summary}</p>`;
+              contentRoot.appendChild(card);
+            });
+            break;
+          }
+          case 'Writing': {
+            profile.posts.forEach((post) => {
+              const card = document.createElement('section');
+              card.className = 'card';
+              card.innerHTML = `<h3>${post.title}</h3><p>${post.date}</p><p>${post.summary}</p>`;
+              const link = document.createElement('a');
+              link.href = post.url;
+              link.textContent = 'Read post';
+              link.target = '_blank';
+              card.appendChild(link);
+              contentRoot.appendChild(card);
+            });
+            break;
+          }
+          case 'Talks': {
+            profile.talks.forEach((talk) => {
+              const card = document.createElement('section');
+              card.className = 'card';
+              card.innerHTML = `<h3>${talk.title}</h3><p>${talk.event} · ${talk.date}</p>`;
+              const link = document.createElement('a');
+              link.href = talk.link;
+              link.textContent = 'View talk';
+              link.target = '_blank';
+              card.appendChild(link);
+              contentRoot.appendChild(card);
+            });
+            break;
+          }
+          case 'Contact': {
+            const list = document.createElement('ul');
+            list.className = 'card-list';
+            if (profile.email && profile.email !== 'TODO') {
+              const li = document.createElement('li');
+              const link = document.createElement('a');
+              link.href = `mailto:${profile.email}`;
+              link.textContent = profile.email;
+              li.appendChild(link);
+              list.appendChild(li);
+            }
+            Object.entries(profile.social).forEach(([key, value]) => {
+              if (!value || value === 'TODO') return;
+              const li = document.createElement('li');
+              const link = document.createElement('a');
+              link.href = value;
+              link.textContent = key;
+              link.target = '_blank';
+              li.appendChild(link);
+              list.appendChild(li);
+            });
+            contentRoot.appendChild(list);
+            break;
+          }
+        }
+      };
+      fetch('/content/profile.json')
+        .then((res) => res.json())
+        .then((profile) => {
+          render('Overview', profile);
+          document.querySelectorAll('a[href^="#"]').forEach((link) => {
+            link.addEventListener('click', (event) => {
+              event.preventDefault();
+              const label = link.textContent || 'Overview';
+              render(label, profile);
+            });
+          });
+        });
+    </script>
+  </body>
+</html>

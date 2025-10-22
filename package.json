@@ -1,20 +1,20 @@
 {
-  "name": "ryan-hicks-portfolio",
+  "name": "ryan-world",
+  "version": "1.0.0",
   "private": true,
-  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/copy404.js",
-    "preview": "vite preview"
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.22.1"
+    "three": "^0.161.0"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.2.1",
+    "@types/three": "^0.180.0",
+    "typescript": "^5.4.0",
     "vite": "^5.2.0"
   }
 }
