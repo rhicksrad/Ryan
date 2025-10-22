@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <title>Ryan – Accessible Profile</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="stylesheet" href="/css/styles.css" />
+    <link rel="stylesheet" href="../css/styles.css" />
   </head>
   <body data-theme="dark">
     <header>
@@ -31,7 +31,7 @@
       document.querySelectorAll('[data-js="year"]').forEach((el) => (el.textContent = String(new Date().getFullYear())));
       document.getElementById('enable-3d')?.addEventListener('click', () => {
         localStorage.setItem('ryan.motion.allow', 'true');
-        window.location.href = '/';
+        window.location.href = '../';
       });
       const render = (section, profile) => {
         contentRoot.innerHTML = '';
@@ -110,7 +110,7 @@
           }
         }
       };
-      fetch('/content/profile.json')
+      fetch('../content/profile.json')
         .then((res) => res.json())
         .then((profile) => {
           render('Overview', profile);

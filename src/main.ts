@@ -18,7 +18,7 @@ const allowMotion = localStorage.getItem('ryan.motion.allow') === 'true';
 const shouldFallback = !supports3D() || (reducedMotionMedia.matches && !allowMotion);
 
 if (shouldFallback) {
-  window.location.replace('/fallback/index.html');
+  window.location.replace('fallback/index.html');
 } else {
   (async () => {
     const content = await loadContent();
