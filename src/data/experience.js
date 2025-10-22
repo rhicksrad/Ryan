@@ -1,38 +1,50 @@
 export const timeline = [
   {
-    period: '2023 — Present',
-    title: 'Independent Creative Developer',
+    period: 'Jun 2024 — Present',
+    title: 'Infrastructure Engineer III · Radiology of Indiana',
     description:
-      'Building experimental game prototypes, interactive art, and tooling across the Godot, Unity, and Vite ecosystems.',
+      'Leading hybrid infrastructure initiatives from Indianapolis with a focus on resilient network systems and thorough IT documentation.',
   },
   {
-    period: '2021 — 2023',
-    title: 'Technical Artist & Gameplay Designer',
+    period: 'Feb 2020 — Jun 2024',
+    title: 'Infrastructure Engineer · Radiology of Indiana',
     description:
-      'Owned gameplay feel, shader experimentation, and rapid iteration loops for small studios and indie collaborations.',
+      'Supported statewide clinical operations by maintaining core infrastructure, documentation standards, and cross-team coordination.',
   },
   {
-    period: '2019 — 2021',
-    title: 'Community Builder & Event Organizer',
+    period: 'Jan 2018 — Feb 2020',
+    title: 'Telecom Technologist IV · Franciscan Health',
     description:
-      'Hosted local jams, mentored new developers, and championed inclusive spaces for interactive artists.',
+      'Advanced enterprise telecom systems while mentoring teammates and formalizing processes across Indiana facilities.',
+  },
+  {
+    period: 'Jan 2012 — Jan 2018',
+    title: 'Telecom Technologist III · Franciscan Health',
+    description:
+      'Implemented network upgrades and documentation practices that kept mission-critical hospital communications running reliably.',
+  },
+  {
+    period: 'Jan 2011 — Jan 2012',
+    title: 'Telecom Technician · Franciscan Health',
+    description:
+      'Delivered frontline telecom support and contributed to knowledge bases that informed future infrastructure work.',
   },
 ];
 
 export const highlights = [
   {
-    title: '50+ playable experiments',
+    title: 'Infrastructure leadership',
     description:
-      'Public GitHub repos span rhythm experiments, AI-assisted storytelling, and retro-inspired arcade challenges.',
+      'More than a decade stewarding healthcare network systems, hybrid environments, and resilient clinical connectivity.',
   },
   {
-    title: 'Playtesting pipelines',
+    title: 'Documentation-first mindset',
     description:
-      'Created reusable tooling for capturing player input, analytics, and balancing data during weekend-long jams.',
+      'Drives clarity with living runbooks, diagrams, and process guides that accelerate onboarding and audits.',
   },
   {
-    title: 'Cross-discipline fluency',
+    title: 'Telecom depth with breadth',
     description:
-      'Collaborate with artists, composers, and designers to deliver cohesive experiences under tight deadlines.',
+      'Hands-on expertise spanning telecom hardware, network architectures, and cross-functional collaboration with clinical staff.',
   },
 ];
