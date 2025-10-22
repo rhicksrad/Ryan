@@ -1,8 +1,9 @@
 import SectionHeader from '../components/SectionHeader.jsx';
+import { site } from '../data/site.js';
 
 function Contact() {
   return (
-    <div className="page">
+    <div className="page contact-page">
       <SectionHeader
         eyebrow="Let's build something"
         title="Get in touch"
@@ -15,18 +16,13 @@ function Contact() {
           hosting a workshop, send a message with a short brief and I'll respond within two business days.
         </p>
         <div className="contact-actions">
-          <a className="button" href="mailto:ryan@ryansradical.games">
+          <a className="button" href={`mailto:${site.email}`}>
             Email Ryan
           </a>
-          <a className="button ghost" href="https://github.com/rhicksrad" target="_blank" rel="noreferrer">
+          <a className="button ghost" href={site.githubProfile} target="_blank" rel="noreferrer">
             Follow on GitHub
           </a>
-          <a
-            className="button ghost"
-            href="https://www.linkedin.com/in/ryan-hicks-10790a206/"
-            target="_blank"
-            rel="noreferrer"
-          >
+          <a className="button ghost" href={site.linkedin} target="_blank" rel="noreferrer">
             Message on LinkedIn
           </a>
         </div>
