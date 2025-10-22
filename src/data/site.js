@@ -1,6 +1,6 @@
 export const site = {
   name: 'Ryan Hicks',
-  title: 'Creative Developer & Technical Artist',
+  title: 'Infrastructure Engineer',
   tagline: 'Designing lush, kinetic interfaces with a game developer\'s heart.',
   email: 'hicksrch@gmail.com',
   githubUser: 'rhicksrad',
