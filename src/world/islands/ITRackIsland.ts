@@ -10,6 +10,7 @@ import {
   Vector3
 } from 'three';
 import { Hotspot } from '../Hotspot';
+import type { IslandHotspotBundle } from './types';
 import { AudioController } from '../../utils/Audio';
 
 interface ITRackOptions {
@@ -17,7 +18,7 @@ interface ITRackOptions {
   reducedMotion: boolean;
 }
 
-export function createITRackIsland(options: ITRackOptions): Hotspot {
+export function createITRackIsland(options: ITRackOptions): IslandHotspotBundle {
   const { audio, reducedMotion } = options;
   const group = new Group();
 
@@ -123,7 +124,7 @@ export function createITRackIsland(options: ITRackOptions): Hotspot {
   const color = new Color();
   const state = { time: 0 };
 
-  return new Hotspot({
+  const hotspot = new Hotspot({
     name: 'Infrastructure Tower',
     ariaLabel: 'Visit Ryan\'s infrastructure HQ building',
     mesh: group,
@@ -157,4 +158,6 @@ export function createITRackIsland(options: ITRackOptions): Hotspot {
       indicators.instanceColor!.needsUpdate = true;
     }
   });
+
+  return { main: hotspot };
 }

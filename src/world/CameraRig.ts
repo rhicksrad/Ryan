@@ -37,7 +37,7 @@ export class CameraRig {
       '#cooking': this.createPose(new Vector3(10, 4, 4), new Vector3(8, 1.5, 0)),
       '#it': this.createPose(new Vector3(4, 5, -11), new Vector3(6, 1.5, -8)),
       '#gardening': this.createPose(new Vector3(-11, 4, 5), new Vector3(-8, 1.5, 3)),
-      '#ai': this.createPose(new Vector3(-4, 6, -10), new Vector3(-3, 2, -8)),
+      '#ai': this.createPose(new Vector3(-7.1, 2.2, -5.1), new Vector3(-7.7, 1.2, -5.7)),
       '#music': this.createPose(new Vector3(0, 5, 12), new Vector3(0, 2, 10))
     };
 
