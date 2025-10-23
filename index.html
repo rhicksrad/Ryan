@@ -1,134 +1,56 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="en" data-theme="system">
   <head>
     <meta charset="utf-8" />
-    <title>Ryan – Infrastructure Engineer</title>
-    <meta name="description" content="Ryan is an Infrastructure Engineer building reliable systems and approachable tooling." />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#0c1821" />
-    <link rel="canonical" href="https://example.com/" />
+    <title>Ryan 3D World</title>
+    <meta name="description" content="Explore Ryan's 3D world of interests and work." />
+    <meta name="theme-color" content="#10131a" />
+    <link rel="canonical" href="https://example.com/ryan-world" />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Ryan – Infrastructure Engineer" />
-    <meta property="og:description" content="Explore Ryan's low poly world of infrastructure, cooking, gardening, AI, and music." />
-    <meta property="og:url" content="https://example.com/" />
-    <meta property="og:image" content="https://example.com/assets/social-card.png" />
+    <meta property="og:title" content="Ryan 3D World" />
+    <meta property="og:description" content="Explore Ryan's 3D world of interests and work." />
+    <meta property="og:url" content="https://example.com/ryan-world" />
+    <meta property="og:image" content="/assets/logo.svg" />
     <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="Ryan – Infrastructure Engineer" />
-    <meta name="twitter:description" content="Explore Ryan's low poly world of infrastructure, cooking, gardening, AI, and music." />
-    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg" />
-    <style>
-      :root {
-        color-scheme: light dark;
-      }
-      *, *::before, *::after {
-        box-sizing: border-box;
-      }
-      body {
-        margin: 0;
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        background: #0c1821;
-        color: #eef2f7;
-        min-height: 100vh;
-        display: flex;
-        flex-direction: column;
-      }
-      header,
-      footer {
-        padding: 0.5rem 1rem;
-      }
-      a {
-        color: inherit;
-      }
-      .visually-hidden {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        padding: 0;
-        margin: -1px;
-        overflow: hidden;
-        clip: rect(0, 0, 0, 0);
-        border: 0;
-      }
-      #main-content {
-        flex: 1;
-        display: grid;
-        grid-template-rows: auto 1fr;
-      }
-      #canvas-container {
-        position: relative;
-        width: 100%;
-        height: 100%;
-        overflow: hidden;
-      }
-      #overlay-root {
-        position: fixed;
-        inset: 0;
-        pointer-events: none;
-      }
-    </style>
+    <meta name="twitter:title" content="Ryan 3D World" />
+    <meta name="twitter:description" content="Explore Ryan's 3D world of interests and work." />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preload" href="/assets/logo.svg" as="image" />
     <link rel="stylesheet" href="/css/styles.css" />
-    <script>
-      (function () {
-        const profileUrl = 'content/profile.json';
-        fetch(profileUrl)
-          .then((res) => res.json())
-          .then((profile) => {
-            const person = {
-              '@context': 'https://schema.org',
-              '@type': 'Person',
-              name: profile.name,
-              jobTitle: profile.tagline,
-              address: profile.location || undefined,
-              email: profile.email ? `mailto:${profile.email}` : undefined,
-              url: profile.social?.website || 'https://example.com/',
-              sameAs: Object.values(profile.social || {}).filter(Boolean)
-            };
-            const site = {
-              '@context': 'https://schema.org',
-              '@type': 'WebSite',
-              name: `${profile.name} – ${profile.tagline}`,
-              url: profile.social?.website || 'https://example.com/',
-              description: profile.bio_short || profile.bio_long?.slice(0, 160)
-            };
-            const container = document.createDocumentFragment();
-            [person, site].forEach((entry) => {
-              const script = document.createElement('script');
-              script.type = 'application/ld+json';
-              script.textContent = JSON.stringify(entry);
-              container.appendChild(script);
-            });
-            document.head.append(container);
-          })
-          .catch(() => {
-            /* noop */
-          });
-      })();
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Person",
+        "name": "Ryan",
+        "url": "https://example.com/ryan-world",
+        "jobTitle": "Infrastructure Engineer",
+        "sameAs": [
+          "https://github.com/TODO",
+          "https://www.linkedin.com/in/TODO"
+        ]
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "Ryan 3D World",
+        "url": "https://example.com/ryan-world",
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": "https://example.com/search?q={search_term_string}",
+          "query-input": "required name=search_term_string"
+        }
+      }
     </script>
   </head>
   <body>
-    <a class="skip-link" href="#main-content">Skip to content</a>
-    <header id="site-header" role="banner">
-      <nav aria-label="Primary">
-        <ul class="top-nav" role="list">
-          <li><a href="#home">Home</a></li>
-          <li><a href="#projects">Projects</a></li>
-          <li><a href="#writing">Writing</a></li>
-          <li><a href="#talks">Talks</a></li>
-          <li><a href="#resume">Resume</a></li>
-          <li><a href="#contact">Contact</a></li>
-        </ul>
-      </nav>
-    </header>
-    <main id="main-content" role="main">
-      <div id="hud-root" aria-live="polite"></div>
-      <div id="canvas-container" aria-hidden="true">
-        <canvas id="world"></canvas>
-      </div>
-      <div id="overlay-root" aria-live="polite"></div>
-    </main>
-    <footer id="site-footer" role="contentinfo">
-      <small>&copy; <span data-js="year"></span> Ryan. All rights reserved.</small>
-    </footer>
-    <script type="module" src="/src/main.ts" defer></script>
+    <noscript>
+      <p class="no-js">This experience needs JavaScript enabled. A fallback version is available without 3D.</p>
+    </noscript>
+    <div id="app" aria-label="Ryan 3D world" role="application"></div>
+    <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

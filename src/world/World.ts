@@ -1,6 +1,5 @@
 import {
   AmbientLight,
-  Clock,
   Color,
   DirectionalLight,
   Fog,
@@ -11,295 +10,266 @@ import {
   PlaneGeometry,
   Raycaster,
   Scene,
-  SRGBColorSpace,
   Vector2,
-  WebGLRenderer
+  Vector3,
+  WebGLRenderer,
+  Clock,
+  SRGBColorSpace,
+  PCFSoftShadowMap
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import type { ProfileContent } from '../types.d.ts';
-import { Hotspot } from './Hotspot';
-import { createGrillIsland } from './islands/GrillIsland';
-import { createITRackIsland } from './islands/ITRackIsland';
-import { createGardenIsland } from './islands/GardenIsland';
-import { createAIHubIsland } from './islands/AIHubIsland';
-import { createMusicIsland } from './islands/MusicIsland';
-import { AssetLoader } from '../utils/AssetLoader';
-import { AudioController } from '../utils/Audio';
+import type { LoadedAssets, ProfileContent, RouteName } from '../types';
 import { CameraRig } from './CameraRig';
-import { Labels } from './Labels';
 import { createSky } from './Sky';
-import { DebugUI } from '../debug/DebugUI';
+import { Labels } from './Labels';
+import { Hotspot } from './Hotspot';
+import * as GrillIsland from './islands/GrillIsland';
+import * as ITRackIsland from './islands/ITRackIsland';
+import * as GardenIsland from './islands/GardenIsland';
+import * as AIHubIsland from './islands/AIHubIsland';
+import * as MusicIsland from './islands/MusicIsland';
+import type { AudioController } from '../utils/Audio';
+import type { Router } from '../ui/Router';
+import type { Overlay } from '../ui/Overlay';
+import type { HUD } from '../ui/HUD';
 
-export interface WorldOptions {
-  canvas: HTMLCanvasElement;
+interface WorldOptions {
+  container: HTMLElement;
   content: ProfileContent;
-  assets: AssetLoader;
+  assets: LoadedAssets;
+  router: Router;
+  overlay: Overlay;
+  hud: HUD;
   audio: AudioController;
-  reducedMotion: () => boolean;
-  onHotspotSelected: (id: string) => void;
 }
 
+const ISLAND_ROUTES: RouteName[] = ['#cooking', '#it', '#gardening', '#ai', '#music'];
+
 export class World {
-  private renderer: WebGLRenderer;
-  private scene: Scene;
-  private camera: PerspectiveCamera;
+  private scene = new Scene();
+  private camera = new PerspectiveCamera(55, 1, 0.1, 400);
+  private renderer = new WebGLRenderer({ antialias: true, alpha: false });
   private controls: OrbitControls;
+  private cameraRig: CameraRig;
+  private labels = new Labels();
+  private hotspots: Hotspot[] = [];
   private raycaster = new Raycaster();
   private pointer = new Vector2();
-  private hotspots = new Map<string, Hotspot>();
-  private labels: Labels;
-  private clock = new Clock();
-  private debug: DebugUI;
-  private animating = true;
-  private cameraRig: CameraRig;
   private hovered: Hotspot | null = null;
-  private hotspotNames = new Map<Hotspot, string>();
+  private clock = new Clock();
+  private reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  private paused = false;
+  private islandGroup = new Group();
 
   constructor(private options: WorldOptions) {
-    const { canvas } = options;
-    this.renderer = new WebGLRenderer({ canvas, antialias: true, alpha: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.outputColorSpace = SRGBColorSpace;
-
-    this.scene = new Scene();
-    this.scene.background = new Color(0x0c1821);
-    this.scene.fog = new Fog(0x0c1821, 30, 120);
-
-    this.camera = new PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
-    this.camera.position.set(0, 10, 20);
-
-    this.cameraRig = new CameraRig(this.camera, options.reducedMotion);
-
-    this.controls = new OrbitControls(this.camera, canvas);
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = PCFSoftShadowMap;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
-    this.controls.dampingFactor = 0.05;
+    this.controls.dampingFactor = 0.08;
+    this.controls.maxPolarAngle = Math.PI * 0.48;
+    this.controls.minDistance = 4;
+    this.controls.maxDistance = 34;
     this.controls.enablePan = true;
-    this.controls.enableZoom = true;
-    this.controls.minDistance = 8;
-    this.controls.maxDistance = 42;
-    this.controls.minPolarAngle = 0.3;
-    this.controls.maxPolarAngle = Math.PI / 2.1;
 
-    const ambient = new AmbientLight(0x7bd88f, 0.6);
-    const directional = new DirectionalLight(0xffffff, 1.2);
-    directional.position.set(12, 24, 12);
-    directional.castShadow = false;
-    this.scene.add(ambient, directional);
+    this.camera.position.set(0, 10, 22);
+    this.controls.target.set(0, 2, 0);
 
-    const ground = new Mesh(
-      new PlaneGeometry(160, 160, 32, 32),
-      new MeshStandardMaterial({ color: 0x1f2a33 })
-    );
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -0.01;
-    ground.receiveShadow = false;
-    this.scene.add(ground);
+    this.cameraRig = new CameraRig(this.camera, this.controls);
 
-    const sky = createSky();
-    this.scene.add(sky);
+    this.scene.background = new Color('#0b0f18');
+    this.scene.fog = new Fog('#0b0f18', 20, 120);
 
-    const labelContainer = document.createElement('div');
-    labelContainer.setAttribute('aria-hidden', 'false');
-    canvas.parentElement?.appendChild(labelContainer);
+    this.setupLights();
+    this.setupGround();
+    this.scene.add(createSky());
+    this.scene.add(this.islandGroup);
 
-    this.labels = new Labels(labelContainer, this.camera, this.renderer, (hotspot) => {
-      const name = this.hotspotNames.get(hotspot);
-      if (name) {
-        this.options.onHotspotSelected(name);
-      }
-    });
+    this.options.container.appendChild(this.renderer.domElement);
+    this.onResize();
 
-    this.createIslands();
+    this.populateIslands();
+    this.labels.setHotspots(this.hotspots, (hotspot) => this.options.router.go(hotspot.route));
 
-    const debug = new URLSearchParams(location.search).get('debug') === '1';
-    this.debug = new DebugUI(debug);
-
-    this.bindEvents();
-    this.pointer.set(1000, 1000);
-    this.animate();
-  }
-
-  private createIslands() {
-    const group = new Group();
-    const { content, assets, audio } = this.options;
-
-    const grill = createGrillIsland({
-      content,
-      assets,
-      audio,
-      reducedMotion: this.options.reducedMotion
-    });
-    grill.group.position.set(10, 0, 0);
-    this.registerHotspot('cooking', grill.hotspot);
-    group.add(grill.group);
-
-    const rack = createITRackIsland({
-      content,
-      assets,
-      audio,
-      reducedMotion: this.options.reducedMotion
-    });
-    rack.group.position.set(-10, 0, 0);
-    this.registerHotspot('it', rack.hotspot);
-    group.add(rack.group);
-
-    const garden = createGardenIsland({
-      content,
-      assets,
-      audio,
-      reducedMotion: this.options.reducedMotion
-    });
-    garden.group.position.set(0, 0, -10);
-    this.registerHotspot('gardening', garden.hotspot);
-    group.add(garden.group);
-
-    const ai = createAIHubIsland({
-      content,
-      assets,
-      audio,
-      reducedMotion: this.options.reducedMotion
-    });
-    ai.group.position.set(-4, 0, -6);
-    this.registerHotspot('ai', ai.hotspot);
-    group.add(ai.group);
-
-    const music = createMusicIsland({
-      content,
-      assets,
-      audio,
-      reducedMotion: this.options.reducedMotion
-    });
-    music.group.position.set(0, 0, 8);
-    this.registerHotspot('music', music.hotspot);
-    group.add(music.group);
-
-    this.scene.add(group);
-  }
-
-  private registerHotspot(name: string, hotspot: Hotspot) {
-    this.hotspots.set(name, hotspot);
-    this.hotspotNames.set(hotspot, name);
-    this.labels.register(name, hotspot);
-    hotspot.on('click', () => this.options.onHotspotSelected(name));
-  }
-
-  private bindEvents() {
     window.addEventListener('resize', () => this.onResize());
-    document.addEventListener('visibilitychange', () => {
-      this.animating = document.visibilityState !== 'hidden';
-      if (this.animating) {
-        this.clock.getDelta();
-        this.animate();
-      }
+    this.renderer.domElement.addEventListener('pointermove', (event: PointerEvent) => this.onPointerMove(event));
+    this.renderer.domElement.addEventListener('click', () => this.onClick());
+    window.addEventListener('keydown', (event) => this.onKeyDown(event));
+
+    this.cameraRig.setReducedMotion(this.reducedMotion);
+    const reduceMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    reduceMotionQuery.addEventListener('change', (event) => {
+      this.reducedMotion = event.matches;
+      this.cameraRig.setReducedMotion(this.reducedMotion);
     });
 
-    const canvas = this.renderer.domElement;
-    canvas.addEventListener('pointermove', (event) => this.onPointerMove(event));
-    canvas.addEventListener('click', () => this.onClick());
-    canvas.addEventListener('pointerleave', () => {
-      if (this.hovered) {
-        this.hovered.setHoverState(false);
-        this.hovered = null;
-        this.labels.setActive(null);
-      }
+    this.start();
+  }
+
+  private setupLights() {
+    const ambient = new AmbientLight('#f0f4ff', 0.5);
+    this.scene.add(ambient);
+
+    const directional = new DirectionalLight('#f6f8ff', 1.1);
+    directional.position.set(12, 18, 8);
+    directional.castShadow = true;
+    directional.shadow.mapSize.width = 1024;
+    directional.shadow.mapSize.height = 1024;
+    directional.shadow.camera.near = 4;
+    directional.shadow.camera.far = 60;
+    this.scene.add(directional);
+  }
+
+  private setupGround() {
+    const groundGeometry = new PlaneGeometry(60, 60, 1, 1);
+    const groundMaterial = new MeshStandardMaterial({
+      color: '#1b2435',
+      roughness: 0.8,
+      metalness: 0.1,
+      bumpScale: 0.2
+    });
+    groundMaterial.bumpMap = this.options.assets.noiseTexture;
+    const ground = new Mesh(groundGeometry, groundMaterial);
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    ground.position.y = 0;
+    this.scene.add(ground);
+  }
+
+  private populateIslands() {
+    const radius = 14;
+    const angleStep = (Math.PI * 2) / ISLAND_ROUTES.length;
+    const { content, assets } = this.options;
+
+    const factories = [
+      GrillIsland.create,
+      ITRackIsland.create,
+      GardenIsland.create,
+      AIHubIsland.create,
+      MusicIsland.create
+    ];
+
+    factories.forEach((factory, index) => {
+      const angle = index * angleStep;
+      const x = Math.cos(angle) * radius;
+      const z = Math.sin(angle) * radius;
+      const hotspot = factory(this.islandGroup, content, assets);
+      hotspot.mesh.position.set(x, 0, z);
+      hotspot.mesh.lookAt(0, 0.5, 0);
+      this.hotspots.push(hotspot);
+      hotspot.addEventListener('enter', () => this.handleHotspotEnter(hotspot));
+      hotspot.addEventListener('click', () => this.options.router.go(hotspot.route));
+      const target = new Vector3().copy(hotspot.mesh.position).setY(2);
+      const cameraPos = new Vector3().copy(hotspot.mesh.position).setLength(radius + 6).setY(8);
+      this.cameraRig.addPose(hotspot.route, cameraPos, target);
     });
 
-    window.addEventListener('keydown', (event) => {
-      if (event.key === 'h' || event.key === 'H') {
-        this.options.onHotspotSelected('home');
-      }
-      const keys = ['1', '2', '3', '4', '5'];
-      const names = ['cooking', 'it', 'gardening', 'ai', 'music'];
-      const index = keys.indexOf(event.key);
-      if (index >= 0) {
-        this.options.onHotspotSelected(names[index]);
-      }
+    const homePos = new Vector3(0, 12, radius + 6);
+    const homeTarget = new Vector3(0, 3, 0);
+    this.cameraRig.addPose('#home', homePos, homeTarget);
+    ['#projects', '#writing', '#talks', '#contact'].forEach((route) => {
+      this.cameraRig.addPose(route as RouteName, homePos, homeTarget);
     });
+  }
+
+  private start() {
+    this.clock.start();
+    const loop = () => {
+      if (!this.paused) {
+        const delta = Math.min(this.clock.getDelta(), 1 / 30);
+        this.update(delta);
+      }
+      requestAnimationFrame(loop);
+    };
+    loop();
+  }
+
+  setPaused(paused: boolean) {
+    this.paused = paused;
+    if (!paused) {
+      this.clock.getDelta();
+    }
+  }
+
+  private update(delta: number) {
+    this.cameraRig.update(delta);
+    this.controls.update();
+    this.renderHotspots(delta);
+    this.labels.update(this.camera, this.renderer, this.options.router.getRoute());
+    this.renderer.render(this.scene, this.camera);
+  }
+
+  private renderHotspots(delta: number) {
+    const elapsed = this.clock.elapsedTime;
+    const audioActive = this.options.audio.isEnabled();
+    for (const hotspot of this.hotspots) {
+      hotspot.update?.({ delta, elapsed, reducedMotion: this.reducedMotion, audioActive });
+    }
   }
 
   private onResize() {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
-    this.camera.aspect = width / height;
+    const { clientWidth, clientHeight } = this.options.container;
+    this.camera.aspect = clientWidth / clientHeight;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(width, height);
+    this.renderer.setSize(clientWidth, clientHeight, false);
   }
 
   private onPointerMove(event: PointerEvent) {
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    this.raycast();
   }
 
   private onClick() {
     if (this.hovered) {
-      this.hovered.click();
+      this.options.router.go(this.hovered.route);
     }
   }
 
-  private updateHover() {
+  private raycast() {
     this.raycaster.setFromCamera(this.pointer, this.camera);
-    const intersects = Array.from(this.hotspots.values())
-      .map((spot) => ({
-        spot,
-        intersection: this.raycaster.intersectObject(spot.hitArea, false)[0]
-      }))
-      .filter((entry) => entry.intersection)
-      .sort((a, b) => a.intersection!.distance - b.intersection!.distance);
-
-    const first = intersects[0]?.spot ?? null;
-    if (first !== this.hovered) {
-      if (this.hovered) this.hovered.setHoverState(false);
-      this.hovered = first;
-      if (this.hovered) {
-        this.hovered.setHoverState(true);
-        const current = this.hotspotNames.get(this.hovered) ?? null;
-        this.labels.setActive(current);
-      } else {
-        this.labels.setActive(null);
+    const intersections = this.raycaster.intersectObjects(this.hotspots.map((h) => h.hitArea), false);
+    if (intersections.length > 0) {
+      const hotspot = (intersections[0].object as Mesh).userData.hotspot as Hotspot;
+      if (hotspot && hotspot !== this.hovered) {
+        this.hovered = hotspot;
+        hotspot.onEnter();
+        this.options.hud.announce(hotspot.summary);
+        this.options.audio.playHoverTone();
       }
+    } else {
+      this.hovered = null;
     }
   }
 
-  private animate = () => {
-    if (!this.animating) return;
-    requestAnimationFrame(this.animate);
-    const delta = this.clock.getDelta();
-    this.controls.enableDamping = !this.options.reducedMotion();
-    this.controls.update();
-    this.cameraRig.update(delta);
-    this.updateHover();
-    this.renderer.render(this.scene, this.camera);
-    this.labels.update();
-    this.debug.update();
-  };
-
-  focus(name: string, immediate = false) {
-    if (name === 'home') {
-      this.cameraRig.animateTo('home', { immediate });
-      this.labels.setActive(null);
+  private onKeyDown(event: KeyboardEvent) {
+    if (event.key.toLowerCase() === 'h') {
+      this.options.router.go('#home');
       return;
     }
-    const hotspot = this.hotspots.get(name);
-    if (!hotspot) return;
-    switch (name) {
-      case 'cooking':
-        this.cameraRig.animateTo('cooking', { immediate });
-        break;
-      case 'it':
-        this.cameraRig.animateTo('it', { immediate });
-        break;
-      case 'gardening':
-        this.cameraRig.animateTo('gardening', { immediate });
-        break;
-      case 'ai':
-        this.cameraRig.animateTo('ai', { immediate });
-        break;
-      case 'music':
-        this.cameraRig.animateTo('music', { immediate });
-        break;
+    const index = Number(event.key) - 1;
+    if (index >= 0 && index < ISLAND_ROUTES.length) {
+      this.options.router.go(ISLAND_ROUTES[index]);
     }
-    this.labels.setActive(name);
+  }
+
+  private handleHotspotEnter(hotspot: Hotspot) {
+    this.options.overlay.announceHover(hotspot.summary);
+  }
+
+  handleRoute(route: RouteName) {
+    if (route === '#resume') {
+      return;
+    }
+    if (route === '#home') {
+      this.options.overlay.close();
+    } else {
+      this.options.overlay.open(route);
+    }
+    this.options.hud.setActive(route);
+    this.cameraRig.animateTo(route);
   }
 }

@@ -1,62 +1,71 @@
+const STORAGE_KEY = 'ryan-world-audio';
+
+type Listener = (active: boolean) => void;
+
 export class AudioController {
   private context: AudioContext | null = null;
   private gain: GainNode | null = null;
-  private muted = false;
+  private unlocked = false;
+  private enabled = false;
+  private listeners = new Set<Listener>();
 
   constructor() {
-    const stored = localStorage.getItem('ryan.audio.muted');
-    this.muted = stored === 'true';
+    this.enabled = window.localStorage.getItem(STORAGE_KEY) !== 'muted';
+    document.addEventListener('pointerdown', () => this.unlock(), { once: true });
+    document.addEventListener('keydown', () => this.unlock(), { once: true });
   }
 
-  private ensureContext() {
-    if (this.context) return;
-    this.context = new AudioContext();
-    this.gain = this.context.createGain();
-    this.gain.gain.value = this.muted ? 0 : 0.3;
-    this.gain.connect(this.context.destination);
+  onChange(listener: Listener) {
+    this.listeners.add(listener);
+    listener(this.enabled);
+    return () => this.listeners.delete(listener);
   }
 
-  async resume(): Promise<void> {
-    this.ensureContext();
-    if (this.context?.state === 'suspended') {
-      await this.context.resume();
+  private notify() {
+    for (const listener of this.listeners) {
+      listener(this.enabled);
     }
   }
 
-  get destination(): GainNode | null {
-    this.ensureContext();
-    return this.gain;
+  async unlock() {
+    if (this.unlocked) return;
+    try {
+      this.context = new AudioContext();
+      this.gain = this.context.createGain();
+      this.gain.gain.value = this.enabled ? 1 : 0;
+      this.gain.connect(this.context.destination);
+      this.unlocked = true;
+    } catch (error) {
+      console.warn('Audio context failed to init', error);
+    }
   }
 
-  toggleMute(): boolean {
-    this.muted = !this.muted;
-    localStorage.setItem('ryan.audio.muted', String(this.muted));
+  toggle(): boolean {
+    this.enabled = !this.enabled;
     if (this.gain) {
-      this.gain.gain.value = this.muted ? 0 : 0.3;
+      this.gain.gain.value = this.enabled ? 1 : 0;
     }
-    return this.muted;
+    window.localStorage.setItem(STORAGE_KEY, this.enabled ? 'unmuted' : 'muted');
+    this.notify();
+    return this.enabled;
   }
 
-  isMuted(): boolean {
-    return this.muted;
+  isEnabled(): boolean {
+    return this.enabled;
   }
 
-  createOscillator(frequency: number): OscillatorNode {
-    this.ensureContext();
-    const osc = this.context!.createOscillator();
-    osc.frequency.value = frequency;
+  playHoverTone() {
+    if (!this.enabled || !this.context || !this.gain) return;
+    const osc = this.context.createOscillator();
+    const envelope = this.context.createGain();
     osc.type = 'sine';
-    const gain = this.context!.createGain();
-    gain.gain.value = 0.02;
-    osc.connect(gain).connect(this.gain!);
-    return osc;
-  }
-
-  createBufferSource(buffer: AudioBuffer): AudioBufferSourceNode {
-    this.ensureContext();
-    const source = this.context!.createBufferSource();
-    source.connect(this.gain!);
-    source.buffer = buffer;
-    return source;
+    osc.frequency.value = 480;
+    envelope.gain.value = 0.001;
+    envelope.gain.exponentialRampToValueAtTime(0.05, this.context.currentTime + 0.01);
+    envelope.gain.exponentialRampToValueAtTime(0.0001, this.context.currentTime + 0.3);
+    osc.connect(envelope);
+    envelope.connect(this.gain);
+    osc.start();
+    osc.stop(this.context.currentTime + 0.35);
   }
 }

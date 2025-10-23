@@ -1,51 +1,13 @@
-import { PerspectiveCamera, Vector3 } from 'three';
+import { Matrix4, Quaternion, Vector3 } from 'three';
+import type { PerspectiveCamera } from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import type { RouteName } from '../types';
 
-type TargetName =
-  | 'home'
-  | 'cooking'
-  | 'it'
-  | 'gardening'
-  | 'ai'
-  | 'music';
-
-type CameraPose = {
+interface Pose {
   position: Vector3;
   target: Vector3;
-  zoom: number;
-};
-
-const poses: Record<TargetName, CameraPose> = {
-  home: {
-    position: new Vector3(0, 14, 22),
-    target: new Vector3(0, 0, 0),
-    zoom: 1
-  },
-  cooking: {
-    position: new Vector3(14, 8, 6),
-    target: new Vector3(8, 0, 0),
-    zoom: 1
-  },
-  it: {
-    position: new Vector3(-14, 9, 8),
-    target: new Vector3(-8, 0, 0),
-    zoom: 1
-  },
-  gardening: {
-    position: new Vector3(6, 9, -14),
-    target: new Vector3(0, 0, -8),
-    zoom: 1
-  },
-  ai: {
-    position: new Vector3(-6, 10, -12),
-    target: new Vector3(-2, 1, -6),
-    zoom: 1
-  },
-  music: {
-    position: new Vector3(0, 8, 16),
-    target: new Vector3(0, 0, 6),
-    zoom: 1
-  }
-};
+  quaternion: Quaternion;
+}
 
 interface AnimateOptions {
   immediate?: boolean;
@@ -53,46 +15,80 @@ interface AnimateOptions {
 }
 
 export class CameraRig {
-  private currentTarget: TargetName = 'home';
-  private progress = 1;
+  private poses = new Map<RouteName, Pose>();
   private startPosition = new Vector3();
+  private endPosition = new Vector3();
   private startTarget = new Vector3();
-  private destinationPosition = poses.home.position.clone();
-  private destinationTarget = poses.home.target.clone();
-  private duration = 1;
+  private endTarget = new Vector3();
+  private startQuaternion = new Quaternion();
+  private endQuaternion = new Quaternion();
+  private elapsed = 0;
+  private duration = 0;
+  private reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  private matrixHelper = new Matrix4();
 
-  constructor(private camera: PerspectiveCamera, private reducedMotion: () => boolean) {
-    const pose = poses.home;
-    this.camera.position.copy(pose.position);
-    this.camera.lookAt(pose.target);
+  constructor(private camera: PerspectiveCamera, private controls: OrbitControls) {}
+
+  setReducedMotion(value: boolean) {
+    this.reducedMotion = value;
   }
 
-  animateTo(name: TargetName, opts: AnimateOptions = {}): void {
-    this.currentTarget = name;
-    const pose = poses[name];
-    this.duration = opts.duration ?? 1.25;
+  addPose(route: RouteName, position: Vector3, target: Vector3) {
+    const quaternion = new Quaternion();
+    this.matrixHelper.lookAt(position, target, new Vector3(0, 1, 0));
+    quaternion.setFromRotationMatrix(this.matrixHelper);
+    const pose: Pose = {
+      position: position.clone(),
+      target: target.clone(),
+      quaternion
+    };
+    this.poses.set(route, pose);
+  }
+
+  animateTo(route: RouteName, options: AnimateOptions = {}) {
+    const pose = this.poses.get(route);
+    if (!pose) return;
+
     this.startPosition.copy(this.camera.position);
-    this.startTarget.copy(this.destinationTarget);
-    this.destinationPosition = pose.position.clone();
-    this.destinationTarget = pose.target.clone();
-    this.progress = opts.immediate || this.reducedMotion() ? 1 : 0;
-    if (this.progress === 1) {
-      this.camera.position.copy(this.destinationPosition);
-      this.camera.lookAt(this.destinationTarget);
+    this.startTarget.copy(this.controls.target);
+    this.startQuaternion.copy(this.camera.quaternion);
+
+    this.endPosition.copy(pose.position);
+    this.endTarget.copy(pose.target);
+    this.endQuaternion.copy(pose.quaternion);
+
+    if (options.immediate || this.reducedMotion) {
+      this.duration = 0;
+      this.applyPose(1);
+      return;
+    }
+
+    this.elapsed = 0;
+    this.duration = options.duration ?? 1.6;
+  }
+
+  update(delta: number) {
+    if (this.duration <= 0) return;
+    this.elapsed = Math.min(this.elapsed + delta, this.duration);
+    const t = this.elapsed / this.duration;
+    const eased = this.easeInOut(t);
+    this.applyPose(eased);
+    if (this.elapsed >= this.duration) {
+      this.duration = 0;
     }
   }
 
-  update(delta: number): void {
-    if (this.progress >= 1) return;
-    const step = Math.min(1, this.progress + delta / this.duration);
-    this.progress = step;
-    const position = this.startPosition.clone().lerp(this.destinationPosition, step);
-    const target = this.startTarget.clone().lerp(this.destinationTarget, step);
-    this.camera.position.copy(position);
-    this.camera.lookAt(target);
+  private applyPose(alpha: number) {
+    this.camera.position.lerpVectors(this.startPosition, this.endPosition, alpha);
+    this.controls.target.lerpVectors(this.startTarget, this.endTarget, alpha);
+    const quat = new Quaternion();
+    quat.slerpQuaternions(this.startQuaternion, this.endQuaternion, alpha);
+    this.camera.quaternion.copy(quat);
+    this.camera.updateMatrixWorld();
+    this.controls.update();
   }
 
-  get current(): TargetName {
-    return this.currentTarget;
+  private easeInOut(t: number) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
   }
 }

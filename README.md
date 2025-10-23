@@ -1,69 +1,59 @@
-# Ryan World
+# Ryan 3D World
 
-A low-poly Three.js world that presents Ryan's work and interests in an accessible, data-driven experience powered by `content/profile.json`.
+Ryan's 3D world is a lightweight personal experience that showcases five themed islands, interactive hotspots, and overlay content sourced from `content/profile.json`. The project is written in TypeScript, powered by Three.js, and bundled with Vite.
 
-## Setup
+## Features
 
-```sh
-npm install
-```
+- **Five interactive islands** arranged around a central hub: cooking, infrastructure, gardening, AI, and music.
+- **Accessible UI** with keyboard navigation, overlay panels, HTML labels, and aria-live announcements.
+- **Hash-based routing** for deep links to interests, projects, writing, talks, resume, and contact information.
+- **Reduced motion awareness** and an audio controller with persisted preferences.
+- **Automatic fallback** page that renders the same content when WebGL is unavailable.
+
+## Project structure
+
+- `src/world` – Three.js scene setup, camera rig, hotspots, labels, and island builders.
+- `src/ui` – HUD navigation, overlay panels, and router helpers.
+- `src/utils` – Asset loader (procedural textures) and audio controller.
+- `content/profile.json` – Single source of truth for profile data.
+- `src/fallback/index.html` – Static experience served when WebGL checks fail.
 
 ## Development
 
-```sh
+```bash
+npm install
 npm run dev
 ```
 
-Vite serves the site with hot module replacement. Content updates in `content/profile.json` propagate without code changes.
+The dev server starts on port 5173. Navigate to `http://localhost:5173` and explore the 3D world. Press `H` to return home, `1-5` to jump to islands, and use the HUD toggles for theme and audio.
 
-## Build
+## Building & previewing
 
-```sh
+```bash
 npm run build
-```
-
-This emits an optimized static bundle in `dist/` that stays under the 2&nbsp;MB gzipped target by using procedural geometry and inline textures.
-
-Preview the production build locally:
-
-```sh
 npm run preview
 ```
 
-## Type Checking
+The preview server hosts the production build on port 4173.
 
-```sh
-npm run typecheck
-```
+## Fallback experience
 
-TypeScript runs in strict mode to keep the codebase predictable.
+If `supports3D()` detects missing WebGL2 features, users are redirected to the fallback page. You can test it manually by visiting `/src/fallback/index.html` during development.
 
-## Editing Content
+## Data updates
 
-All copy, projects, posts, talks, and interest summaries live in `content/profile.json`. Update this file to refresh the 3D and fallback views.
+All overlay and fallback content is populated from [`content/profile.json`](content/profile.json). Update that file to change skills, links, projects, or island summaries.
 
-## Progressive Enhancement
+## Deployment notes
 
-* If WebGL 2 is unavailable or `prefers-reduced-motion` is enabled, visitors are redirected to `fallback/index.html`, which renders the full profile in a 2D layout.
-* Users can re-enable the 3D scene from the fallback view; their choice is persisted.
-* Motion, audio, and theme toggles are exposed in the HUD and saved with `localStorage`.
+- Ensure `/content/profile.json` and the fallback HTML are hosted alongside the bundle.
+- Keep the gzipped build under 2 MB by relying on procedurally generated assets.
+- The site is static and can be served from any CDN or static file host.
 
-## Performance Notes
+## Commands history
 
-* The scene uses low-poly meshes, small custom textures, and lightweight shaders.
-* Render loops pause when the tab loses focus, and camera easing is disabled when motion is off.
-* Audio is generated procedurally and requires an explicit user gesture to enable.
-
-## Deploying
-
-The project builds to static assets and can be hosted on any CDN or static site provider. Ensure `content/profile.json` is deployed alongside the bundle.
-
-## Useful Commands
-
-```
-npm create vite@latest ryan-world -- --template vanilla-ts
-npm i three
-npm run dev
-npm run build
-python3 -m http.server 4173 from dist for a simple local serve
-```
+- npm create vite@latest ryan-world -- --template vanilla-ts
+- npm i three
+- npm run dev
+- npm run build
+- python3 -m http.server 4173 from dist for a simple local serve

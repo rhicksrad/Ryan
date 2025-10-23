@@ -1,56 +1,97 @@
 import {
   BoxGeometry,
   Group,
+  InstancedMesh,
+  Matrix4,
   Mesh,
-  MeshLambertMaterial,
-  MeshStandardMaterial
+  MeshStandardMaterial,
+  CylinderGeometry,
+  Vector3,
+  Quaternion
 } from 'three';
+import type { LoadedAssets, ProfileContent } from '../../types';
 import { Hotspot } from '../Hotspot';
-import type { IslandContext, IslandResult } from './types';
 
-export function createGardenIsland(context: IslandContext): IslandResult {
+const tempMatrix = new Matrix4();
+const tempVector = new Vector3();
+const tempQuat = new Quaternion();
+const tempScale = new Vector3();
+const axisZ = new Vector3(0, 0, 1);
+
+export function create(parent: Group, content: ProfileContent, _assets: LoadedAssets) {
   const group = new Group();
-  const base = new Mesh(new BoxGeometry(4.6, 0.4, 4.6), new MeshStandardMaterial({ color: 0x3a5f2b }));
-  base.position.y = 0;
-  group.add(base);
+  group.name = 'Garden Island';
 
-  const bedGeometry = new BoxGeometry(1.6, 0.6, 0.9);
-  const bedMaterial = new MeshStandardMaterial({ color: 0x6b4f2d });
-  const plantMaterial = new MeshLambertMaterial({ color: 0x8bdc65 });
-  [-1.2, 0, 1.2].forEach((x, index) => {
-    const bed = new Mesh(bedGeometry, bedMaterial);
-    bed.position.set(x, 0.7, index % 2 === 0 ? -0.8 : 0.8);
+  const soilMaterial = new MeshStandardMaterial({ color: '#5b3a29', roughness: 0.9 });
+  const bedMaterial = new MeshStandardMaterial({ color: '#8d6e63', roughness: 0.8 });
+
+  for (let i = 0; i < 3; i++) {
+    const bed = new Mesh(new BoxGeometry(2.8, 0.6, 1.4), bedMaterial);
+    bed.position.set((i - 1) * 2.4, 0.3, 0);
+    bed.castShadow = true;
+    bed.receiveShadow = true;
     group.add(bed);
-    for (let i = 0; i < 4; i++) {
-      const plant = new Mesh(new BoxGeometry(0.2, 0.8, 0.2), plantMaterial);
-      const offset = i;
-      plant.position.set(x + (offset - 1.5) * 0.3, 1.2 + Math.random() * 0.2, bed.position.z + (Math.random() - 0.5) * 0.4);
-      plant.onBeforeRender = () => {
-        if (context.reducedMotion()) return;
-        plant.rotation.y = Math.sin(performance.now() * 0.001 + offset) * 0.1;
-      };
-      group.add(plant);
+
+    const soil = new Mesh(new BoxGeometry(2.6, 0.3, 1.2), soilMaterial);
+    soil.position.set((i - 1) * 2.4, 0.75, 0);
+    soil.receiveShadow = true;
+    group.add(soil);
+  }
+
+  const plantGeometry = new CylinderGeometry(0.1, 0.4, 0.9, 6, 1);
+  const plantMaterial = new MeshStandardMaterial({ color: '#6cc24a' });
+  const plantCount = 48;
+  const plants = new InstancedMesh(plantGeometry, plantMaterial, plantCount);
+
+  const basePositions: Vector3[] = [];
+  for (let i = 0; i < plantCount; i++) {
+    const bedIndex = Math.floor(i / 16);
+    const x = (Math.random() - 0.5) * 2.2 + (bedIndex - 1) * 2.4;
+    const z = (Math.random() - 0.5) * 0.8;
+    const y = 1.2;
+    tempVector.set(x, y, z);
+    tempQuat.set(0, 0, 0, 1);
+    tempScale.set(1, 1, 1);
+    tempMatrix.compose(tempVector, tempQuat, tempScale);
+    plants.setMatrixAt(i, tempMatrix);
+    basePositions.push(tempVector.clone());
+  }
+  plants.instanceMatrix.needsUpdate = true;
+  plants.castShadow = true;
+  group.add(plants);
+
+  parent.add(group);
+
+  const hitArea = new Mesh(new BoxGeometry(6, 0.4, 4));
+  hitArea.position.y = 0.2;
+  hitArea.visible = false;
+  group.add(hitArea);
+
+  const hotspot = new Hotspot({
+    name: 'Garden Island',
+    route: '#gardening',
+    ariaLabel: 'Open gardening notes',
+    mesh: group,
+    hitArea,
+    interestKey: 'gardening',
+    summary: content.interests.gardening.summary
+  });
+
+  const swayOffsets = Array.from({ length: plantCount }, () => Math.random() * Math.PI * 2);
+
+  hotspot.setUpdate(({ elapsed, reducedMotion }) => {
+    if (reducedMotion) return;
+    for (let i = 0; i < plantCount; i++) {
+      const sway = Math.sin(elapsed * 0.8 + swayOffsets[i]) * 0.15;
+      const scale = 0.9 + Math.sin(elapsed * 0.5 + swayOffsets[i]) * 0.1;
+      tempVector.copy(basePositions[i]);
+      tempQuat.setFromAxisAngle(axisZ, sway);
+      tempScale.set(1, scale, 1);
+      tempMatrix.compose(tempVector, tempQuat, tempScale);
+      plants.setMatrixAt(i, tempMatrix);
     }
+    plants.instanceMatrix.needsUpdate = true;
   });
 
-  const can = new Mesh(new BoxGeometry(0.6, 0.4, 0.3), new MeshStandardMaterial({ color: 0xa4b0be }));
-  can.position.set(1.8, 1.1, -1);
-  can.onBeforeRender = () => {
-    if (context.reducedMotion()) return;
-    can.rotation.z = Math.sin(performance.now() * 0.0012) * 0.2;
-  };
-  group.add(can);
-
-  const sign = new Mesh(new BoxGeometry(1.4, 0.4, 0.1), new MeshStandardMaterial({ color: 0x8f9c6c }));
-  sign.position.set(-2.3, 1, 0);
-  group.add(sign);
-
-  const hotspot = new Hotspot(group, {
-    name: 'gardening',
-    label: 'Gardening',
-    annotations: [context.content.interests.gardening.summary],
-    ariaLabel: 'Open gardening notes'
-  });
-
-  return { group, hotspot };
+  return hotspot;
 }
