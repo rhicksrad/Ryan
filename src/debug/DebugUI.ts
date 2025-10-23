@@ -1,22 +1,42 @@
-import type { World } from '../world/World';
+import type { PerspectiveCamera } from 'three';
 
 export class DebugUI {
-  constructor(private world: World) {}
+  private readonly element: HTMLPreElement;
+  private readonly camera: PerspectiveCamera;
+  private enabled = false;
 
-  init() {
-    if (!import.meta.env.DEV) return;
-    const info = document.createElement('div');
-    info.style.position = 'fixed';
-    info.style.top = '72px';
-    info.style.right = '16px';
-    info.style.padding = '0.5rem 0.75rem';
-    info.style.background = 'rgba(0,0,0,0.5)';
-    info.style.color = '#fff';
-    info.style.fontSize = '0.75rem';
-    info.style.borderRadius = '8px';
-    info.style.zIndex = '50';
-    info.textContent = 'Debug: H to home, 1-5 to islands';
-    document.body.appendChild(info);
-    setTimeout(() => info.remove(), 6000);
+  constructor(camera: PerspectiveCamera) {
+    this.camera = camera;
+    this.element = document.createElement('pre');
+    this.element.style.position = 'absolute';
+    this.element.style.left = '1rem';
+    this.element.style.bottom = '1rem';
+    this.element.style.padding = '0.5rem 0.75rem';
+    this.element.style.background = 'rgba(15, 23, 42, 0.75)';
+    this.element.style.borderRadius = '0.75rem';
+    this.element.style.fontSize = '0.75rem';
+    this.element.style.pointerEvents = 'none';
+    this.element.style.whiteSpace = 'pre-wrap';
+    if (new URLSearchParams(window.location.search).get('debug') === '1') {
+      this.enable();
+    }
+  }
+
+  attach(container: HTMLElement): void {
+    if (this.enabled) {
+      container.appendChild(this.element);
+    }
+  }
+
+  enable(): void {
+    this.enabled = true;
+  }
+
+  update(): void {
+    if (!this.enabled) {
+      return;
+    }
+    const { x, y, z } = this.camera.position;
+    this.element.textContent = `Camera\n  x: ${x.toFixed(2)}\n  y: ${y.toFixed(2)}\n  z: ${z.toFixed(2)}`;
   }
 }

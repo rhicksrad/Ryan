@@ -1,81 +1,64 @@
 import {
   DataTexture,
-  FloatType,
-  RedFormat,
-  NearestFilter,
   RGBAFormat,
-  LinearFilter,
-  RepeatWrapping,
-  Texture,
-  TextureLoader
+  SRGBColorSpace,
+  UnsignedByteType,
+  Vector3
 } from 'three';
-import type { LoadedAssets } from '../types';
 
 export class AssetLoader {
-  private textureLoader = new TextureLoader();
+  private smokeTexture: DataTexture | null = null;
+  private noiseSize = 64;
+  private noiseData: Float32Array | null = null;
 
-  async load(): Promise<LoadedAssets> {
-    const [noiseTexture, smokeTexture] = await Promise.all([
-      this.generateNoiseTexture(),
-      this.generateSmokeTexture()
-    ]);
-
-    noiseTexture.generateMipmaps = false;
-    smokeTexture.generateMipmaps = false;
-
-    return {
-      noiseTexture,
-      smokeTexture
-    };
+  getSmokeTexture(): DataTexture {
+    if (!this.smokeTexture) {
+      const size = 64;
+      const data = new Uint8Array(size * size * 4);
+      for (let y = 0; y < size; y += 1) {
+        for (let x = 0; x < size; x += 1) {
+          const dx = x / size - 0.5;
+          const dy = y / size - 0.5;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          const softness = Math.max(0, 1 - distance * 2.2);
+          const alpha = Math.pow(softness, 2.5);
+          const offset = (y * size + x) * 4;
+          data[offset] = 255;
+          data[offset + 1] = 255;
+          data[offset + 2] = 255;
+          data[offset + 3] = Math.floor(alpha * 255);
+        }
+      }
+      this.smokeTexture = new DataTexture(data, size, size, RGBAFormat, UnsignedByteType);
+      this.smokeTexture.colorSpace = SRGBColorSpace;
+      this.smokeTexture.needsUpdate = true;
+    }
+    return this.smokeTexture;
   }
 
-  async loadTexture(url: string): Promise<Texture> {
-    return new Promise((resolve, reject) => {
-      this.textureLoader.load(
-        url,
-        (texture: Texture) => {
-          texture.wrapS = texture.wrapT = RepeatWrapping;
-          texture.needsUpdate = true;
-          resolve(texture);
-        },
-        undefined,
-        (err: unknown) => reject(err)
-      );
-    });
+  getNoiseValue(position: Vector3): number {
+    if (!this.noiseData) {
+      this.noiseData = this.generateNoise(this.noiseSize);
+    }
+    const size = this.noiseSize;
+    const x = Math.abs(Math.floor(position.x) % size);
+    const y = Math.abs(Math.floor(position.y) % size);
+    const z = Math.abs(Math.floor(position.z) % size);
+    const index = (z * size * size + y * size + x) % this.noiseData.length;
+    return this.noiseData[index];
   }
 
-  private async generateNoiseTexture(size = 128): Promise<DataTexture> {
-    const data = new Float32Array(size * size);
+  private generateNoise(size: number): Float32Array {
+    const data = new Float32Array(size * size * size);
     for (let i = 0; i < data.length; i += 1) {
       data[i] = Math.random();
     }
-    const texture = new DataTexture(data, size, size, RedFormat, FloatType);
-    texture.magFilter = texture.minFilter = NearestFilter;
-    texture.needsUpdate = true;
-    return texture;
+    return data;
   }
 
-  private async generateSmokeTexture(size = 64): Promise<DataTexture> {
-    const channels = 4;
-    const data = new Uint8Array(size * size * channels);
-    for (let i = 0; i < size; i++) {
-      for (let j = 0; j < size; j++) {
-        const idx = (i * size + j) * channels;
-        const dx = (i / size) * 2 - 1;
-        const dy = (j / size) * 2 - 1;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        const alpha = Math.max(0, 1 - dist * dist);
-        const value = Math.floor(alpha * 255);
-        data[idx] = value;
-        data[idx + 1] = value;
-        data[idx + 2] = value;
-        data[idx + 3] = Math.floor(alpha * 255);
-      }
-    }
-    const texture = new DataTexture(data, size, size, RGBAFormat);
-    texture.magFilter = LinearFilter;
-    texture.minFilter = LinearFilter;
-    texture.needsUpdate = true;
-    return texture;
+  async loadAudioBuffer(context: AudioContext, url: string): Promise<AudioBuffer> {
+    const response = await fetch(url);
+    const arrayBuffer = await response.arrayBuffer();
+    return context.decodeAudioData(arrayBuffer);
   }
 }

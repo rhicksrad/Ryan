@@ -1,17 +1,20 @@
 export function supports3D(): boolean {
   try {
     const canvas = document.createElement('canvas');
-    const gl = canvas.getContext('webgl2', { stencil: false, antialias: false });
-    if (!gl) return false;
-    const required = ['EXT_color_buffer_float', 'OES_texture_float_linear'];
-    for (const ext of required) {
-      if (!gl.getExtension(ext)) {
-        return false;
+    if (window.WebGL2RenderingContext) {
+      const gl2 = canvas.getContext('webgl2');
+      if (gl2) {
+        gl2.getExtension('EXT_color_buffer_float');
+        return true;
       }
     }
-    return true;
+    const gl =
+      canvas.getContext('webgl') ||
+      canvas.getContext('experimental-webgl') ||
+      canvas.getContext('webgl', { failIfMajorPerformanceCaveat: false });
+    return !!gl;
   } catch (error) {
-    console.warn('WebGL2 check failed', error);
+    console.warn('WebGL check failed', error);
     return false;
   }
 }

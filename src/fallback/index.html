@@ -6,144 +6,84 @@
     <title>Ryan 3D World – Fallback</title>
     <link rel="stylesheet" href="../../css/styles.css" />
     <style>
-      body {
-        overflow: auto;
-        background: var(--color-bg);
-        color: var(--color-text);
-        padding-top: var(--hud-height);
-      }
-      main {
-        max-width: 960px;
-        margin: 0 auto;
-        padding: 2rem 1.5rem 4rem;
-      }
-      .grid {
-        display: grid;
-        gap: 1.5rem;
-      }
-      .card {
-        background: var(--color-surface);
-        border: 1px solid var(--color-border);
-        border-radius: 16px;
-        padding: 1.5rem;
-        box-shadow: var(--shadow-soft);
-      }
-      header h1 {
-        margin: 0;
-      }
-      nav {
-        margin-top: 1rem;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-      }
-      nav a {
-        padding: 0.5rem 0.9rem;
-        border-radius: 999px;
-        border: 1px solid var(--color-border);
-        text-decoration: none;
-        color: var(--color-text);
-      }
-      nav a:hover,
-      nav a:focus-visible {
-        border-color: var(--color-accent);
-      }
+      body { overflow-y: auto; }
+      main { max-width: 960px; margin: 0 auto; padding: 2rem 1rem 4rem; }
+      header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
+      header img { width: 56px; height: 56px; }
+      section { margin-bottom: 2rem; }
     </style>
   </head>
   <body>
-    <header class="hud">
-      <a class="hud__logo" href="#top"><img src="../../assets/logo.svg" width="32" height="32" alt="Ryan logo" /><span>Ryan</span></a>
-      <nav class="hud__nav">
-        <a href="#cooking">Cooking</a>
-        <a href="#it">IT</a>
-        <a href="#gardening">Gardening</a>
-        <a href="#ai">AI</a>
-        <a href="#music">Music</a>
-        <a href="#projects">Projects</a>
-        <a href="#writing">Writing</a>
-        <a href="#talks">Talks</a>
-        <a href="../../resume.html" target="_blank" rel="noopener">Resume</a>
-        <a href="#contact">Contact</a>
+    <main>
+      <header>
+        <img id="fallback-logo" alt="Ryan mark" />
+        <div>
+          <h1>Ryan 3D World</h1>
+          <p id="tagline">Interactive portfolio islands.</p>
+        </div>
+      </header>
+      <p id="summary">
+        This fallback view provides the same information in a lightweight layout for devices without WebGL support.
+      </p>
+      <nav aria-label="Sections">
+        <ul>
+          <li><a href="#cooking">Cooking</a></li>
+          <li><a href="#it">IT Lab</a></li>
+          <li><a href="#gardening">Gardening</a></li>
+          <li><a href="#ai">AI Hub</a></li>
+          <li><a href="#music">Music</a></li>
+          <li><a href="../../resume.html">Resume</a></li>
+          <li><a href="#contact">Contact</a></li>
+        </ul>
       </nav>
-    </header>
-    <main id="content">
-      <p>Loading profile…</p>
+      <section id="skills"></section>
+      <section id="principles"></section>
+      <section id="projects"></section>
+      <section id="writing"></section>
+      <section id="talks"></section>
+      <section id="contact"></section>
     </main>
     <script type="module">
-      import profileUrl from '../../content/profile.json?url';
-      async function load() {
-        const main = document.getElementById('content');
-        try {
-          const res = await fetch(profileUrl);
-          const data = await res.json();
-          main.innerHTML = `
-            <section id="top" class="card">
-              <h1>${data.name}</h1>
-              <p>${data.bio_short}</p>
-              <p><strong>Location:</strong> ${data.location}</p>
-              <p><a href="mailto:${data.email}">${data.email}</a></p>
-            </section>
-            <section id="projects" class="card">
-              <h2>Projects</h2>
-              <div class="grid">
-                ${data.projects
-                  .map(
-                    (project) => `
-                      <article>
-                        <h3>${project.name}</h3>
-                        <p>${project.summary}</p>
-                        <p><strong>Role:</strong> ${project.role}</p>
-                        <p><strong>Highlights:</strong> ${project.highlights.join(', ')}</p>
-                      </article>
-                    `
-                  )
-                  .join('')}
-              </div>
-            </section>
-            <section id="writing" class="card">
-              <h2>Writing</h2>
-              <ul>
-                ${data.posts
-                  .map((post) => `<li><a href="${post.url}">${post.title}</a> — ${post.summary}</li>`)
-                  .join('')}
-              </ul>
-            </section>
-            <section id="talks" class="card">
-              <h2>Talks</h2>
-              <ul>
-                ${data.talks
-                  .map((talk) => `<li><a href="${talk.link}">${talk.title}</a> — ${talk.event}</li>`)
-                  .join('')}
-              </ul>
-            </section>
-            <section id="interests" class="card">
-              <h2>Interests</h2>
-              <div class="grid">
-                ${Object.entries(data.interests)
-                  .map(
-                    ([key, interest]) => `
-                      <article id="${key}">
-                        <h3>${key.charAt(0).toUpperCase() + key.slice(1)}</h3>
-                        <p>${interest.summary}</p>
-                      </article>
-                    `
-                  )
-                  .join('')}
-              </div>
-            </section>
-            <section id="contact" class="card">
-              <h2>Contact</h2>
-              <p>${data.contact.cta}</p>
-              <p>${data.contact.availability}</p>
-              <p><a href="mailto:${data.email}">${data.email}</a></p>
-            </section>
-          `;
-        } catch (error) {
-          main.textContent = 'Failed to load profile.';
-          console.error(error);
-        }
+      import logoUrl from '../../assets/logo.svg?url';
+      const logo = document.getElementById('fallback-logo');
+      if (logo instanceof HTMLImageElement) {
+        logo.src = logoUrl;
       }
-      load();
+      const summaryEl = document.getElementById('summary');
+      const taglineEl = document.getElementById('tagline');
+      const sections = {
+        skills: document.getElementById('skills'),
+        principles: document.getElementById('principles'),
+        projects: document.getElementById('projects'),
+        writing: document.getElementById('writing'),
+        talks: document.getElementById('talks'),
+        contact: document.getElementById('contact')
+      };
+      fetch('../../content/profile.json')
+        .then((response) => response.json())
+        .then((profile) => {
+          taglineEl.textContent = profile.tagline;
+          summaryEl.textContent = profile.summary;
+          sections.skills.innerHTML = `<h2>Skills</h2><ul>${profile.skills
+            .map((skill) => `<li>${skill}</li>`)
+            .join('')}</ul>`;
+          sections.principles.innerHTML = `<h2>Principles</h2><ul>${profile.principles
+            .map((item) => `<li>${item}</li>`)
+            .join('')}</ul>`;
+          sections.projects.innerHTML = `<h2>Projects</h2><ul>${profile.projects
+            .map((item) => `<li><a href="${item.url}">${item.title}</a></li>`)
+            .join('')}</ul>`;
+          sections.writing.innerHTML = `<h2>Writing</h2><ul>${profile.writing
+            .map((item) => `<li><a href="${item.url}">${item.title}</a></li>`)
+            .join('')}</ul>`;
+          sections.talks.innerHTML = `<h2>Talks</h2><ul>${profile.talks
+            .map((item) => `<li><a href="${item.url}">${item.title}</a></li>`)
+            .join('')}</ul>`;
+          sections.contact.innerHTML = `<h2>Contact</h2><p><a href="mailto:${profile.contact.email}">${profile.contact.email}</a></p>`;
+        })
+        .catch(() => {
+          summaryEl.textContent = 'Offline fallback. Please check your connection to load the full experience.';
+        });
     </script>
   </body>
 </html>

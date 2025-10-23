@@ -1,68 +1,55 @@
-import {
-  BoxGeometry,
-  Group,
-  Mesh,
-  MeshStandardMaterial
-} from 'three';
-import type { LoadedAssets, ProfileContent } from '../../types';
+import { BoxGeometry, CylinderGeometry, Group, Mesh, MeshStandardMaterial } from 'three';
 import { Hotspot } from '../Hotspot';
+import { AudioController } from '../../utils/Audio';
 
-export function create(parent: Group, content: ProfileContent, _assets: LoadedAssets) {
+interface MusicOptions {
+  audio: AudioController;
+  reducedMotion: boolean;
+}
+
+export function createMusicIsland(options: MusicOptions): Hotspot {
+  const { audio, reducedMotion } = options;
   const group = new Group();
-  group.name = 'Music Island';
 
-  const baseMaterial = new MeshStandardMaterial({ color: '#1f2230', roughness: 0.5 });
-  const accentMaterial = new MeshStandardMaterial({ color: '#f1f5f9', roughness: 0.8 });
-  const speakerMaterial = new MeshStandardMaterial({ color: '#e94f64', roughness: 0.4, metalness: 0.2 });
+  const platform = new Mesh(new CylinderGeometry(2.6, 2.9, 0.7, 24), new MeshStandardMaterial({ color: 0x1f2937 }));
+  platform.position.y = 0.35;
+  group.add(platform);
 
-  const synth = new Mesh(new BoxGeometry(3.6, 0.6, 1.6), baseMaterial);
-  synth.position.y = 0.8;
-  synth.castShadow = true;
-  group.add(synth);
+  const keyboardBase = new Mesh(new BoxGeometry(2.6, 0.3, 1.2), new MeshStandardMaterial({ color: 0x0f172a }));
+  keyboardBase.position.set(0, 1.1, 0);
+  group.add(keyboardBase);
 
-  const keys = new Group();
-  const keyGeometry = new BoxGeometry(0.2, 0.1, 1.5);
-  for (let i = 0; i < 18; i++) {
-    const key = new Mesh(keyGeometry, accentMaterial);
-    key.position.set(-1.6 + i * 0.2, 1.1, 0);
-    key.castShadow = true;
-    keys.add(key);
+  const keyMaterial = new MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3 });
+  for (let i = 0; i < 12; i += 1) {
+    const key = new Mesh(new BoxGeometry(0.18, 0.12, 1.1), keyMaterial);
+    key.position.set(i * 0.2 - 1.1, 1.25, 0);
+    group.add(key);
   }
-  group.add(keys);
 
-  const speaker = new Mesh(new BoxGeometry(1, 1.6, 1), speakerMaterial);
-  speaker.position.set(2.4, 1.2, 0);
-  speaker.castShadow = true;
+  const speakerMaterial = new MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x38bdf8, emissiveIntensity: 0.4 });
+  const speaker = new Mesh(new CylinderGeometry(0.6, 0.7, 1.6, 16), speakerMaterial);
+  speaker.position.set(-1.8, 1.4, -0.6);
+  speaker.rotation.z = Math.PI / 2;
   group.add(speaker);
 
-  parent.add(group);
+  const state = { time: 0 };
 
-  const hitArea = new Mesh(new BoxGeometry(5, 0.4, 3));
-  hitArea.position.y = 0.2;
-  hitArea.visible = false;
-  group.add(hitArea);
-
-  const hotspot = new Hotspot({
-    name: 'Music Island',
-    route: '#music',
-    ariaLabel: 'Open music notes',
+  return new Hotspot({
+    name: 'Music Studio',
+    ariaLabel: 'Listen to Ryan\'s synth experiments',
     mesh: group,
-    hitArea,
-    interestKey: 'music',
-    summary: content.interests.music.summary
-  });
-
-  hotspot.setUpdate(({ elapsed, audioActive, reducedMotion }) => {
-    if (!reducedMotion) {
-      keys.rotation.y = Math.sin(elapsed * 0.5) * 0.1;
-    }
-    if (audioActive) {
-      const scale = 1 + Math.sin(elapsed * 4) * 0.1;
-      speaker.scale.set(scale, 1 + Math.sin(elapsed * 4 + 0.5) * 0.1, scale);
-    } else {
-      speaker.scale.setScalar(1);
+    hitArea: platform,
+    route: '#music',
+    onEnter: () => {
+      audio.playHoverBleep().catch(() => undefined);
+    },
+    onUpdate: (delta) => {
+      if (reducedMotion) {
+        return;
+      }
+      state.time += delta;
+      const wobble = audio.isMuted() ? 1 : 1 + Math.sin(state.time * 4) * 0.05;
+      speaker.scale.set(wobble, 1, wobble);
     }
   });
-
-  return hotspot;
 }

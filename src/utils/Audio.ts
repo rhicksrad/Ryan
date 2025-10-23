@@ -1,71 +1,70 @@
-const STORAGE_KEY = 'ryan-world-audio';
-
-type Listener = (active: boolean) => void;
+const STORAGE_KEY = 'ryan-audio-muted';
 
 export class AudioController {
   private context: AudioContext | null = null;
   private gain: GainNode | null = null;
-  private unlocked = false;
-  private enabled = false;
-  private listeners = new Set<Listener>();
+  private muted = false;
 
   constructor() {
-    this.enabled = window.localStorage.getItem(STORAGE_KEY) !== 'muted';
-    document.addEventListener('pointerdown', () => this.unlock(), { once: true });
-    document.addEventListener('keydown', () => this.unlock(), { once: true });
-  }
-
-  onChange(listener: Listener) {
-    this.listeners.add(listener);
-    listener(this.enabled);
-    return () => this.listeners.delete(listener);
-  }
-
-  private notify() {
-    for (const listener of this.listeners) {
-      listener(this.enabled);
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      this.muted = stored === 'true';
+    } catch (error) {
+      console.warn('Unable to read audio preference', error);
     }
   }
 
-  async unlock() {
-    if (this.unlocked) return;
-    try {
+  async resume(): Promise<void> {
+    if (!this.context) {
       this.context = new AudioContext();
       this.gain = this.context.createGain();
-      this.gain.gain.value = this.enabled ? 1 : 0;
+      this.gain.gain.value = this.muted ? 0 : 0.2;
       this.gain.connect(this.context.destination);
-      this.unlocked = true;
+    }
+    if (this.context.state === 'suspended') {
+      await this.context.resume();
+    }
+  }
+
+  setMuted(value: boolean): void {
+    this.muted = value;
+    if (this.gain) {
+      this.gain.gain.setTargetAtTime(value ? 0 : 0.2, this.context!.currentTime, 0.05);
+    }
+    try {
+      localStorage.setItem(STORAGE_KEY, value ? 'true' : 'false');
     } catch (error) {
-      console.warn('Audio context failed to init', error);
+      console.warn('Unable to store audio preference', error);
     }
   }
 
   toggle(): boolean {
-    this.enabled = !this.enabled;
-    if (this.gain) {
-      this.gain.gain.value = this.enabled ? 1 : 0;
+    const next = !this.muted;
+    this.setMuted(next);
+    return next;
+  }
+
+  isMuted(): boolean {
+    return this.muted;
+  }
+
+  async playHoverBleep(): Promise<void> {
+    await this.resume();
+    if (!this.context || !this.gain || this.muted) {
+      return;
     }
-    window.localStorage.setItem(STORAGE_KEY, this.enabled ? 'unmuted' : 'muted');
-    this.notify();
-    return this.enabled;
-  }
-
-  isEnabled(): boolean {
-    return this.enabled;
-  }
-
-  playHoverTone() {
-    if (!this.enabled || !this.context || !this.gain) return;
-    const osc = this.context.createOscillator();
+    const oscillator = this.context.createOscillator();
     const envelope = this.context.createGain();
-    osc.type = 'sine';
-    osc.frequency.value = 480;
-    envelope.gain.value = 0.001;
-    envelope.gain.exponentialRampToValueAtTime(0.05, this.context.currentTime + 0.01);
-    envelope.gain.exponentialRampToValueAtTime(0.0001, this.context.currentTime + 0.3);
-    osc.connect(envelope);
+    oscillator.type = 'triangle';
+    oscillator.frequency.value = 880;
+    envelope.gain.value = 0;
+    oscillator.connect(envelope);
     envelope.connect(this.gain);
-    osc.start();
-    osc.stop(this.context.currentTime + 0.35);
+    const now = this.context.currentTime;
+    envelope.gain.setValueAtTime(0, now);
+    envelope.gain.linearRampToValueAtTime(0.15, now + 0.02);
+    envelope.gain.exponentialRampToValueAtTime(0.0001, now + 0.2);
+    oscillator.start(now);
+    oscillator.stop(now + 0.3);
   }
 }

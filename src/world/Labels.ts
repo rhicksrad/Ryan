@@ -1,60 +1,71 @@
-import { Vector3 } from 'three';
-import type { PerspectiveCamera, WebGLRenderer } from 'three';
+import { Camera, Vector3 } from 'three';
 import type { Hotspot } from './Hotspot';
-import type { RouteName } from '../types';
 
-const WORLD_POSITION = new Vector3();
+interface LabelsOptions {
+  container: HTMLElement;
+  onHover: (hotspot: Hotspot | null) => void;
+  onClick: (hotspot: Hotspot) => void;
+}
+
+interface LabelEntry {
+  hotspot: Hotspot;
+  element: HTMLButtonElement;
+  screenPosition: Vector3;
+}
 
 export class Labels {
-  private container: HTMLElement;
-  private buttons = new Map<Hotspot, HTMLButtonElement>();
-  private cameraDistanceThreshold = 4;
+  private readonly entries: LabelEntry[] = [];
+  private readonly container: HTMLElement;
+  private readonly onHover: (hotspot: Hotspot | null) => void;
+  private readonly onClick: (hotspot: Hotspot) => void;
+  private readonly temp = new Vector3();
 
-  constructor() {
+  constructor(options: LabelsOptions) {
     this.container = document.createElement('div');
-    this.container.className = 'labels';
-    document.body.appendChild(this.container);
+    this.container.className = 'label-container';
+    options.container.appendChild(this.container);
+    this.onHover = options.onHover;
+    this.onClick = options.onClick;
   }
 
-  setHotspots(hotspots: Hotspot[], onSelect: (hotspot: Hotspot) => void) {
-    this.container.innerHTML = '';
-    this.buttons.clear();
+  add(hotspot: Hotspot): void {
+    const button = document.createElement('button');
+    button.className = 'label';
+    button.type = 'button';
+    button.textContent = hotspot.name;
+    button.setAttribute('aria-label', hotspot.ariaLabel);
+    button.setAttribute('data-route', hotspot.route);
+    button.addEventListener('focus', () => this.onHover(hotspot));
+    button.addEventListener('blur', () => this.onHover(null));
+    button.addEventListener('mouseenter', () => this.onHover(hotspot));
+    button.addEventListener('mouseleave', () => this.onHover(null));
+    button.addEventListener('click', () => this.onClick(hotspot));
+    this.container.appendChild(button);
+    this.entries.push({ hotspot, element: button, screenPosition: new Vector3() });
+  }
 
-    for (const hotspot of hotspots) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.textContent = hotspot.name;
-      button.setAttribute('aria-label', hotspot.ariaLabel);
-      button.addEventListener('click', () => onSelect(hotspot));
-      button.addEventListener('pointerenter', () => hotspot.onEnter());
-      button.addEventListener('focus', () => hotspot.onEnter());
-      this.container.appendChild(button);
-      this.buttons.set(hotspot, button);
+  update(camera: Camera, width: number, height: number): void {
+    for (const entry of this.entries) {
+      const { hotspot, element, screenPosition } = entry;
+      this.temp.setFromMatrixPosition(hotspot.mesh.matrixWorld);
+      screenPosition.copy(this.temp);
+      screenPosition.project(camera);
+      const visible = screenPosition.z > -1 && screenPosition.z < 1;
+      if (!visible) {
+        element.style.display = 'none';
+        continue;
+      }
+      element.style.display = 'flex';
+      const x = (screenPosition.x + 1) / 2 * width;
+      const y = (1 - screenPosition.y) / 2 * height;
+      element.style.left = `${x}px`;
+      element.style.top = `${y}px`;
     }
   }
 
-  update(camera: PerspectiveCamera, renderer: WebGLRenderer, activeRoute: RouteName) {
-    const width = renderer.domElement.clientWidth;
-    const height = renderer.domElement.clientHeight;
-
-    for (const [hotspot, button] of this.buttons.entries()) {
-      hotspot.mesh.getWorldPosition(WORLD_POSITION);
-      const distance = camera.position.distanceTo(WORLD_POSITION);
-      if (distance < this.cameraDistanceThreshold) {
-        button.style.display = 'none';
-        continue;
-      }
-      const projected = WORLD_POSITION.clone().project(camera);
-      const x = (projected.x * 0.5 + 0.5) * width;
-      const y = (-projected.y * 0.5 + 0.5) * height;
-      if (projected.z > 1) {
-        button.style.display = 'none';
-        continue;
-      }
-      button.style.display = 'block';
-      button.style.left = `${x}px`;
-      button.style.top = `${y}px`;
-      button.setAttribute('aria-current', hotspot.route === activeRoute ? 'true' : 'false');
+  setActive(route: string | null): void {
+    for (const entry of this.entries) {
+      entry.element.dataset.active = entry.hotspot.route === route ? 'true' : 'false';
     }
   }
 }

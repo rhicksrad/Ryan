@@ -1,109 +1,67 @@
 {
-  "name": "Ryan Example",
-  "tagline": "Infrastructure Engineer",
-  "location": "TODO City, TODO Country",
-  "email": "TODO@example.com",
-  "social": {
-    "github": "https://github.com/TODO",
-    "linkedin": "https://www.linkedin.com/in/TODO",
-    "x": "https://twitter.com/TODO",
-    "website": "https://example.com"
-  },
-  "bio_short": "Thoughtful, careful, technical, concise. TODO refine summary in one sentence.",
-  "bio_long": "TODO: Provide a 150-250 word biography covering platform engineering, SRE, leadership, and learning philosophy.",
+  "name": "Ryan",
+  "headline": "Systems-minded Creative Technologist",
+  "tagline": "Inventive builder blending code, craft, and sound.",
+  "location": "Portland, OR",
+  "summary": "Ryan experiments with human-scale interfaces, responsive audio, and playful storytelling to help teams ship more immersive experiences.",
   "skills": [
-    "Linux",
-    "Cloud",
-    "Networking",
-    "Observability",
-    "Automation",
-    "Security",
-    "SRE",
-    "CI/CD",
-    "Containers",
-    "IaC"
+    "Three.js & WebGL", "TypeScript", "Creative Coding", "Design Systems", "DevOps Automation", "Spatial Audio"
   ],
   "principles": [
-    "Measure, then improve",
-    "Automate the boring",
-    "Design for failure",
-    "Ship safely and often"
+    "Lead with curiosity and measurable experiments.",
+    "Prototype boldly, polish thoughtfully.",
+    "Teach the system so the team can sustain it.",
+    "Accessibility and performance are non-negotiable."
   ],
   "projects": [
     {
-      "name": "TODO - Observability Platform",
-      "role": "TODO - Lead Engineer",
-      "stack": ["TODO", "Kubernetes", "Terraform"],
-      "summary": "TODO: Describe the impact and outcomes.",
-      "highlights": [
-        "TODO: Highlight an achievement",
-        "TODO: Share a metric"
-      ],
-      "links": {
-        "github": "TODO",
-        "demo": "TODO"
-      }
+      "title": "Island Kitchen AR",
+      "url": "https://example.com/island-kitchen",
+      "description": "AR guided cooking walkthrough with spatial timers."
     },
     {
-      "name": "TODO - Automation Toolkit",
-      "role": "TODO - Author",
-      "stack": ["Go", "TODO"],
-      "summary": "TODO: Summarize toolkit goals.",
-      "highlights": [
-        "TODO: Describe automation win"
-      ],
-      "links": {
-        "github": "TODO",
-        "demo": "TODO"
-      }
+      "title": "Ops Observatory",
+      "url": "https://example.com/ops-observatory",
+      "description": "Interactive NOC wall translating telemetry into light."
+    },
+    {
+      "title": "Greenhouse Insights",
+      "url": "https://example.com/greenhouse-insights",
+      "description": "IoT garden tuned with weather-based automations."
     }
   ],
-  "posts": [
+  "writing": [
     {
-      "title": "TODO - Post",
-      "date": "YYYY-MM-DD",
-      "summary": "TODO",
-      "url": "https://example.com/blog/todo"
+      "title": "Navigating WebGL Accessibility",
+      "url": "https://example.com/posts/webgl-accessibility"
+    },
+    {
+      "title": "Designing Playful Controls",
+      "url": "https://example.com/posts/playful-controls"
     }
   ],
   "talks": [
     {
-      "title": "TODO - Talk",
-      "event": "TODO Conf",
-      "date": "YYYY-MM-DD",
-      "link": "https://example.com/talks/todo"
+      "title": "Music-driven Interfaces",
+      "url": "https://example.com/talks/music-driven"
+    },
+    {
+      "title": "Garden Automation Lessons",
+      "url": "https://example.com/talks/garden-automation"
     }
   ],
-  "interests": {
-    "cooking": {
-      "summary": "Smoking meat, temperature control, rubs, and gear.",
-      "links": [
-        "https://example.com/cooking/TODO"
-      ]
-    },
-    "it": {
-      "summary": "Infrastructure, systems, and reliability.",
-      "links": [
-        "https://example.com/it/TODO"
-      ]
-    },
-    "gardening": {
-      "summary": "Soil, irrigation, seasonal crops, and experimenting with sensors.",
-      "links": []
-    },
-    "ai": {
-      "summary": "Pragmatic use of models and tooling.",
-      "links": [
-        "https://example.com/ai/TODO"
-      ]
-    },
-    "music": {
-      "summary": "Listening and making sound. TODO: note genres and instruments.",
-      "links": []
-    }
-  },
   "contact": {
-    "cta": "TODO: Invite people to get in touch.",
-    "availability": "TODO: Mention speaking/consulting availability."
+    "email": "hello@ryan.dev",
+    "socials": [
+      {
+        "title": "GitHub",
+        "url": "https://github.com/ryan",
+        "description": "Open-source experiments"
+      },
+      {
+        "title": "LinkedIn",
+        "url": "https://linkedin.com/in/ryan"
+      }
+    ]
   }
 }

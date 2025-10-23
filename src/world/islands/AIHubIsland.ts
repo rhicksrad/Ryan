@@ -1,87 +1,64 @@
-import {
-  Color,
-  Group,
-  Mesh,
-  ShaderMaterial,
-  TorusGeometry,
-  UniformsUtils
-} from 'three';
-import type { LoadedAssets, ProfileContent } from '../../types';
+import { Color, Group, Mesh, ShaderMaterial, TorusKnotGeometry } from 'three';
 import { Hotspot } from '../Hotspot';
+import { AudioController } from '../../utils/Audio';
 
-const vertexShader = /* glsl */ `
-  varying vec3 vPosition;
-  void main() {
-    vPosition = position;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }
-`;
+interface AIHubOptions {
+  audio: AudioController;
+  reducedMotion: boolean;
+}
 
-const fragmentShader = /* glsl */ `
-  varying vec3 vPosition;
-  uniform float time;
-  uniform vec3 colorA;
-  uniform vec3 colorB;
-  void main() {
-    float pulse = sin(time + length(vPosition)) * 0.5 + 0.5;
-    vec3 color = mix(colorA, colorB, pulse);
-    gl_FragColor = vec4(color, 1.0);
-  }
-`;
-
-export function create(parent: Group, content: ProfileContent, _assets: LoadedAssets) {
+export function createAIHubIsland(options: AIHubOptions): Hotspot {
+  const { audio, reducedMotion } = options;
   const group = new Group();
-  group.name = 'AI Hub Island';
 
-  const geometry = new TorusGeometry(1.6, 0.3, 24, 64);
-  const uniforms = UniformsUtils.merge([
-    {
-      time: { value: 0 },
-      colorA: { value: new Color('#5d5fef') },
-      colorB: { value: new Color('#9c6ff4') }
-    }
-  ]);
+  const geometry = new TorusKnotGeometry(1.2, 0.28, 128, 16);
   const material = new ShaderMaterial({
-    uniforms,
-    vertexShader,
-    fragmentShader,
-    transparent: false
+    uniforms: {
+      time: { value: 0 },
+      colorA: { value: new Color(0x38bdf8) },
+      colorB: { value: new Color(0xa855f7) }
+    },
+    transparent: true,
+    fragmentShader: `
+      uniform float time;
+      uniform vec3 colorA;
+      uniform vec3 colorB;
+      varying vec2 vUv;
+      void main() {
+        float pulse = 0.5 + 0.5 * sin(time * 2.0 + vUv.x * 6.28);
+        vec3 color = mix(colorA, colorB, pulse);
+        gl_FragColor = vec4(color, 0.85);
+      }
+    `,
+    vertexShader: `
+      uniform float time;
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        vec3 transformed = position + normal * sin(time + position.y * 3.0) * 0.08;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(transformed, 1.0);
+      }
+    `
   });
 
-  const torus = new Mesh(geometry, material);
-  torus.rotation.x = Math.PI / 4;
-  torus.rotation.z = Math.PI / 6;
-  torus.castShadow = true;
-  group.add(torus);
+  const mesh = new Mesh(geometry, material);
+  group.add(mesh);
 
-  const inner = new Mesh(new TorusGeometry(1, 0.18, 24, 64), material);
-  inner.rotation.x = -Math.PI / 5;
-  inner.rotation.y = Math.PI / 3;
-  group.add(inner);
-
-  parent.add(group);
-
-  const hitArea = new Mesh(new TorusGeometry(2.2, 0.4, 12, 32));
-  hitArea.visible = false;
-  group.add(hitArea);
-
-  const hotspot = new Hotspot({
-    name: 'AI Hub Island',
-    route: '#ai',
-    ariaLabel: 'Open AI research notes',
+  return new Hotspot({
+    name: 'AI Hub',
+    ariaLabel: 'See Ryan\'s AI explorations',
     mesh: group,
-    hitArea,
-    interestKey: 'ai',
-    summary: content.interests.ai.summary
-  });
-
-  hotspot.setUpdate(({ elapsed, reducedMotion }) => {
-    if (!reducedMotion) {
-      uniforms.time.value = elapsed;
-      torus.rotation.y = elapsed * 0.3;
-      inner.rotation.y = -elapsed * 0.4;
+    hitArea: mesh,
+    route: '#ai',
+    onEnter: () => {
+      audio.playHoverBleep().catch(() => undefined);
+    },
+    onUpdate: (delta) => {
+      if (reducedMotion) {
+        return;
+      }
+      material.uniforms.time.value += delta;
+      mesh.rotation.y += delta * 0.5;
     }
   });
-
-  return hotspot;
 }

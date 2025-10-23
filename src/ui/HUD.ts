@@ -1,187 +1,139 @@
 import logoUrl from '../../assets/logo.svg?url';
-import type { InterestKey, ProfileContent, RouteName } from '../types';
-import { AudioController } from '../utils/Audio';
-import { Overlay } from './Overlay';
+import type { RouteName } from './Router';
 
-const ISLAND_ROUTES: { route: RouteName; key: InterestKey; label: string; shortcut: string }[] = [
-  { route: '#cooking', key: 'cooking', label: 'Cooking', shortcut: '1' },
-  { route: '#it', key: 'it', label: 'IT', shortcut: '2' },
-  { route: '#gardening', key: 'gardening', label: 'Gardening', shortcut: '3' },
-  { route: '#ai', key: 'ai', label: 'AI', shortcut: '4' },
-  { route: '#music', key: 'music', label: 'Music', shortcut: '5' }
+interface HudOptions {
+  container: HTMLElement;
+  audioMuted: boolean;
+  theme: 'light' | 'dark';
+  onNavigate: (route: RouteName) => void;
+  onToggleTheme: (next: 'light' | 'dark') => void;
+  onToggleAudio: (muted: boolean) => void;
+}
+
+interface HudController {
+  root: HTMLElement;
+  setActive(route: RouteName): void;
+  hideHint(): void;
+  setAudioMuted(muted: boolean): void;
+  setTheme(theme: 'light' | 'dark'): void;
+}
+
+const NAV_ROUTES: Array<{ route: RouteName; label: string }> = [
+  { route: '#cooking', label: 'Cooking' },
+  { route: '#it', label: 'IT Lab' },
+  { route: '#gardening', label: 'Gardening' },
+  { route: '#ai', label: 'AI Hub' },
+  { route: '#music', label: 'Music' }
 ];
 
-type NavListener = (route: RouteName) => void;
+export function createHUD(options: HudOptions): HudController {
+  const { container, audioMuted, theme, onNavigate, onToggleTheme, onToggleAudio } = options;
+  const root = document.createElement('section');
+  root.className = 'hud';
+  root.dataset.test = 'hud';
 
-type Theme = 'system' | 'light' | 'dark';
+  const top = document.createElement('div');
+  top.className = 'hud__top';
 
-type AudioListener = () => boolean;
+  const brand = document.createElement('div');
+  brand.className = 'hud__brand';
+  const logo = document.createElement('img');
+  logo.src = logoUrl;
+  logo.alt = 'Ryan mark';
+  const title = document.createElement('strong');
+  title.textContent = 'Ryan 3D World';
+  brand.append(logo, title);
+  top.appendChild(brand);
 
-type ThemeListener = (theme: Theme) => void;
-
-export class HUD {
-  private container: HTMLElement;
-  private nav: HTMLElement;
-  private hint: HTMLElement;
-  private navListener: NavListener | null = null;
-  private audioListener: AudioListener | null = null;
-  private themeListener: ThemeListener | null = null;
-  private audioButton: HTMLButtonElement;
-  private themeButton: HTMLButtonElement;
-  private activeRoute: RouteName = '#home';
-  private theme: Theme = (localStorage.getItem('ryan-world-theme') as Theme) || 'system';
-
-  constructor(
-    private readonly overlay: Overlay,
-    private readonly audio: AudioController,
-    profile: ProfileContent
-  ) {
-    this.container = document.createElement('header');
-    this.container.className = 'hud';
-
-    const logoLink = document.createElement('a');
-    logoLink.href = '#home';
-    logoLink.className = 'hud__logo';
-    logoLink.innerHTML = `<img src="${logoUrl}" width="32" height="32" alt="Ryan logo" />`;
-    const logoText = document.createElement('span');
-    logoText.textContent = `${profile.name}`;
-    logoLink.append(logoText);
-    logoLink.addEventListener('click', (event) => {
-      event.preventDefault();
-      this.emitNav('#home');
-    });
-
-    this.nav = document.createElement('nav');
-    this.nav.className = 'hud__nav';
-
-    for (const island of ISLAND_ROUTES) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.dataset.route = island.route;
-      button.textContent = `${island.label}`;
-      button.setAttribute('aria-label', `${island.label} (press ${island.shortcut})`);
-      button.addEventListener('click', () => this.emitNav(island.route));
-      this.nav.appendChild(button);
-    }
-
-    const projects = this.createNavButton('#projects', 'Projects');
-    const writing = this.createNavButton('#writing', 'Writing');
-    const talks = this.createNavButton('#talks', 'Talks');
-    const contact = this.createNavButton('#contact', 'Contact');
-
-    this.nav.append(projects, writing, talks, contact);
-
-    const toggles = document.createElement('div');
-    toggles.className = 'hud__toggles';
-
-    this.themeButton = document.createElement('button');
-    this.themeButton.className = 'hud__toggle';
-    this.themeButton.type = 'button';
-    this.themeButton.setAttribute('aria-label', 'Toggle theme');
-    this.themeButton.addEventListener('click', () => this.toggleTheme());
-
-    this.audioButton = document.createElement('button');
-    this.audioButton.className = 'hud__toggle';
-    this.audioButton.type = 'button';
-    this.audioButton.setAttribute('aria-label', 'Toggle audio');
-    this.audioButton.addEventListener('click', () => {
-      const enabled = this.audioListener ? this.audioListener() : !this.audio.isEnabled();
-      this.renderAudioState(enabled);
-    });
-
-    toggles.append(this.themeButton, this.audioButton);
-
-    const resumeLink = document.createElement('a');
-    resumeLink.href = '/resume.html';
-    resumeLink.target = '_blank';
-    resumeLink.rel = 'noopener';
-    resumeLink.className = 'hud__toggle';
-    resumeLink.textContent = 'Resume';
-
-    toggles.append(resumeLink);
-
-    this.container.append(logoLink, this.nav, toggles);
-    document.body.appendChild(this.container);
-
-    this.hint = document.createElement('p');
-    this.hint.className = 'hud__hint';
-    this.hint.textContent = 'Click or tap an island to explore. Use keys 1-5 to jump. Press H to return home.';
-    document.body.appendChild(this.hint);
-
-    window.addEventListener('pointerdown', () => this.hideHint(), { once: true });
-    window.addEventListener('keydown', () => this.hideHint(), { once: true });
-
-    this.applyTheme();
-    this.renderAudioState(this.audio.isEnabled());
-  }
-
-  onNavigate(listener: NavListener) {
-    this.navListener = listener;
-  }
-
-  onAudioToggle(listener: AudioListener) {
-    this.audioListener = listener;
-  }
-
-  onThemeToggle(listener: ThemeListener) {
-    this.themeListener = listener;
-  }
-
-  setActive(route: RouteName) {
-    this.activeRoute = route;
-    const buttons = this.nav.querySelectorAll<HTMLButtonElement>('button');
-    buttons.forEach((button) => {
-      button.setAttribute('aria-current', button.dataset.route === route ? 'page' : 'false');
-    });
-  }
-
-  setAudioState(enabled: boolean) {
-    this.renderAudioState(enabled);
-  }
-
-  announce(summary: string) {
-    this.overlay.announceHover(summary);
-  }
-
-  private createNavButton(route: RouteName, label: string): HTMLButtonElement {
+  const nav = document.createElement('nav');
+  nav.className = 'hud__nav';
+  nav.setAttribute('aria-label', 'Primary');
+  const buttons: HTMLButtonElement[] = [];
+  for (const entry of NAV_ROUTES) {
     const button = document.createElement('button');
+    button.className = 'hud__button';
     button.type = 'button';
-    button.dataset.route = route;
-    button.textContent = label;
-    button.addEventListener('click', () => this.emitNav(route));
-    return button;
+    button.textContent = entry.label;
+    button.setAttribute('data-route', entry.route);
+    button.addEventListener('click', () => onNavigate(entry.route));
+    buttons.push(button);
+    nav.appendChild(button);
   }
+  top.appendChild(nav);
 
-  private emitNav(route: RouteName) {
-    if (this.navListener) {
-      this.navListener(route);
+  const toggles = document.createElement('div');
+  toggles.className = 'hud__toggles';
+
+  const themeButton = document.createElement('button');
+  themeButton.className = 'hud__button';
+  themeButton.type = 'button';
+  themeButton.setAttribute('aria-pressed', theme === 'dark' ? 'true' : 'false');
+  themeButton.textContent = theme === 'dark' ? 'Dark' : 'Light';
+  themeButton.title = 'Toggle theme';
+  themeButton.addEventListener('click', () => {
+    const next = themeButton.getAttribute('aria-pressed') === 'true' ? 'light' : 'dark';
+    themeButton.setAttribute('aria-pressed', next === 'dark' ? 'true' : 'false');
+    themeButton.textContent = next === 'dark' ? 'Dark' : 'Light';
+    onToggleTheme(next);
+  });
+  toggles.appendChild(themeButton);
+
+  const audioButton = document.createElement('button');
+  audioButton.className = 'hud__button';
+  audioButton.type = 'button';
+  audioButton.setAttribute('aria-pressed', audioMuted ? 'false' : 'true');
+  audioButton.textContent = audioMuted ? 'Unmute' : 'Mute';
+  audioButton.title = 'Toggle audio';
+  audioButton.addEventListener('click', () => {
+    const currentlyMuted = audioButton.getAttribute('aria-pressed') === 'false';
+    const nextMuted = !currentlyMuted;
+    onToggleAudio(nextMuted);
+  });
+  toggles.appendChild(audioButton);
+
+  const resumeButton = document.createElement('button');
+  resumeButton.className = 'hud__button';
+  resumeButton.type = 'button';
+  resumeButton.textContent = 'Resume';
+  resumeButton.addEventListener('click', () => onNavigate('#resume'));
+  toggles.appendChild(resumeButton);
+
+  const contactButton = document.createElement('button');
+  contactButton.className = 'hud__button';
+  contactButton.type = 'button';
+  contactButton.textContent = 'Contact';
+  contactButton.addEventListener('click', () => onNavigate('#contact'));
+  toggles.appendChild(contactButton);
+
+  top.appendChild(toggles);
+
+  const hint = document.createElement('div');
+  hint.className = 'hud__hint';
+  hint.textContent = 'Tip: Hover an island or press 1-5 to jump.';
+
+  root.append(top, hint);
+  container.appendChild(root);
+
+  const controller: HudController = {
+    root,
+    setActive(route: RouteName) {
+      for (const button of buttons) {
+        const isActive = button.getAttribute('data-route') === route;
+        button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+      }
+    },
+    hideHint() {
+      hint.dataset.hidden = 'true';
+    },
+    setAudioMuted(muted: boolean) {
+      audioButton.textContent = muted ? 'Unmute' : 'Mute';
+      audioButton.setAttribute('aria-pressed', muted ? 'false' : 'true');
+    },
+    setTheme(nextTheme: 'light' | 'dark') {
+      themeButton.setAttribute('aria-pressed', nextTheme === 'dark' ? 'true' : 'false');
+      themeButton.textContent = nextTheme === 'dark' ? 'Dark' : 'Light';
     }
-  }
+  };
 
-  private hideHint() {
-    this.hint.hidden = true;
-  }
-
-  private toggleTheme() {
-    this.theme = this.theme === 'dark' ? 'light' : this.theme === 'light' ? 'system' : 'dark';
-    this.applyTheme();
-    if (this.themeListener) {
-      this.themeListener(this.theme);
-    }
-  }
-
-  private applyTheme() {
-    const root = document.documentElement;
-    if (this.theme === 'system') {
-      root.removeAttribute('data-theme');
-    } else {
-      root.setAttribute('data-theme', this.theme);
-    }
-    localStorage.setItem('ryan-world-theme', this.theme);
-    this.themeButton.textContent = `Theme: ${this.theme}`;
-  }
-
-  private renderAudioState(enabled: boolean) {
-    this.audioButton.textContent = enabled ? 'Audio: On' : 'Audio: Off';
-  }
+  return controller;
 }
