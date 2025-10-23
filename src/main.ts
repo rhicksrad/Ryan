@@ -15,7 +15,9 @@ document.querySelectorAll('[data-js="year"]').forEach((el) => {
 
 const reducedMotionMedia = window.matchMedia('(prefers-reduced-motion: reduce)');
 const allowMotion = localStorage.getItem('ryan.motion.allow') === 'true';
-const shouldFallback = !supports3D() || (reducedMotionMedia.matches && !allowMotion);
+const isDev = import.meta.env.DEV;
+const shouldFallback =
+  !isDev && (!supports3D() || (reducedMotionMedia.matches && !allowMotion));
 
 if (shouldFallback) {
   window.location.replace('fallback/index.html');
