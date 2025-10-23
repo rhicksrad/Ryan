@@ -5,6 +5,7 @@ const ROUTE_TITLES = {
   '#gardening': 'Garden Retreat',
   '#ai': 'AI Hub',
   '#music': 'Music Studio',
+  '#gaming': 'Gaming Nexus',
   '#projects': 'Projects',
   '#writing': 'Writing',
   '#talks': 'Talks',

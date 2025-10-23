@@ -1,7 +1,7 @@
 import { PerspectiveCamera, Quaternion, Vector3 } from 'three';
 import type { RouteName } from '../ui/Router';
 
-export type CameraRoute = Extract<RouteName, '#home' | '#cooking' | '#it' | '#gardening' | '#ai' | '#music'>;
+export type CameraRoute = Extract<RouteName, '#home' | '#cooking' | '#it' | '#gardening' | '#ai' | '#music' | '#gaming'>;
 
 interface Pose {
   position: Vector3;
@@ -38,7 +38,8 @@ export class CameraRig {
       '#it': this.createPose(new Vector3(4, 5, -11), new Vector3(6, 1.5, -8)),
       '#gardening': this.createPose(new Vector3(-11, 4, 5), new Vector3(-8, 1.5, 3)),
       '#ai': this.createPose(new Vector3(-7.1, 2.2, -5.1), new Vector3(-7.7, 1.2, -5.7)),
-      '#music': this.createPose(new Vector3(0, 5, 12), new Vector3(0, 2, 10))
+      '#music': this.createPose(new Vector3(0, 5, 12), new Vector3(0, 2, 10)),
+      '#gaming': this.createPose(new Vector3(7.5, 4.2, -11.2), new Vector3(5.2, 1.6, -8.4))
     };
 
     this.startPose = this.poses['#home'];

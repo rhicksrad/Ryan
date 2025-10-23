@@ -30,7 +30,6 @@ import {
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { AssetLoader } from '../utils/AssetLoader';
 import { AudioController } from '../utils/Audio';
-import { Labels } from './Labels';
 import { Hotspot } from './Hotspot';
 import { CameraRig, CameraRoute } from './CameraRig';
 import { Sky } from './Sky';
@@ -39,6 +38,7 @@ import { createITRackIsland } from './islands/ITRackIsland';
 import { createGardenIsland } from './islands/GardenIsland';
 import { createAIHubIsland } from './islands/AIHubIsland';
 import { createMusicIsland } from './islands/MusicIsland';
+import { createGamingIsland } from './islands/GamingIsland';
 import type { IslandHotspotBundle } from './islands/types';
 import type { RouteName } from '../ui/Router';
 
@@ -61,7 +61,6 @@ export class World {
   private readonly controls: OrbitControls;
   private readonly assetLoader: AssetLoader;
   private readonly audio: AudioController;
-  private readonly labels: Labels;
   private readonly raycaster = new Raycaster();
   private readonly pointer = new Vector2();
   private readonly hoverCallbacks = new Set<HoverCallback>();
@@ -116,22 +115,32 @@ export class World {
     this.sky = new Sky();
     this.scene.add(this.sky.mesh);
 
-    this.labels = new Labels({
-      container: this.container,
-      onHover: (hotspot) => this.handleHover(hotspot),
-      onClick: (hotspot) => this.handleClick(hotspot)
-    });
-
-    const radius = 9.5;
+    const radius = 10;
     const placements: Array<{ angle: number; create: () => IslandHotspotBundle }> = [
       {
         angle: 0,
         create: () => createGrillIsland({ assetLoader: this.assetLoader, audio: this.audio, reducedMotion: this.prefersReducedMotion })
       },
-      { angle: (Math.PI * 2) / 5, create: () => createITRackIsland({ audio: this.audio, reducedMotion: this.prefersReducedMotion }) },
-      { angle: (Math.PI * 4) / 5, create: () => createGardenIsland({ audio: this.audio, reducedMotion: this.prefersReducedMotion }) },
-      { angle: (Math.PI * 6) / 5, create: () => createAIHubIsland({ audio: this.audio, reducedMotion: this.prefersReducedMotion }) },
-      { angle: (Math.PI * 8) / 5, create: () => createMusicIsland({ audio: this.audio, reducedMotion: this.prefersReducedMotion }) }
+      {
+        angle: (Math.PI * 2) / 6,
+        create: () => createITRackIsland({ audio: this.audio, reducedMotion: this.prefersReducedMotion })
+      },
+      {
+        angle: (Math.PI * 4) / 6,
+        create: () => createGardenIsland({ audio: this.audio, reducedMotion: this.prefersReducedMotion })
+      },
+      {
+        angle: (Math.PI * 6) / 6,
+        create: () => createAIHubIsland({ audio: this.audio, reducedMotion: this.prefersReducedMotion })
+      },
+      {
+        angle: (Math.PI * 8) / 6,
+        create: () => createMusicIsland({ audio: this.audio, reducedMotion: this.prefersReducedMotion })
+      },
+      {
+        angle: (Math.PI * 10) / 6,
+        create: () => createGamingIsland({ audio: this.audio, reducedMotion: this.prefersReducedMotion })
+      }
     ];
 
     for (const placement of placements) {
@@ -143,7 +152,6 @@ export class World {
       hotspot.hitArea.userData.hotspot = hotspot;
       this.scene.add(hotspot.mesh);
       this.hotspots.push(hotspot);
-      this.labels.add(hotspot);
       this.updates.push((delta) => hotspot.onUpdate(delta));
       for (const extra of extras) {
         extra.hitArea.userData.hotspot = extra;
@@ -193,8 +201,6 @@ export class World {
         this.rig.animateTo(cameraRoute);
       }
     }
-    const focusRoute = cameraRoute === '#home' ? null : cameraRoute;
-    this.labels.setActive(focusRoute);
   }
 
   dispose(): void {
@@ -211,6 +217,7 @@ export class World {
       case '#gardening':
       case '#ai':
       case '#music':
+      case '#gaming':
         return route;
       default:
         return '#home';
@@ -256,10 +263,19 @@ export class World {
     this.raycaster.setFromCamera(this.pointer, this.camera);
     const intersections = this.raycaster.intersectObjects(this.hotspots.map((hotspot) => hotspot.hitArea), false);
     if (intersections.length > 0) {
-      const object = intersections[0].object;
-      const hotspot: Hotspot | undefined = (object.userData.hotspot || object.parent?.userData.hotspot) as Hotspot | undefined;
-      if (hotspot && hotspot !== this.hovered) {
-        this.handleHover(hotspot);
+      let found: Hotspot | null = null;
+      for (const intersection of intersections) {
+        const object = intersection.object;
+        const hotspot: Hotspot | undefined = (object.userData.hotspot || object.parent?.userData.hotspot) as Hotspot | undefined;
+        if (hotspot) {
+          found = hotspot;
+          break;
+        }
+      }
+      if (found && found !== this.hovered) {
+        this.handleHover(found);
+      } else if (!found && this.hovered) {
+        this.handleHover(null);
       }
     } else if (this.hovered) {
       this.handleHover(null);
@@ -303,9 +319,6 @@ export class World {
     for (const update of this.updates) {
       update(delta);
     }
-    const width = this.renderer.domElement.clientWidth;
-    const height = this.renderer.domElement.clientHeight;
-    this.labels.update(this.camera, width, height);
     this.renderer.render(this.scene, this.camera);
     if (!this.firstFrame) {
       this.firstFrame = true;

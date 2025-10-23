@@ -2,6 +2,7 @@ import {
   BoxGeometry,
   BufferAttribute,
   BufferGeometry,
+  ConeGeometry,
   CylinderGeometry,
   Group,
   Mesh,
@@ -24,6 +25,7 @@ interface GrillOptions {
 export function createGrillIsland(options: GrillOptions): IslandHotspotBundle {
   const { assetLoader, audio, reducedMotion } = options;
   const group = new Group();
+  const extras: Hotspot[] = [];
 
   const courtyard = new Mesh(new CylinderGeometry(3.4, 3.8, 0.5, 32), new MeshStandardMaterial({ color: 0x14532d, roughness: 0.82 }));
   courtyard.position.y = 0.25;
@@ -79,6 +81,33 @@ export function createGrillIsland(options: GrillOptions): IslandHotspotBundle {
   const steps = new Mesh(new BoxGeometry(1.9, 0.2, 1.2), stepMaterial);
   steps.position.set(0, 0.1, 2.2);
   group.add(steps);
+
+  const platterMaterial = new MeshStandardMaterial({ color: 0xfef3c7, roughness: 0.7, metalness: 0.2 });
+  const entreeMaterial = new MeshStandardMaterial({ color: 0xb91c1c, roughness: 0.55, metalness: 0.18 });
+  const garnishMaterial = new MeshStandardMaterial({ color: 0x16a34a, roughness: 0.6 });
+  const plateGeometry = new CylinderGeometry(0.65, 0.7, 0.08, 24);
+  const entreeGeometry = new CylinderGeometry(0.4, 0.36, 0.26, 20);
+  const garnishGeometry = new ConeGeometry(0.2, 0.35, 10);
+  const picnicSpots: Array<{ x: number; z: number; rotation: number }> = [
+    { x: -2.8, z: 1.6, rotation: Math.PI / 8 },
+    { x: 2.8, z: 1.4, rotation: -Math.PI / 12 },
+    { x: -2.6, z: -1.8, rotation: Math.PI / 5 },
+    { x: 2.6, z: -1.6, rotation: -Math.PI / 6 }
+  ];
+  for (const spot of picnicSpots) {
+    const plate = new Mesh(plateGeometry, platterMaterial);
+    plate.position.set(spot.x, 0.48, spot.z);
+    plate.rotation.y = spot.rotation;
+    group.add(plate);
+    const entree = new Mesh(entreeGeometry, entreeMaterial);
+    entree.position.set(spot.x, 0.7, spot.z);
+    entree.rotation.y = spot.rotation;
+    group.add(entree);
+    const garnish = new Mesh(garnishGeometry, garnishMaterial);
+    garnish.position.set(spot.x + 0.2, 0.78, spot.z + 0.15);
+    garnish.rotation.x = Math.PI;
+    group.add(garnish);
+  }
 
   const planterMaterial = new MeshStandardMaterial({ color: 0x1f2937, roughness: 0.7 });
   const soilMaterial = new MeshStandardMaterial({ color: 0x365314, roughness: 0.85 });
@@ -146,6 +175,91 @@ export function createGrillIsland(options: GrillOptions): IslandHotspotBundle {
   smoke.position.y += 0.9;
   group.add(smoke);
 
+  const interior = new Group();
+  interior.position.set(0, 0.9, 0);
+  group.add(interior);
+
+  const interiorFloor = new Mesh(new BoxGeometry(2.6, 0.1, 2.6), new MeshStandardMaterial({ color: 0x1b1b19, roughness: 0.65 }));
+  interiorFloor.position.set(0, -0.1, 0);
+  interior.add(interiorFloor);
+
+  const serviceBar = new Mesh(new BoxGeometry(2.2, 0.5, 0.8), new MeshStandardMaterial({ color: 0x78350f, roughness: 0.55 }));
+  serviceBar.position.set(0, 0.25, 0.9);
+  interior.add(serviceBar);
+  const tastingSurfaceMaterial = new MeshStandardMaterial({ color: 0xf97316, emissive: 0xf97316, emissiveIntensity: 0.32, roughness: 0.38 });
+  const tastingSurface = new Mesh(new BoxGeometry(2.0, 0.12, 0.7), tastingSurfaceMaterial);
+  tastingSurface.position.set(0, 0.52, 0.92);
+  interior.add(tastingSurface);
+
+  const prepTable = new Mesh(new BoxGeometry(1.2, 0.4, 1.0), new MeshStandardMaterial({ color: 0x1f2937, roughness: 0.4, metalness: 0.25 }));
+  prepTable.position.set(-0.95, 0.2, -0.6);
+  interior.add(prepTable);
+  const prepGlowMaterial = new MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x38bdf8, emissiveIntensity: 0.22, transparent: true, opacity: 0.7 });
+  const prepGlow = new Mesh(new BoxGeometry(1.0, 0.1, 0.8), prepGlowMaterial);
+  prepGlow.position.set(-0.95, 0.45, -0.6);
+  interior.add(prepGlow);
+
+  const spiceShelf = new Mesh(new BoxGeometry(0.4, 1.2, 1.6), new MeshStandardMaterial({ color: 0x4d7c0f, roughness: 0.5 }));
+  spiceShelf.position.set(1.1, 0.7, -0.1);
+  interior.add(spiceShelf);
+  const spiceGlowMaterial = new MeshStandardMaterial({ color: 0xfacc15, emissive: 0xfacc15, emissiveIntensity: 0.24, transparent: true, opacity: 0.8 });
+  const spiceGlow = new Mesh(new BoxGeometry(0.32, 0.9, 1.4), spiceGlowMaterial);
+  spiceGlow.position.set(1.1, 0.7, -0.1);
+  interior.add(spiceGlow);
+
+  const ceilingLight = new Mesh(new CylinderGeometry(0.6, 0.6, 0.12, 20), new MeshStandardMaterial({ color: 0xfde68a, emissive: 0xfde68a, emissiveIntensity: 0.45, transparent: true, opacity: 0.85 }));
+  ceilingLight.position.set(0, 1.2, 0);
+  interior.add(ceilingLight);
+
+  const interiorState = { tastingHover: false, prepHover: false, spiceHover: false };
+
+  const tastingHotspot = new Hotspot({
+    name: 'Tasting Flights',
+    ariaLabel: 'Preview featured tasting flights inside the culinary studio',
+    mesh: tastingSurface,
+    route: '#cooking',
+    onEnter: () => {
+      interiorState.tastingHover = true;
+      audio.playHoverBleep().catch(() => undefined);
+    },
+    onLeave: () => {
+      interiorState.tastingHover = false;
+    }
+  });
+  extras.push(tastingHotspot);
+
+  const prepHotspot = new Hotspot({
+    name: 'Prep Lab',
+    ariaLabel: 'Experiment with new flavor prep workflows inside the studio',
+    mesh: prepGlow,
+    route: '#cooking',
+    onEnter: () => {
+      interiorState.prepHover = true;
+      audio.playHoverBleep().catch(() => undefined);
+    },
+    onLeave: () => {
+      interiorState.prepHover = false;
+    }
+  });
+  extras.push(prepHotspot);
+
+  const spiceHotspot = new Hotspot({
+    name: 'Spice Library',
+    ariaLabel: 'Explore curated spice blends and rubs inside the kitchen',
+    mesh: spiceGlow,
+    route: '#cooking',
+    onEnter: () => {
+      interiorState.spiceHover = true;
+      audio.playHoverBleep().catch(() => undefined);
+    },
+    onLeave: () => {
+      interiorState.spiceHover = false;
+    }
+  });
+  extras.push(spiceHotspot);
+
+  const garnishMeshes = group.children.filter((child): child is Mesh => child instanceof Mesh && child.geometry === garnishGeometry);
+
   const state = { time: 0 };
 
   const hotspot = new Hotspot({
@@ -177,8 +291,18 @@ export function createGrillIsland(options: GrillOptions): IslandHotspotBundle {
       windowMaterial.emissiveIntensity = 0.26 + Math.sin(state.time * 2.6) * 0.08;
       doorMaterial.emissiveIntensity = 0.26 + Math.sin(state.time * 3.1) * 0.07;
       awning.position.y = 2.05 + Math.sin(state.time * 1.2) * 0.04;
+      const tastingPulse = 0.32 + Math.sin(state.time * 1.6) * 0.08 + (interiorState.tastingHover ? 0.2 : 0);
+      tastingSurfaceMaterial.emissiveIntensity = tastingPulse;
+      const prepPulse = 0.22 + Math.sin(state.time * 2.1) * 0.06 + (interiorState.prepHover ? 0.18 : 0);
+      prepGlowMaterial.emissiveIntensity = prepPulse;
+      const spicePulse = 0.24 + Math.sin(state.time * 1.9) * 0.05 + (interiorState.spiceHover ? 0.18 : 0);
+      spiceGlowMaterial.emissiveIntensity = spicePulse;
+      ceilingLight.position.y = 1.2 + Math.sin(state.time * 2.4) * 0.05;
+      garnishMeshes.forEach((mesh, index) => {
+        mesh.rotation.z = Math.sin(state.time * 1.5 + index) * 0.6;
+      });
     }
   });
 
-  return { main: hotspot };
+  return { main: hotspot, extras };
 }
