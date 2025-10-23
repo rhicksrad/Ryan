@@ -19,9 +19,9 @@ export class Sky {
       blending: AdditiveBlending,
       uniforms: {
         time: { value: 0 },
-        topColor: { value: new Color(0x0d1b2a) },
-        bottomColor: { value: new Color(0x155e75) },
-        sunDirection: { value: [0.3, 0.8, 0.2] }
+        topColor: { value: new Color(0x87ceeb) },
+        bottomColor: { value: new Color(0xf1f5f9) },
+        sunDirection: { value: [0.1, 0.9, 0.3] }
       },
       vertexShader: `
         varying vec3 vWorldPosition;
