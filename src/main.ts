@@ -53,20 +53,7 @@ async function bootstrap(): Promise<void> {
 
   let router: RouterController | null = null;
 
-  const redirectToMusicHall = (): void => {
-    window.open('https://rhicksrad.github.io/8Beat', '_blank', 'noopener');
-  };
-
   const navigate = (route: RouteName) => {
-    if (route === '#music') {
-      redirectToMusicHall();
-      if (router) {
-        router.navigate('#home');
-      } else {
-        window.location.hash = '#home';
-      }
-      return;
-    }
     if (router) {
       router.navigate(route);
     } else {
@@ -110,10 +97,7 @@ async function bootstrap(): Promise<void> {
     if (route !== '#home') {
       hud.hideHint();
     }
-    if (route === '#music') {
-      redirectToMusicHall();
-      router?.navigate('#home');
-    } else if (route === '#resume') {
+    if (route === '#resume') {
       window.open('resume.html', '_blank', 'noopener');
     }
   }
@@ -141,7 +125,8 @@ async function bootstrap(): Promise<void> {
     Digit2: '#it',
     Digit3: '#gardening',
     Digit4: '#ai',
-    Digit5: '#music'
+    Digit5: '#music',
+    Digit6: '#gaming'
   };
 
   document.addEventListener('keydown', (event) => {

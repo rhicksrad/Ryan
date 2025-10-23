@@ -9,7 +9,7 @@ export interface HotspotConfig {
   onLeave?: () => void;
   onClick?: () => void;
   onUpdate?: (delta: number) => void;
-  route: '#home' | '#cooking' | '#it' | '#gardening' | '#ai' | '#music';
+  route: '#home' | '#cooking' | '#it' | '#gardening' | '#ai' | '#music' | '#gaming';
 }
 
 export class Hotspot {

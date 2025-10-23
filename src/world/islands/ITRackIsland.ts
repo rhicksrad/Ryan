@@ -21,6 +21,7 @@ interface ITRackOptions {
 export function createITRackIsland(options: ITRackOptions): IslandHotspotBundle {
   const { audio, reducedMotion } = options;
   const group = new Group();
+  const extras: Hotspot[] = [];
 
   const plaza = new Mesh(new CylinderGeometry(3.8, 4.2, 0.55, 48), new MeshStandardMaterial({ color: 0x14532d, roughness: 0.82 }));
   plaza.position.y = 0.275;
@@ -63,6 +64,30 @@ export function createITRackIsland(options: ITRackOptions): IslandHotspotBundle 
   const walkway = new Mesh(new BoxGeometry(2.4, 0.16, 4.4), new MeshStandardMaterial({ color: 0xd1d5db, roughness: 0.85 }));
   walkway.position.set(0, 0.08, 2.6);
   group.add(walkway);
+
+  const generatorBaseMaterial = new MeshStandardMaterial({ color: 0x0f172a, roughness: 0.55 });
+  const generatorGlowMaterial = new MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x38bdf8, emissiveIntensity: 0.28, transparent: true, opacity: 0.78 });
+  const generatorTopMaterial = new MeshStandardMaterial({ color: 0xa855f7, emissive: 0xa855f7, emissiveIntensity: 0.22, transparent: true, opacity: 0.72 });
+  const generatorCaps: Mesh[] = [];
+  const generatorGlows: Mesh[] = [];
+  const generatorPositions: Array<[number, number]> = [
+    [-3.2, 0],
+    [3.2, 0],
+    [0, -3.2]
+  ];
+  for (const [x, z] of generatorPositions) {
+    const base = new Mesh(new CylinderGeometry(0.6, 0.8, 0.6, 18), generatorBaseMaterial);
+    base.position.set(x, 0.3, z);
+    group.add(base);
+    const glow = new Mesh(new CylinderGeometry(0.7, 0.7, 0.24, 24), generatorGlowMaterial);
+    glow.position.set(x, 0.72, z);
+    group.add(glow);
+    generatorGlows.push(glow);
+    const cap = new Mesh(new CylinderGeometry(0.4, 0.6, 0.5, 20), generatorTopMaterial);
+    cap.position.set(x, 1.05, z);
+    group.add(cap);
+    generatorCaps.push(cap);
+  }
 
   const beaconMaterial = new MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x38bdf8, emissiveIntensity: 0.4 });
   const beacon = new Mesh(new CylinderGeometry(0.22, 0.22, 1.8, 16), beaconMaterial);
@@ -121,6 +146,89 @@ export function createITRackIsland(options: ITRackOptions): IslandHotspotBundle 
     group.add(band);
   }
 
+  const interior = new Group();
+  interior.position.set(0, 0.75, 0);
+  group.add(interior);
+
+  const interiorFloor = new Mesh(new BoxGeometry(2.8, 0.12, 2.8), new MeshStandardMaterial({ color: 0x0b1120, roughness: 0.55 }));
+  interiorFloor.position.set(0, -0.12, 0);
+  interior.add(interiorFloor);
+
+  const opsTable = new Mesh(new CylinderGeometry(0.95, 0.95, 0.42, 32), new MeshStandardMaterial({ color: 0x1f2937, roughness: 0.35, metalness: 0.4 }));
+  opsTable.position.set(0, 0.2, 0.2);
+  interior.add(opsTable);
+  const opsSurfaceMaterial = new MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x38bdf8, emissiveIntensity: 0.26, transparent: true, opacity: 0.82 });
+  const opsSurface = new Mesh(new CylinderGeometry(0.9, 0.9, 0.08, 32), opsSurfaceMaterial);
+  opsSurface.position.set(0, 0.44, 0.2);
+  interior.add(opsSurface);
+
+  const deploymentStack = new Mesh(new CylinderGeometry(0.35, 0.5, 1.4, 18), new MeshStandardMaterial({ color: 0x2563eb, emissive: 0x2563eb, emissiveIntensity: 0.22 }));
+  deploymentStack.position.set(-1.2, 0.7, -0.6);
+  interior.add(deploymentStack);
+  const deploymentGlowMaterial = new MeshStandardMaterial({ color: 0x60a5fa, emissive: 0x60a5fa, emissiveIntensity: 0.28, transparent: true, opacity: 0.75 });
+  const deploymentGlow = new Mesh(new CylinderGeometry(0.55, 0.55, 0.2, 24), deploymentGlowMaterial);
+  deploymentGlow.position.set(-1.2, 1.4, -0.6);
+  interior.add(deploymentGlow);
+
+  const monitoringWall = new Mesh(new BoxGeometry(0.16, 1.6, 2.4), new MeshStandardMaterial({ color: 0x0f172a, roughness: 0.45 }));
+  monitoringWall.position.set(1.3, 0.8, -0.2);
+  interior.add(monitoringWall);
+  const monitoringScreenMaterial = new MeshStandardMaterial({ color: 0x22d3ee, emissive: 0x22d3ee, emissiveIntensity: 0.24, transparent: true, opacity: 0.85 });
+  const monitoringScreen = new Mesh(new BoxGeometry(0.12, 1.4, 2.0), monitoringScreenMaterial);
+  monitoringScreen.position.set(1.34, 0.8, -0.2);
+  interior.add(monitoringScreen);
+
+  const interiorRing = new Mesh(new CylinderGeometry(1.6, 1.6, 0.06, 40), new MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5 }));
+  interiorRing.position.set(0, 0.02, 0.2);
+  interior.add(interiorRing);
+
+  const interiorState = { opsHover: false, deployHover: false, monitorHover: false };
+
+  const opsHotspot = new Hotspot({
+    name: 'Operations Console',
+    ariaLabel: 'Configure infrastructure automation from the central console',
+    mesh: opsSurface,
+    route: '#it',
+    onEnter: () => {
+      interiorState.opsHover = true;
+      audio.playHoverBleep().catch(() => undefined);
+    },
+    onLeave: () => {
+      interiorState.opsHover = false;
+    }
+  });
+  extras.push(opsHotspot);
+
+  const deploymentHotspot = new Hotspot({
+    name: 'Deployment Reactor',
+    ariaLabel: 'Trigger blue-green deploy pipelines from the reactor',
+    mesh: deploymentGlow,
+    route: '#it',
+    onEnter: () => {
+      interiorState.deployHover = true;
+      audio.playHoverBleep().catch(() => undefined);
+    },
+    onLeave: () => {
+      interiorState.deployHover = false;
+    }
+  });
+  extras.push(deploymentHotspot);
+
+  const monitorHotspot = new Hotspot({
+    name: 'Observability Wall',
+    ariaLabel: 'Review real-time observability dashboards inside the tower',
+    mesh: monitoringScreen,
+    route: '#it',
+    onEnter: () => {
+      interiorState.monitorHover = true;
+      audio.playHoverBleep().catch(() => undefined);
+    },
+    onLeave: () => {
+      interiorState.monitorHover = false;
+    }
+  });
+  extras.push(monitorHotspot);
+
   const color = new Color();
   const state = { time: 0 };
 
@@ -156,8 +264,19 @@ export function createITRackIsland(options: ITRackOptions): IslandHotspotBundle 
       }
       indicators.instanceMatrix.needsUpdate = true;
       indicators.instanceColor!.needsUpdate = true;
+      generatorCaps.forEach((cap, index) => {
+        cap.rotation.y += delta * (index % 2 === 0 ? 1.2 : -1.1);
+      });
+      const generatorPulse = 0.28 + Math.sin(state.time * 2.6) * 0.12;
+      generatorGlows.forEach((glow) => {
+        glow.scale.y = 1 + generatorPulse * 0.15;
+        (glow.material as MeshStandardMaterial).emissiveIntensity = 0.28 + Math.sin(state.time * 3.0) * 0.1;
+      });
+      opsSurfaceMaterial.emissiveIntensity = 0.26 + Math.sin(state.time * 1.8) * 0.08 + (interiorState.opsHover ? 0.2 : 0);
+      deploymentGlowMaterial.emissiveIntensity = 0.28 + Math.sin(state.time * 2.2) * 0.08 + (interiorState.deployHover ? 0.2 : 0);
+      monitoringScreenMaterial.emissiveIntensity = 0.24 + Math.sin(state.time * 2.0) * 0.06 + (interiorState.monitorHover ? 0.22 : 0);
     }
   });
 
-  return { main: hotspot };
+  return { main: hotspot, extras };
 }

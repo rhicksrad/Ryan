@@ -21,6 +21,7 @@ interface GardenOptions {
 export function createGardenIsland(options: GardenOptions): IslandHotspotBundle {
   const { audio, reducedMotion } = options;
   const group = new Group();
+  const extras: Hotspot[] = [];
 
   const terrace = new Mesh(new CylinderGeometry(3.6, 3.9, 0.5, 32), new MeshStandardMaterial({ color: 0x14532d, roughness: 0.82 }));
   terrace.position.y = 0.25;
@@ -124,6 +125,33 @@ export function createGardenIsland(options: GardenOptions): IslandHotspotBundle 
   interiorTree.position.set(0, 1.8, 0);
   group.add(interiorTree);
 
+  const workbench = new Mesh(new BoxGeometry(1.4, 0.32, 0.9), new MeshStandardMaterial({ color: 0x14532d, roughness: 0.45 }));
+  workbench.position.set(0, 0.16, -1.3);
+  group.add(workbench);
+  const workSurfaceMaterial = new MeshStandardMaterial({ color: 0x86efac, emissive: 0x22c55e, emissiveIntensity: 0.2, transparent: true, opacity: 0.75 });
+  const workSurface = new Mesh(new BoxGeometry(1.2, 0.08, 0.7), workSurfaceMaterial);
+  workSurface.position.set(0, 0.38, -1.3);
+  group.add(workSurface);
+
+  const seedColumnMaterial = new MeshStandardMaterial({ color: 0xfacc15, emissive: 0xfacc15, emissiveIntensity: 0.18, transparent: true, opacity: 0.75 });
+  const seedCluster = new Group();
+  group.add(seedCluster);
+  const seedColumns: Mesh[] = [];
+  for (const offset of [-1.5, -0.5, 0.5, 1.5]) {
+    const column = new Mesh(new CylinderGeometry(0.22, 0.22, 0.9, 16), seedColumnMaterial);
+    column.position.set(offset, 0.6, 1.1);
+    seedCluster.add(column);
+    seedColumns.push(column);
+  }
+  const seedHitArea = new Mesh(new BoxGeometry(3.4, 1.2, 1.2), new MeshStandardMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+  seedHitArea.position.set(0, 0.8, 1.1);
+  seedCluster.add(seedHitArea);
+
+  const meditationRingMaterial = new MeshStandardMaterial({ color: 0x0ea5e9, emissive: 0x0ea5e9, emissiveIntensity: 0.2, transparent: true, opacity: 0.68 });
+  const meditationRing = new Mesh(new CylinderGeometry(0.8, 0.8, 0.12, 32), meditationRingMaterial);
+  meditationRing.position.set(0, 0.06, 1.2);
+  group.add(meditationRing);
+
   const plantGeometry = new ConeGeometry(0.25, 0.7, 6);
   const plantMaterial = new MeshStandardMaterial({ color: 0x22c55e, roughness: 0.55 });
   const plantCount = 72;
@@ -147,6 +175,54 @@ export function createGardenIsland(options: GardenOptions): IslandHotspotBundle 
   }
   plants.instanceMatrix.needsUpdate = true;
   group.add(plants);
+
+  const interiorState = { workHover: false, seedsHover: false, zenHover: false };
+
+  const workHotspot = new Hotspot({
+    name: 'Botany Workbench',
+    ariaLabel: 'Discover new botany experiments at the greenhouse workbench',
+    mesh: workSurface,
+    route: '#gardening',
+    onEnter: () => {
+      interiorState.workHover = true;
+      audio.playHoverBleep().catch(() => undefined);
+    },
+    onLeave: () => {
+      interiorState.workHover = false;
+    }
+  });
+  extras.push(workHotspot);
+
+  const seedHotspot = new Hotspot({
+    name: 'Seed Archive',
+    ariaLabel: 'Browse curated seed varietals in the greenhouse archive',
+    mesh: seedCluster,
+    hitArea: seedHitArea,
+    route: '#gardening',
+    onEnter: () => {
+      interiorState.seedsHover = true;
+      audio.playHoverBleep().catch(() => undefined);
+    },
+    onLeave: () => {
+      interiorState.seedsHover = false;
+    }
+  });
+  extras.push(seedHotspot);
+
+  const zenHotspot = new Hotspot({
+    name: 'Restorative Circle',
+    ariaLabel: 'Reset with wellness rituals in the restorative meditation circle',
+    mesh: meditationRing,
+    route: '#gardening',
+    onEnter: () => {
+      interiorState.zenHover = true;
+      audio.playHoverBleep().catch(() => undefined);
+    },
+    onLeave: () => {
+      interiorState.zenHover = false;
+    }
+  });
+  extras.push(zenHotspot);
 
   const state = { time: 0 };
 
@@ -181,8 +257,14 @@ export function createGardenIsland(options: GardenOptions): IslandHotspotBundle 
       roofMaterial.emissiveIntensity = 0.25 + Math.sin(state.time * 2.1) * 0.06;
       doorMaterial.emissiveIntensity = 0.2 + Math.sin(state.time * 3.0) * 0.06;
       interiorTree.scale.y = 1 + Math.sin(state.time * 1.1) * 0.05;
+      workSurfaceMaterial.emissiveIntensity = 0.2 + Math.sin(state.time * 2.1) * 0.07 + (interiorState.workHover ? 0.2 : 0);
+      seedColumns.forEach((column, index) => {
+        column.rotation.y = Math.sin(state.time * 1.6 + index * 0.4) * 0.35;
+      });
+      seedColumnMaterial.emissiveIntensity = 0.18 + Math.sin(state.time * 1.9) * 0.05 + (interiorState.seedsHover ? 0.18 : 0);
+      meditationRingMaterial.emissiveIntensity = 0.2 + Math.sin(state.time * 1.4) * 0.05 + (interiorState.zenHover ? 0.18 : 0);
     }
   });
 
-  return { main: hotspot };
+  return { main: hotspot, extras };
 }
