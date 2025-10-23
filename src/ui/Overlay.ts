@@ -1,364 +1,302 @@
-import type { ProfileContent, Project, Post, Talk } from '../types.d.ts';
+import type { InterestKey, ProfileContent, RouteName } from '../types';
 
-interface OverlayCallbacks {
-  onClose?: () => void;
-}
-
-type SectionName =
-  | 'home'
-  | 'cooking'
-  | 'it'
-  | 'gardening'
-  | 'ai'
-  | 'music'
-  | 'projects'
-  | 'writing'
-  | 'talks'
-  | 'resume'
-  | 'contact';
-
-const TITLE_MAP: Record<SectionName, string> = {
-  home: 'Overview',
-  cooking: 'Cooking & Smoking',
-  it: 'Infrastructure',
-  gardening: 'Gardening',
-  ai: 'Artificial Intelligence',
-  music: 'Music',
-  projects: 'Projects',
-  writing: 'Writing',
-  talks: 'Talks',
-  resume: 'Resume',
-  contact: 'Contact'
-};
+type RouteListener = (route: RouteName) => void;
 
 export class Overlay {
-  private panel: HTMLDivElement | null = null;
-  private focusable: HTMLElement[] = [];
-  private cleanup: (() => void) | null = null;
-  private current: SectionName | null = null;
+  private profile: ProfileContent;
+  private container: HTMLElement;
+  private titleEl: HTMLHeadingElement;
+  private contentEl: HTMLElement;
+  private closeButton: HTMLButtonElement;
+  private liveRegion: HTMLElement;
+  private focusTrapNodes: HTMLElement[] = [];
+  private previousFocus: Element | null = null;
+  private openState = false;
+  private listeners = new Set<RouteListener>();
+  private activeRoute: RouteName = '#home';
 
-  constructor(private root: HTMLElement, private content: ProfileContent, private callbacks: OverlayCallbacks = {}) {
-    this.root.setAttribute('aria-live', 'polite');
-  }
+  constructor(profile: ProfileContent) {
+    this.profile = profile;
+    this.container = document.createElement('section');
+    this.container.className = 'overlay';
+    this.container.setAttribute('role', 'dialog');
+    this.container.setAttribute('aria-modal', 'true');
+    this.container.setAttribute('aria-hidden', 'true');
 
-  open(section: SectionName): void {
-    if (this.current === section) return;
-    this.close();
-    this.current = section;
-    this.root.style.pointerEvents = 'auto';
-    const panel = document.createElement('div');
-    panel.className = 'overlay-panel';
-    panel.setAttribute('role', 'dialog');
-    panel.setAttribute('aria-modal', 'true');
-    panel.setAttribute('aria-label', TITLE_MAP[section]);
+    const header = document.createElement('header');
+    header.className = 'overlay__header';
 
-    const header = document.createElement('div');
-    header.className = 'overlay-header';
-    const title = document.createElement('h2');
-    title.id = `overlay-title-${section}`;
-    title.textContent = TITLE_MAP[section];
-    panel.setAttribute('aria-labelledby', title.id);
+    this.titleEl = document.createElement('h2');
+    this.titleEl.className = 'overlay__title';
+    this.titleEl.id = 'overlay-title';
 
-    const close = document.createElement('button');
-    close.className = 'overlay-close';
-    close.type = 'button';
-    close.innerText = 'Close';
-    close.addEventListener('click', () => this.close());
+    this.closeButton = document.createElement('button');
+    this.closeButton.className = 'overlay__close';
+    this.closeButton.type = 'button';
+    this.closeButton.setAttribute('aria-label', 'Close panel');
+    this.closeButton.innerHTML = '&times;';
 
-    header.append(title, close);
-    panel.appendChild(header);
+    header.append(this.titleEl, this.closeButton);
 
-    const content = document.createElement('div');
-    content.className = 'overlay-content';
-    content.append(...this.renderSection(section));
-    panel.appendChild(content);
+    this.contentEl = document.createElement('div');
+    this.contentEl.className = 'overlay__body';
 
-    this.root.innerHTML = '';
-    this.root.appendChild(panel);
-    this.panel = panel;
+    this.liveRegion = document.createElement('div');
+    this.liveRegion.setAttribute('role', 'status');
+    this.liveRegion.setAttribute('aria-live', 'polite');
+    this.liveRegion.style.position = 'absolute';
+    this.liveRegion.style.left = '-9999px';
 
-    this.focusable = Array.from(panel.querySelectorAll<HTMLElement>('a, button, [tabindex="0"]'));
-    const firstFocusable = this.focusable[0] ?? close;
-    setTimeout(() => firstFocusable.focus(), 0);
+    this.container.append(header, this.contentEl, this.liveRegion);
+    document.body.appendChild(this.container);
 
-    const onKeyDown = (event: KeyboardEvent) => {
+    this.closeButton.addEventListener('click', () => {
+      this.close();
+      this.emit('#home');
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (!this.openState) return;
       if (event.key === 'Escape') {
         event.preventDefault();
         this.close();
+        this.emit('#home');
+      } else if (event.key === 'Tab') {
+        this.enforceFocus(event);
       }
-      if (event.key === 'Tab' && this.focusable.length > 0) {
-        const currentIndex = this.focusable.indexOf(document.activeElement as HTMLElement);
-        if (event.shiftKey && currentIndex === 0) {
-          event.preventDefault();
-          this.focusable[this.focusable.length - 1].focus();
-        } else if (!event.shiftKey && currentIndex === this.focusable.length - 1) {
-          event.preventDefault();
-          this.focusable[0].focus();
-        }
-      }
-    };
+    });
 
-    document.addEventListener('keydown', onKeyDown);
-    this.cleanup = () => document.removeEventListener('keydown', onKeyDown);
-
-    this.updateMetadata(section);
+    document.addEventListener('ryan-world-contact-intent', () => {
+      this.open('#contact');
+    });
   }
 
-  close(): void {
-    if (!this.panel) return;
-    this.root.innerHTML = '';
-    this.root.style.pointerEvents = 'none';
-    this.panel = null;
-    this.focusable = [];
-    this.cleanup?.();
-    this.cleanup = null;
-    this.current = null;
-    this.restoreMetadata();
-    this.callbacks.onClose?.();
+  onRequestRoute(listener: RouteListener) {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
   }
 
-  isOpen(): boolean {
-    return Boolean(this.panel);
-  }
-
-  getCurrent(): SectionName | null {
-    return this.current;
-  }
-
-  private renderSection(section: SectionName): HTMLElement[] {
-    const nodes: HTMLElement[] = [];
-    const intro = document.createElement('section');
-    switch (section) {
-      case 'home': {
-        intro.innerHTML = `<p>${this.content.bio_short}</p>`;
-        const long = document.createElement('p');
-        long.textContent = this.content.bio_long;
-        intro.appendChild(long);
-        nodes.push(intro, this.renderList('Skills', this.content.skills), this.renderList('Principles', this.content.principles));
-        break;
-      }
-      case 'projects': {
-        nodes.push(this.renderProjects());
-        break;
-      }
-      case 'writing': {
-        nodes.push(this.renderPosts());
-        break;
-      }
-      case 'talks': {
-        nodes.push(this.renderTalks());
-        break;
-      }
-      case 'resume': {
-        const link = document.createElement('a');
-        link.href = 'resume.html';
-        link.textContent = 'Open resume';
-        link.target = '_blank';
-        link.rel = 'noopener';
-        intro.appendChild(link);
-        nodes.push(intro);
-        break;
-      }
-      case 'contact': {
-        const list = document.createElement('ul');
-        list.className = 'card-list';
-        if (this.content.email && this.content.email !== 'TODO') {
-          const emailItem = document.createElement('li');
-          const emailLink = document.createElement('a');
-          emailLink.href = `mailto:${this.content.email}`;
-          emailLink.textContent = this.content.email;
-          emailItem.appendChild(emailLink);
-          list.appendChild(emailItem);
-        }
-        Object.entries(this.content.social).forEach(([platform, url]) => {
-          if (!url || url === 'TODO') return;
-          const item = document.createElement('li');
-          const link = document.createElement('a');
-          link.href = url;
-          link.textContent = platform;
-          link.target = '_blank';
-          link.rel = 'noopener';
-          item.appendChild(link);
-          list.appendChild(item);
-        });
-        intro.appendChild(list);
-        nodes.push(intro);
-        break;
-      }
-      default: {
-        const interest = this.content.interests[section];
-        if (interest) {
-          intro.innerHTML = `<p>${interest.summary}</p>`;
-          if (interest.links?.length) {
-            const linkList = document.createElement('ul');
-            linkList.className = 'card-list';
-            interest.links.forEach((link) => {
-              const item = document.createElement('li');
-              const anchor = document.createElement('a');
-              anchor.href = link;
-              anchor.textContent = link;
-              anchor.target = '_blank';
-              anchor.rel = 'noopener';
-              item.appendChild(anchor);
-              linkList.appendChild(item);
-            });
-            intro.appendChild(linkList);
-          }
-          nodes.push(intro);
-        }
-        break;
-      }
+  private emit(route: RouteName) {
+    for (const listener of this.listeners) {
+      listener(route);
     }
-    return nodes;
   }
 
-  private renderList(title: string, items: string[]): HTMLElement {
-    const section = document.createElement('section');
-    const heading = document.createElement('h3');
-    heading.textContent = title;
-    section.appendChild(heading);
-    const list = document.createElement('ul');
-    list.className = 'card-list';
-    items.forEach((item) => {
-      const li = document.createElement('li');
-      li.className = 'card';
-      li.textContent = item;
-      list.appendChild(li);
-    });
-    section.appendChild(list);
-    return section;
-  }
-
-  private renderProjects(): HTMLElement {
-    const section = document.createElement('section');
-    const heading = document.createElement('h3');
-    heading.textContent = 'Projects';
-    section.appendChild(heading);
-    const list = document.createElement('div');
-    list.className = 'card-list';
-    this.content.projects.forEach((project: Project) => {
-      const card = document.createElement('article');
-      card.className = 'card';
-      const name = document.createElement('h4');
-      name.textContent = project.name;
-      const role = document.createElement('p');
-      role.textContent = `${project.role} · ${project.stack.join(', ')}`;
-      const summary = document.createElement('p');
-      summary.textContent = project.summary;
-      const highlightList = document.createElement('ul');
-      highlightList.className = 'card-list';
-      project.highlights.forEach((highlight) => {
-        const item = document.createElement('li');
-        item.textContent = highlight;
-        highlightList.appendChild(item);
-      });
-      const linkRow = document.createElement('p');
-      if (project.links.github && project.links.github !== 'TODO') {
-        const link = document.createElement('a');
-        link.href = project.links.github;
-        link.textContent = 'GitHub';
-        link.target = '_blank';
-        link.rel = 'noopener';
-        linkRow.appendChild(link);
-      }
-      if (project.links.demo && project.links.demo !== 'TODO') {
-        const link = document.createElement('a');
-        link.href = project.links.demo;
-        link.textContent = 'Demo';
-        link.target = '_blank';
-        link.rel = 'noopener';
-        if (linkRow.childNodes.length) {
-          linkRow.appendChild(document.createTextNode(' · '));
-        }
-        linkRow.appendChild(link);
-      }
-      card.append(name, role, summary, highlightList, linkRow);
-      list.appendChild(card);
-    });
-    section.appendChild(list);
-    return section;
-  }
-
-  private renderPosts(): HTMLElement {
-    const section = document.createElement('section');
-    const heading = document.createElement('h3');
-    heading.textContent = 'Writing';
-    section.appendChild(heading);
-    const list = document.createElement('div');
-    list.className = 'card-list';
-    this.content.posts.forEach((post: Post) => {
-      const card = document.createElement('article');
-      card.className = 'card';
-      const title = document.createElement('h4');
-      title.textContent = post.title;
-      const meta = document.createElement('p');
-      meta.textContent = post.date;
-      const summary = document.createElement('p');
-      summary.textContent = post.summary;
-      const link = document.createElement('a');
-      link.href = post.url;
-      link.textContent = 'Read post';
-      link.target = '_blank';
-      link.rel = 'noopener';
-      card.append(title, meta, summary, link);
-      list.appendChild(card);
-    });
-    section.appendChild(list);
-    return section;
-  }
-
-  private renderTalks(): HTMLElement {
-    const section = document.createElement('section');
-    const heading = document.createElement('h3');
-    heading.textContent = 'Talks';
-    section.appendChild(heading);
-    const list = document.createElement('div');
-    list.className = 'card-list';
-    this.content.talks.forEach((talk: Talk) => {
-      const card = document.createElement('article');
-      card.className = 'card';
-      const title = document.createElement('h4');
-      title.textContent = talk.title;
-      const meta = document.createElement('p');
-      meta.textContent = `${talk.event} · ${talk.date}`;
-      const link = document.createElement('a');
-      link.href = talk.link;
-      link.textContent = 'View talk';
-      link.target = '_blank';
-      link.rel = 'noopener';
-      card.append(title, meta, link);
-      list.appendChild(card);
-    });
-    section.appendChild(list);
-    return section;
-  }
-
-  private updateMetadata(section: SectionName) {
-    const baseTitle = `${this.content.name} – ${this.content.tagline}`;
-    const title = `${baseTitle} | ${TITLE_MAP[section]}`;
-    document.title = title;
-    const description = this.content.bio_short || this.content.bio_long.slice(0, 160);
-    this.setMeta('description', description);
-    this.setMeta('og:title', title, 'property');
-    this.setMeta('og:description', description, 'property');
-  }
-
-  private restoreMetadata() {
-    const baseTitle = `${this.content.name} – ${this.content.tagline}`;
-    document.title = baseTitle;
-    const description = this.content.bio_short || this.content.bio_long.slice(0, 160);
-    this.setMeta('description', description);
-    this.setMeta('og:title', baseTitle, 'property');
-    this.setMeta('og:description', description, 'property');
-  }
-
-  private setMeta(name: string, value: string, attr: 'name' | 'property' = 'name') {
-    let element = document.head.querySelector<HTMLMetaElement>(`meta[${attr}="${name}"]`);
-    if (!element) {
-      element = document.createElement('meta');
-      element.setAttribute(attr, name);
-      document.head.appendChild(element);
+  open(route: RouteName): boolean {
+    const markup = this.render(route);
+    if (!markup) {
+      this.close();
+      return false;
     }
-    element.setAttribute('content', value);
+    this.activeRoute = route;
+    this.contentEl.innerHTML = markup;
+    this.container.classList.add('overlay--open');
+    this.container.setAttribute('aria-hidden', 'false');
+    this.titleEl.textContent = this.titleForRoute(route);
+    this.previousFocus = document.activeElement;
+    this.updateFocusTrap();
+    this.openState = true;
+    window.setTimeout(() => this.closeButton.focus(), 30);
+    return true;
+  }
+
+  close() {
+    if (!this.openState) return;
+    this.openState = false;
+    this.container.classList.remove('overlay--open');
+    this.container.setAttribute('aria-hidden', 'true');
+    if (this.previousFocus instanceof HTMLElement) {
+      this.previousFocus.focus();
+    }
+    this.activeRoute = '#home';
+  }
+
+  isOpen() {
+    return this.openState;
+  }
+
+  getActiveRoute(): RouteName {
+    return this.activeRoute;
+  }
+
+  announceHover(summary: string) {
+    this.liveRegion.textContent = summary;
+  }
+
+  private enforceFocus(event: KeyboardEvent) {
+    if (this.focusTrapNodes.length === 0) return;
+    const { shiftKey } = event;
+    const first = this.focusTrapNodes[0];
+    const last = this.focusTrapNodes[this.focusTrapNodes.length - 1];
+    const current = document.activeElement;
+    if (!shiftKey && current === last) {
+      event.preventDefault();
+      first.focus();
+    } else if (shiftKey && current === first) {
+      event.preventDefault();
+      last.focus();
+    }
+  }
+
+  private updateFocusTrap() {
+    const focusables = this.container.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    this.focusTrapNodes = Array.from(focusables).filter((el) => !el.hasAttribute('disabled'));
+    if (!this.focusTrapNodes.includes(this.closeButton)) {
+      this.focusTrapNodes.unshift(this.closeButton);
+    }
+  }
+
+  private render(route: RouteName): string | null {
+    switch (route) {
+      case '#cooking':
+      case '#it':
+      case '#gardening':
+      case '#ai':
+      case '#music':
+        return this.renderInterest(route.replace('#', '') as InterestKey);
+      case '#projects':
+        return this.renderProjects();
+      case '#writing':
+        return this.renderPosts();
+      case '#talks':
+        return this.renderTalks();
+      case '#contact':
+        return this.renderContact();
+      default:
+        return null;
+    }
+  }
+
+  private titleForRoute(route: RouteName): string {
+    switch (route) {
+      case '#cooking':
+        return 'Cooking & Grilling';
+      case '#it':
+        return 'Infrastructure & IT';
+      case '#gardening':
+        return 'Gardening & Growing';
+      case '#ai':
+        return 'AI Hub';
+      case '#music':
+        return 'Music & Sound';
+      case '#projects':
+        return 'Highlighted Projects';
+      case '#writing':
+        return 'Writing';
+      case '#talks':
+        return 'Talks & Sessions';
+      case '#contact':
+        return 'Contact Ryan';
+      default:
+        return 'Ryan 3D World';
+    }
+  }
+
+  private renderInterest(key: InterestKey): string {
+    const interest = this.profile.interests[key];
+    const header = `<section class="overlay__section"><p>${this.profile.bio_short}</p></section>`;
+    const links = interest.links
+      .map((link) => `<li><a href="${link}" target="_blank" rel="noopener">${link}</a></li>`)
+      .join('');
+    const listMarkup = links
+      ? `<section class="overlay__section"><h3>Links</h3><ul class="overlay__list">${links}</ul></section>`
+      : '';
+    return `
+      ${header}
+      <section class="overlay__section">
+        <h3>Focus</h3>
+        <p>${interest.summary}</p>
+      </section>
+      ${listMarkup}
+    `;
+  }
+
+  private renderProjects(): string {
+    const { projects } = this.profile;
+    if (!projects.length) {
+      return '<section class="overlay__section"><p>TODO: Add project write-ups.</p></section>';
+    }
+    const items = projects
+      .map(
+        (project) => `
+        <li>
+          <h3>${project.name}</h3>
+          <p>${project.summary}</p>
+          <p><strong>Role:</strong> ${project.role}</p>
+          <p><strong>Stack:</strong> ${project.stack.join(', ')}</p>
+          <ul>
+            ${project.highlights.map((item) => `<li>${item}</li>`).join('')}
+          </ul>
+          <p>
+            <a href="${project.links.github}" target="_blank" rel="noopener">Source</a>
+            &nbsp;·&nbsp;
+            <a href="${project.links.demo}" target="_blank" rel="noopener">Demo</a>
+          </p>
+        </li>
+      `
+      )
+      .join('');
+    return `<section class="overlay__section"><ul class="overlay__list">${items}</ul></section>`;
+  }
+
+  private renderPosts(): string {
+    const { posts } = this.profile;
+    if (!posts.length) {
+      return '<section class="overlay__section"><p>TODO: Add writing samples.</p></section>';
+    }
+    const items = posts
+      .map(
+        (post) => `
+        <li>
+          <h3>${post.title}</h3>
+          <p><time datetime="${post.date}">${post.date}</time></p>
+          <p>${post.summary}</p>
+          <p><a href="${post.url}" target="_blank" rel="noopener">Read more</a></p>
+        </li>
+      `
+      )
+      .join('');
+    return `<section class="overlay__section"><ul class="overlay__list">${items}</ul></section>`;
+  }
+
+  private renderTalks(): string {
+    const { talks } = this.profile;
+    if (!talks.length) {
+      return '<section class="overlay__section"><p>TODO: Add talk recordings.</p></section>';
+    }
+    const items = talks
+      .map(
+        (talk) => `
+        <li>
+          <h3>${talk.title}</h3>
+          <p>${talk.event}</p>
+          <p><time datetime="${talk.date}">${talk.date}</time></p>
+          <p><a href="${talk.link}" target="_blank" rel="noopener">Watch</a></p>
+        </li>
+      `
+      )
+      .join('');
+    return `<section class="overlay__section"><ul class="overlay__list">${items}</ul></section>`;
+  }
+
+  private renderContact(): string {
+    return `
+      <section class="overlay__section">
+        <p>${this.profile.contact.cta}</p>
+        <p>Email: <a href="mailto:${this.profile.email}">${this.profile.email}</a></p>
+        <p>${this.profile.contact.availability}</p>
+      </section>
+      <section class="overlay__section">
+        <h3>Elsewhere</h3>
+        <ul class="overlay__list">
+          <li><a href="${this.profile.social.github}" target="_blank" rel="noopener">GitHub</a></li>
+          <li><a href="${this.profile.social.linkedin}" target="_blank" rel="noopener">LinkedIn</a></li>
+          <li><a href="${this.profile.social.x}" target="_blank" rel="noopener">X (Twitter)</a></li>
+          <li><a href="${this.profile.social.website}" target="_blank" rel="noopener">Website</a></li>
+        </ul>
+      </section>
+    `;
   }
 }

@@ -1,57 +1,87 @@
 import {
-  BufferGeometry,
   Color,
-  Float32BufferAttribute,
   Group,
-  Line,
-  LineBasicMaterial,
   Mesh,
-  MeshStandardMaterial,
-  TorusGeometry
+  ShaderMaterial,
+  TorusGeometry,
+  UniformsUtils
 } from 'three';
+import type { LoadedAssets, ProfileContent } from '../../types';
 import { Hotspot } from '../Hotspot';
-import type { IslandContext, IslandResult } from './types';
 
-export function createAIHubIsland(context: IslandContext): IslandResult {
+const vertexShader = /* glsl */ `
+  varying vec3 vPosition;
+  void main() {
+    vPosition = position;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const fragmentShader = /* glsl */ `
+  varying vec3 vPosition;
+  uniform float time;
+  uniform vec3 colorA;
+  uniform vec3 colorB;
+  void main() {
+    float pulse = sin(time + length(vPosition)) * 0.5 + 0.5;
+    vec3 color = mix(colorA, colorB, pulse);
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
+
+export function create(parent: Group, content: ProfileContent, _assets: LoadedAssets) {
   const group = new Group();
-  const base = new Mesh(new TorusGeometry(3.2, 0.3, 8, 32), new MeshStandardMaterial({ color: 0x282a36 }));
-  base.rotation.x = Math.PI / 2;
-  group.add(base);
+  group.name = 'AI Hub Island';
 
-  const nodeMaterial = new MeshStandardMaterial({ color: 0x5c63ff, emissive: 0x222244, emissiveIntensity: 0.4 });
-  const ring = new Mesh(new TorusGeometry(1.6, 0.2, 12, 48), nodeMaterial);
-  ring.position.y = 1.2;
-  group.add(ring);
-
-  const points = new Float32Array([
-    -1.4, 0.6, 0,
-    0, 1.8, 1.2,
-    1.4, 0.6, 0,
-    0, 1.8, -1.2,
-    -1.4, 0.6, 0
+  const geometry = new TorusGeometry(1.6, 0.3, 24, 64);
+  const uniforms = UniformsUtils.merge([
+    {
+      time: { value: 0 },
+      colorA: { value: new Color('#5d5fef') },
+      colorB: { value: new Color('#9c6ff4') }
+    }
   ]);
-  const lineGeometry = new BufferGeometry();
-  lineGeometry.setAttribute('position', new Float32BufferAttribute(points, 3));
-  const lineMaterial = new LineBasicMaterial({ color: new Color(0x7bd88f) });
-  const line = new Line(lineGeometry, lineMaterial);
-  line.onBeforeRender = () => {
-    if (context.reducedMotion()) return;
-    const pulse = 0.6 + Math.sin(performance.now() * 0.002) * 0.4;
-    lineMaterial.color.setScalar(pulse);
-  };
-  group.add(line);
-
-  const sign = new Mesh(new TorusGeometry(0.8, 0.08, 8, 16), new MeshStandardMaterial({ color: 0x7bd88f }));
-  sign.rotation.x = Math.PI / 2;
-  sign.position.set(2.6, 0.8, 0);
-  group.add(sign);
-
-  const hotspot = new Hotspot(group, {
-    name: 'ai',
-    label: 'AI',
-    annotations: [context.content.interests.ai.summary],
-    ariaLabel: 'Open AI work'
+  const material = new ShaderMaterial({
+    uniforms,
+    vertexShader,
+    fragmentShader,
+    transparent: false
   });
 
-  return { group, hotspot };
+  const torus = new Mesh(geometry, material);
+  torus.rotation.x = Math.PI / 4;
+  torus.rotation.z = Math.PI / 6;
+  torus.castShadow = true;
+  group.add(torus);
+
+  const inner = new Mesh(new TorusGeometry(1, 0.18, 24, 64), material);
+  inner.rotation.x = -Math.PI / 5;
+  inner.rotation.y = Math.PI / 3;
+  group.add(inner);
+
+  parent.add(group);
+
+  const hitArea = new Mesh(new TorusGeometry(2.2, 0.4, 12, 32));
+  hitArea.visible = false;
+  group.add(hitArea);
+
+  const hotspot = new Hotspot({
+    name: 'AI Hub Island',
+    route: '#ai',
+    ariaLabel: 'Open AI research notes',
+    mesh: group,
+    hitArea,
+    interestKey: 'ai',
+    summary: content.interests.ai.summary
+  });
+
+  hotspot.setUpdate(({ elapsed, reducedMotion }) => {
+    if (!reducedMotion) {
+      uniforms.time.value = elapsed;
+      torus.rotation.y = elapsed * 0.3;
+      inner.rotation.y = -elapsed * 0.4;
+    }
+  });
+
+  return hotspot;
 }

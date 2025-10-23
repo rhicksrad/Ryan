@@ -1,68 +1,87 @@
 import {
   BoxGeometry,
-  Color,
   Group,
+  InstancedMesh,
+  Matrix4,
   Mesh,
-  MeshStandardMaterial
+  MeshStandardMaterial,
+  Object3D,
+  Color
 } from 'three';
+import type { LoadedAssets, ProfileContent } from '../../types';
 import { Hotspot } from '../Hotspot';
-import type { IslandContext, IslandResult } from './types';
 
-export function createITRackIsland(context: IslandContext): IslandResult {
+const tempMatrix = new Matrix4();
+const tempObject = new Object3D();
+
+export function create(parent: Group, content: ProfileContent, _assets: LoadedAssets) {
   const group = new Group();
-  const base = new Mesh(new BoxGeometry(5, 0.6, 4), new MeshStandardMaterial({ color: 0x1b1f2a }));
-  base.position.y = 0;
-  group.add(base);
+  group.name = 'IT Rack Island';
 
-  const towerMaterial = new MeshStandardMaterial({ color: 0x111620 });
-  const ledMaterial = new MeshStandardMaterial({ color: 0x061822, emissive: new Color(0x00ffcc), emissiveIntensity: 0.2 });
+  const rackMaterial = new MeshStandardMaterial({ color: '#2b2f38', metalness: 0.3, roughness: 0.6 });
+  const rack = new Mesh(new BoxGeometry(1.6, 3.2, 1.2), rackMaterial);
+  rack.position.y = 1.6;
+  rack.castShadow = true;
+  rack.receiveShadow = true;
+  group.add(rack);
 
-  for (let i = -1; i <= 1; i += 2) {
-    const tower = new Mesh(new BoxGeometry(1.2, 3.2, 1.2), towerMaterial);
-    tower.position.set(i * 1.2, 1.7, 0);
-    group.add(tower);
+  const top = new Mesh(new BoxGeometry(2.4, 0.3, 1.6), rackMaterial);
+  top.position.y = 3.2;
+  group.add(top);
 
-    const led = new Mesh(new BoxGeometry(1, 0.1, 1), ledMaterial.clone());
-    led.position.set(i * 1.2, 3, 0);
-    led.onBeforeRender = () => {
-      const material = led.material as MeshStandardMaterial;
-      material.emissiveIntensity = 0.15 + 0.15 * Math.sin(performance.now() * 0.003 + i);
-    };
-    group.add(led);
-  }
+  const ledMaterial = new MeshStandardMaterial({ color: '#56cfe1', emissive: new Color('#56cfe1'), emissiveIntensity: 2 });
+  const ledGeometry = new BoxGeometry(0.2, 0.05, 0.05);
+  const ledRows = 6;
+  const ledsPerRow = 12;
+  const ledMesh = new InstancedMesh(ledGeometry, ledMaterial, ledRows * ledsPerRow);
 
-  const sign = new Mesh(new BoxGeometry(1.4, 0.4, 0.1), new MeshStandardMaterial({ color: 0x455d7a }));
-  sign.position.set(2.6, 1.2, 0);
-  group.add(sign);
-
-  let fanOscillator: OscillatorNode | null = null;
-
-  const hotspot = new Hotspot(group, {
-    name: 'it',
-    label: 'IT',
-    annotations: [context.content.interests.it.summary],
-    ariaLabel: 'Open infrastructure content',
-    onEnter: () => {
-      if (context.reducedMotion()) return;
-      if (context.audio.isMuted()) return;
-      if (!fanOscillator) {
-        fanOscillator = context.audio.createOscillator(110);
-        fanOscillator.type = 'sawtooth';
-        fanOscillator.start();
-      }
+  const baseColors: Color[] = [];
+  let index = 0;
+  for (let row = 0; row < ledRows; row++) {
+    for (let col = 0; col < ledsPerRow; col++) {
+      tempObject.position.set(-0.9 + col * 0.16, 0.8 + row * 0.4, 0.63);
+      tempObject.updateMatrix();
+      tempMatrix.copy(tempObject.matrix);
+      ledMesh.setMatrixAt(index, tempMatrix);
+      const base = new Color().setHSL(0.45 + Math.random() * 0.1, 0.9, 0.5);
+      ledMesh.setColorAt(index, base);
+      baseColors.push(base.clone());
+      index++;
     }
+  }
+  ledMesh.instanceMatrix.needsUpdate = true;
+  ledMesh.castShadow = false;
+  group.add(ledMesh);
+
+  parent.add(group);
+
+  const hitArea = new Mesh(new BoxGeometry(3, 0.5, 3));
+  hitArea.position.y = 0.25;
+  hitArea.visible = false;
+  group.add(hitArea);
+
+  const hotspot = new Hotspot({
+    name: 'IT Rack Island',
+    route: '#it',
+    ariaLabel: 'Open infrastructure work notes',
+    mesh: group,
+    hitArea,
+    interestKey: 'it',
+    summary: content.interests.it.summary
   });
 
-  const stopFan = () => {
-    if (fanOscillator) {
-      fanOscillator.stop();
-      fanOscillator.disconnect();
-      fanOscillator = null;
+  const speeds = Array.from({ length: ledMesh.count }, () => Math.random() * 2 + 0.5);
+  const color = new Color();
+
+  hotspot.setUpdate(({ elapsed, reducedMotion }) => {
+    if (reducedMotion) return;
+    for (let i = 0; i < ledMesh.count; i++) {
+      const intensity = (Math.sin(elapsed * speeds[i] + i * 0.13) + 1) * 0.5;
+      color.copy(baseColors[i]).multiplyScalar(0.4 + intensity * 0.6);
+      ledMesh.setColorAt(i, color);
     }
-  };
+    ledMesh.instanceColor!.needsUpdate = true;
+  });
 
-  hotspot.on('leave', stopFan);
-  hotspot.on('click', stopFan);
-
-  return { group, hotspot };
+  return hotspot;
 }

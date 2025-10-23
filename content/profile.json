@@ -1,27 +1,109 @@
 {
-  "name": "Ryan",
+  "name": "Ryan Example",
   "tagline": "Infrastructure Engineer",
-  "location": "TODO",
-  "email": "TODO",
-  "social": { "github": "TODO", "linkedin": "TODO", "x": "TODO", "website": "TODO" },
-  "bio_short": "Thoughtful, careful, technical, concise. TODO",
-  "bio_long": "150-250 words. TODO",
-  "skills": ["Linux", "Cloud", "Networking", "Observability", "Automation", "Security", "SRE", "CI/CD", "Containers", "IaC"],
-  "principles": ["Measure, then improve", "Automate the boring", "Design for failure"],
+  "location": "TODO City, TODO Country",
+  "email": "TODO@example.com",
+  "social": {
+    "github": "https://github.com/TODO",
+    "linkedin": "https://www.linkedin.com/in/TODO",
+    "x": "https://twitter.com/TODO",
+    "website": "https://example.com"
+  },
+  "bio_short": "Thoughtful, careful, technical, concise. TODO refine summary in one sentence.",
+  "bio_long": "TODO: Provide a 150-250 word biography covering platform engineering, SRE, leadership, and learning philosophy.",
+  "skills": [
+    "Linux",
+    "Cloud",
+    "Networking",
+    "Observability",
+    "Automation",
+    "Security",
+    "SRE",
+    "CI/CD",
+    "Containers",
+    "IaC"
+  ],
+  "principles": [
+    "Measure, then improve",
+    "Automate the boring",
+    "Design for failure",
+    "Ship safely and often"
+  ],
   "projects": [
-    { "name": "TODO - Project", "role": "TODO", "stack": ["TODO"], "summary": "TODO", "highlights": ["TODO"], "links": { "github": "TODO", "demo": "TODO" } }
+    {
+      "name": "TODO - Observability Platform",
+      "role": "TODO - Lead Engineer",
+      "stack": ["TODO", "Kubernetes", "Terraform"],
+      "summary": "TODO: Describe the impact and outcomes.",
+      "highlights": [
+        "TODO: Highlight an achievement",
+        "TODO: Share a metric"
+      ],
+      "links": {
+        "github": "TODO",
+        "demo": "TODO"
+      }
+    },
+    {
+      "name": "TODO - Automation Toolkit",
+      "role": "TODO - Author",
+      "stack": ["Go", "TODO"],
+      "summary": "TODO: Summarize toolkit goals.",
+      "highlights": [
+        "TODO: Describe automation win"
+      ],
+      "links": {
+        "github": "TODO",
+        "demo": "TODO"
+      }
+    }
   ],
   "posts": [
-    { "title": "TODO - Post", "date": "YYYY-MM-DD", "summary": "TODO", "url": "TODO" }
+    {
+      "title": "TODO - Post",
+      "date": "YYYY-MM-DD",
+      "summary": "TODO",
+      "url": "https://example.com/blog/todo"
+    }
   ],
   "talks": [
-    { "title": "TODO - Talk", "event": "TODO", "date": "YYYY-MM-DD", "link": "TODO" }
+    {
+      "title": "TODO - Talk",
+      "event": "TODO Conf",
+      "date": "YYYY-MM-DD",
+      "link": "https://example.com/talks/todo"
+    }
   ],
   "interests": {
-    "cooking": { "summary": "Smoking meat, temperature control, rubs, and gear.", "links": [] },
-    "it": { "summary": "Infrastructure, systems, and reliability.", "links": [] },
-    "gardening": { "summary": "Soil, irrigation, seasonal crops.", "links": [] },
-    "ai": { "summary": "Pragmatic use of models and tooling.", "links": [] },
-    "music": { "summary": "Listening and making sound. TODO genres and instruments.", "links": [] }
+    "cooking": {
+      "summary": "Smoking meat, temperature control, rubs, and gear.",
+      "links": [
+        "https://example.com/cooking/TODO"
+      ]
+    },
+    "it": {
+      "summary": "Infrastructure, systems, and reliability.",
+      "links": [
+        "https://example.com/it/TODO"
+      ]
+    },
+    "gardening": {
+      "summary": "Soil, irrigation, seasonal crops, and experimenting with sensors.",
+      "links": []
+    },
+    "ai": {
+      "summary": "Pragmatic use of models and tooling.",
+      "links": [
+        "https://example.com/ai/TODO"
+      ]
+    },
+    "music": {
+      "summary": "Listening and making sound. TODO: note genres and instruments.",
+      "links": []
+    }
+  },
+  "contact": {
+    "cta": "TODO: Invite people to get in touch.",
+    "availability": "TODO: Mention speaking/consulting availability."
   }
 }

@@ -1,72 +1,60 @@
-import { PerspectiveCamera, Vector3 } from 'three';
-import type { WebGLRenderer } from 'three';
-import { Hotspot } from './Hotspot';
+import { Vector3 } from 'three';
+import type { PerspectiveCamera, WebGLRenderer } from 'three';
+import type { Hotspot } from './Hotspot';
+import type { RouteName } from '../types';
 
-type LabelEntry = {
-  name: string;
-  hotspot: Hotspot;
-  element: HTMLButtonElement;
-};
+const WORLD_POSITION = new Vector3();
 
 export class Labels {
-  private entries: LabelEntry[] = [];
-  private hiddenButtonsLayer: HTMLElement;
+  private container: HTMLElement;
+  private buttons = new Map<Hotspot, HTMLButtonElement>();
+  private cameraDistanceThreshold = 4;
 
-  constructor(
-    private container: HTMLElement,
-    private camera: PerspectiveCamera,
-    private renderer: WebGLRenderer,
-    private onSelect: (hotspot: Hotspot) => void
-  ) {
-    this.container.classList.add('world-labels');
-    this.hiddenButtonsLayer = document.createElement('div');
-    this.hiddenButtonsLayer.className = 'visually-hidden';
-    this.container.appendChild(this.hiddenButtonsLayer);
+  constructor() {
+    this.container = document.createElement('div');
+    this.container.className = 'labels';
+    document.body.appendChild(this.container);
   }
 
-  register(name: string, hotspot: Hotspot): void {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'world-label';
-    button.textContent = hotspot.label;
-    button.setAttribute('aria-label', hotspot.ariaLabel);
-    button.style.position = 'absolute';
-    button.style.transform = 'translate(-50%, -50%)';
-    button.style.pointerEvents = 'auto';
-    button.addEventListener('click', () => this.onSelect(hotspot));
-    button.addEventListener('focus', () => this.onSelect(hotspot));
-    this.container.appendChild(button);
+  setHotspots(hotspots: Hotspot[], onSelect: (hotspot: Hotspot) => void) {
+    this.container.innerHTML = '';
+    this.buttons.clear();
 
-    const hiddenButton = document.createElement('button');
-    hiddenButton.type = 'button';
-    hiddenButton.textContent = hotspot.label;
-    hiddenButton.className = 'visually-hidden-focusable';
-    hiddenButton.addEventListener('click', () => this.onSelect(hotspot));
-    this.hiddenButtonsLayer.appendChild(hiddenButton);
-
-    this.entries.push({ name, hotspot, element: button });
+    for (const hotspot of hotspots) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = hotspot.name;
+      button.setAttribute('aria-label', hotspot.ariaLabel);
+      button.addEventListener('click', () => onSelect(hotspot));
+      button.addEventListener('pointerenter', () => hotspot.onEnter());
+      button.addEventListener('focus', () => hotspot.onEnter());
+      this.container.appendChild(button);
+      this.buttons.set(hotspot, button);
+    }
   }
 
-  setActive(name: string | null): void {
-    this.entries.forEach((entry) => {
-      entry.element.setAttribute('aria-current', entry.name === name ? 'true' : 'false');
-    });
-  }
+  update(camera: PerspectiveCamera, renderer: WebGLRenderer, activeRoute: RouteName) {
+    const width = renderer.domElement.clientWidth;
+    const height = renderer.domElement.clientHeight;
 
-  update(): void {
-    const { width, height } = this.renderer.domElement.getBoundingClientRect();
-    const vector = new Vector3();
-    this.entries.forEach(({ hotspot, element }) => {
-      hotspot.getWorldPosition(vector);
-      vector.project(this.camera);
-      const x = (vector.x * 0.5 + 0.5) * width;
-      const y = (vector.y * -0.5 + 0.5) * height;
-      const distance = this.camera.position.distanceTo(hotspot.getWorldPosition(new Vector3()));
-      const visible = vector.z > -1 && vector.z < 1 && distance > 2;
-      element.style.display = visible ? 'inline-flex' : 'none';
-      if (!visible) return;
-      element.style.left = `${x}px`;
-      element.style.top = `${y}px`;
-    });
+    for (const [hotspot, button] of this.buttons.entries()) {
+      hotspot.mesh.getWorldPosition(WORLD_POSITION);
+      const distance = camera.position.distanceTo(WORLD_POSITION);
+      if (distance < this.cameraDistanceThreshold) {
+        button.style.display = 'none';
+        continue;
+      }
+      const projected = WORLD_POSITION.clone().project(camera);
+      const x = (projected.x * 0.5 + 0.5) * width;
+      const y = (-projected.y * 0.5 + 0.5) * height;
+      if (projected.z > 1) {
+        button.style.display = 'none';
+        continue;
+      }
+      button.style.display = 'block';
+      button.style.left = `${x}px`;
+      button.style.top = `${y}px`;
+      button.setAttribute('aria-current', hotspot.route === activeRoute ? 'true' : 'false');
+    }
   }
 }

@@ -1,110 +1,72 @@
-import type { Overlay } from './Overlay';
-import type { HUD } from './HUD';
-import type { World } from '../world/World';
+import type { RouteName } from '../types';
 
-type RouteName =
-  | 'home'
-  | 'cooking'
-  | 'it'
-  | 'gardening'
-  | 'ai'
-  | 'music'
-  | 'projects'
-  | 'writing'
-  | 'talks'
-  | 'resume'
-  | 'contact';
+type Listener = (route: RouteName) => void;
 
-type RouteConfig = {
-  hotspot: string | null;
-  panel: RouteName | null;
+const ROUTE_TITLES: Record<RouteName, string> = {
+  '#home': 'Ryan 3D World',
+  '#cooking': 'Ryan 3D World — Cooking',
+  '#it': 'Ryan 3D World — IT',
+  '#gardening': 'Ryan 3D World — Gardening',
+  '#ai': 'Ryan 3D World — AI',
+  '#music': 'Ryan 3D World — Music',
+  '#projects': 'Ryan 3D World — Projects',
+  '#writing': 'Ryan 3D World — Writing',
+  '#talks': 'Ryan 3D World — Talks',
+  '#resume': 'Ryan 3D World — Resume',
+  '#contact': 'Ryan 3D World — Contact'
 };
-
-const ROUTES: Record<RouteName, RouteConfig> = {
-  home: { hotspot: 'home', panel: null },
-  cooking: { hotspot: 'cooking', panel: 'cooking' },
-  it: { hotspot: 'it', panel: 'it' },
-  gardening: { hotspot: 'gardening', panel: 'gardening' },
-  ai: { hotspot: 'ai', panel: 'ai' },
-  music: { hotspot: 'music', panel: 'music' },
-  projects: { hotspot: null, panel: 'projects' },
-  writing: { hotspot: null, panel: 'writing' },
-  talks: { hotspot: null, panel: 'talks' },
-  resume: { hotspot: null, panel: 'resume' },
-  contact: { hotspot: null, panel: 'contact' }
-};
-
-interface RouterOptions {
-  world: World;
-  overlay: Overlay;
-  hud: HUD;
-  reducedMotion: () => boolean;
-}
 
 export class Router {
-  private current: RouteName = 'home';
-  private ignoreHashChange = false;
+  private listeners = new Set<Listener>();
+  private current: RouteName = '#home';
 
-  constructor(private options: RouterOptions) {
-    window.addEventListener('hashchange', () => this.applyFromHash());
-  }
-
-  start(defaultRoute: RouteName = 'home') {
-    if (!location.hash) {
-      this.navigate(defaultRoute, { replace: true, immediate: true });
-    } else {
-      this.applyFromHash(true);
+  constructor() {
+    window.addEventListener('hashchange', () => this.handleChange());
+    if (!window.location.hash) {
+      window.location.hash = '#home';
     }
+    this.handleChange();
   }
 
-  navigate(route: RouteName, opts: { replace?: boolean; immediate?: boolean } = {}) {
-    if (this.current === route && !opts.immediate) return;
-    this.current = route;
-    const hash = `#${route}`;
-    this.ignoreHashChange = true;
-    if (opts.replace) {
-      history.replaceState(null, '', hash);
-    } else {
-      location.hash = hash;
-    }
-    this.ignoreHashChange = false;
-    this.applyRoute(route, opts.immediate ?? false);
-  }
-
-  getCurrent(): RouteName {
-    return this.current;
-  }
-
-  private applyFromHash(immediate = false) {
-    if (this.ignoreHashChange) return;
-    const hash = (location.hash || '#home').slice(1) as RouteName;
-    if (!ROUTES[hash]) {
-      this.navigate('home', { replace: true });
+  private handleChange() {
+    const hash = (window.location.hash || '#home') as RouteName;
+    if (!ROUTE_TITLES[hash]) {
+      window.location.hash = '#home';
       return;
     }
     this.current = hash;
-    this.applyRoute(hash, immediate);
+    document.title = ROUTE_TITLES[hash];
+    for (const listener of this.listeners) {
+      listener(hash);
+    }
   }
 
-  private applyRoute(route: RouteName, immediate: boolean) {
-    const config = ROUTES[route];
-    if (!config) return;
+  onChange(listener: Listener) {
+    this.listeners.add(listener);
+    listener(this.current);
+    return () => this.listeners.delete(listener);
+  }
 
-    if (config.hotspot) {
-      this.options.world.focus(config.hotspot, immediate || this.options.reducedMotion());
-      localStorage.setItem('ryan.lastHotspot', config.hotspot);
-    } else if (route === 'home') {
-      this.options.world.focus('home', true);
+  go(route: RouteName) {
+    if (route === '#resume') {
+      window.open('/resume.html', '_blank', 'noopener');
+      return;
     }
-
-    if (config.panel) {
-      this.options.overlay.open(config.panel);
+    if (route === '#contact') {
+      document.dispatchEvent(
+        new CustomEvent('ryan-world-contact-intent', {
+          detail: { route }
+        })
+      );
+    }
+    if (window.location.hash !== route) {
+      window.location.hash = route;
     } else {
-      this.options.overlay.close();
+      this.handleChange();
     }
+  }
 
-    this.options.hud.setActive(route);
+  getRoute(): RouteName {
+    return this.current;
   }
 }
-
-export type { RouteName };

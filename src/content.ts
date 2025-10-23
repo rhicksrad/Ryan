@@ -1,29 +1,8 @@
-import type { ProfileContent, Project, Post, Talk, Interest } from './types.d.ts';
+import profile from '../content/profile.json';
+import type { ProfileContent } from './types';
 
-let cache: ProfileContent | null = null;
+export const content: { profile: ProfileContent } = {
+  profile: profile as ProfileContent
+};
 
-export async function loadContent(): Promise<ProfileContent> {
-  if (cache) return cache;
-  const response = await fetch('content/profile.json', { cache: 'no-cache' });
-  if (!response.ok) {
-    throw new Error('Failed to load profile content');
-  }
-  cache = (await response.json()) as ProfileContent;
-  return cache;
-}
-
-export function getInterests(content: ProfileContent): Record<string, Interest> {
-  return content.interests;
-}
-
-export function getProjects(content: ProfileContent): Project[] {
-  return content.projects;
-}
-
-export function getPosts(content: ProfileContent): Post[] {
-  return content.posts;
-}
-
-export function getTalks(content: ProfileContent): Talk[] {
-  return content.talks;
-}
+export type { ProfileContent };

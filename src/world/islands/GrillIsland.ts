@@ -1,73 +1,120 @@
 import {
   BoxGeometry,
+  BufferAttribute,
+  BufferGeometry,
   CylinderGeometry,
   Group,
   Mesh,
-  MeshLambertMaterial,
   MeshStandardMaterial,
   Points,
   PointsMaterial,
-  SphereGeometry,
-  Texture
+  Vector3
 } from 'three';
+import type { LoadedAssets, ProfileContent } from '../../types';
 import { Hotspot } from '../Hotspot';
-import type { IslandContext, IslandResult } from './types';
 
-export function createGrillIsland(context: IslandContext): IslandResult {
+export function create(parent: Group, content: ProfileContent, assets: LoadedAssets) {
   const group = new Group();
-  const island = new Mesh(
-    new CylinderGeometry(3.2, 3.6, 0.8, 8),
-    new MeshStandardMaterial({ color: 0x2a4230 })
-  );
-  island.position.y = 0;
-  group.add(island);
+  group.name = 'Grill Island';
 
-  const body = new Mesh(new CylinderGeometry(1.4, 1.4, 1.2, 16), new MeshLambertMaterial({ color: 0x444444 }));
-  body.position.y = 0.9;
+  const bodyMaterial = new MeshStandardMaterial({ color: '#363c46', metalness: 0.5, roughness: 0.4 });
+  const accentMaterial = new MeshStandardMaterial({ color: '#f25f4c', metalness: 0.2, roughness: 0.6 });
+
+  const body = new Mesh(new CylinderGeometry(1.4, 1.5, 1.2, 24), bodyMaterial);
+  body.position.y = 1.2;
+  body.castShadow = true;
+  body.receiveShadow = true;
   group.add(body);
 
-  const lid = new Mesh(new SphereGeometry(1.4, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2), new MeshLambertMaterial({ color: 0x2f2f2f }));
-  lid.position.y = 1.5;
+  const lid = new Mesh(new CylinderGeometry(1.45, 1.45, 0.6, 24), bodyMaterial);
+  lid.position.set(0, 1.9, 0);
   group.add(lid);
 
-  const chimney = new Mesh(new CylinderGeometry(0.2, 0.2, 0.9, 8), new MeshLambertMaterial({ color: 0x1d1d1d }));
-  chimney.position.set(0.6, 2, 0);
+  const chimney = new Mesh(new CylinderGeometry(0.2, 0.2, 0.7, 16), accentMaterial);
+  chimney.position.set(0.6, 2.4, 0.1);
   group.add(chimney);
 
-  const legMaterial = new MeshStandardMaterial({ color: 0x202020 });
-  const legGeo = new BoxGeometry(0.2, 1.2, 0.2);
-  [-0.6, 0.6].forEach((x) => {
-    const leg = new Mesh(legGeo, legMaterial);
-    leg.position.set(x, 0.2, 0.6);
+  const legsGeometry = new BoxGeometry(0.2, 1.2, 0.2);
+  const legPositions = [
+    new Vector3(0.8, 0.6, 0.8),
+    new Vector3(-0.8, 0.6, 0.8),
+    new Vector3(0.8, 0.6, -0.8),
+    new Vector3(-0.8, 0.6, -0.8)
+  ];
+  for (const pos of legPositions) {
+    const leg = new Mesh(legsGeometry, bodyMaterial);
+    leg.position.copy(pos);
+    leg.castShadow = true;
     group.add(leg);
-    const legBack = new Mesh(legGeo, legMaterial);
-    legBack.position.set(x, 0.2, -0.6);
-    group.add(legBack);
-  });
+  }
 
-  const smokeTexture: Texture = context.assets.getSmokeTexture();
-  const smokeMaterial = new PointsMaterial({
-    size: 0.8,
-    map: smokeTexture,
-    transparent: true,
-    depthWrite: false,
-    opacity: context.reducedMotion() ? 0.2 : 0.5
-  });
-  const smokeGeometry = new SphereGeometry(0.1, 6, 6);
-  const smoke = new Points(smokeGeometry, smokeMaterial);
-  smoke.position.set(0.6, 2.5, 0);
-  group.add(smoke);
+  const handle = new Mesh(new BoxGeometry(0.5, 0.1, 0.1), accentMaterial);
+  handle.position.set(0, 2.2, 1.2);
+  group.add(handle);
 
-  const sign = new Mesh(new BoxGeometry(1.2, 0.4, 0.1), new MeshStandardMaterial({ color: 0xdeb887 }));
-  sign.position.set(-2.5, 0.7, 0);
+  const signPost = new Mesh(new BoxGeometry(0.1, 1.4, 0.1), bodyMaterial);
+  signPost.position.set(-1.8, 1.2, 0);
+  group.add(signPost);
+  const sign = new Mesh(new BoxGeometry(1.4, 0.6, 0.1), accentMaterial);
+  sign.position.set(-1.8, 1.9, 0);
   group.add(sign);
 
-  const hotspot = new Hotspot(group, {
-    name: 'cooking',
-    label: 'Cooking',
-    annotations: [context.content.interests.cooking.summary],
-    ariaLabel: 'Open cooking projects'
+  const smokeCount = 40;
+  const smokeGeometry = new BufferGeometry();
+  const positions = new Float32Array(smokeCount * 3);
+  const sizes = new Float32Array(smokeCount);
+  for (let i = 0; i < smokeCount; i++) {
+    positions[i * 3] = (Math.random() - 0.5) * 0.4;
+    positions[i * 3 + 1] = Math.random() * 0.6;
+    positions[i * 3 + 2] = (Math.random() - 0.5) * 0.4;
+    sizes[i] = Math.random() * 0.4 + 0.2;
+  }
+  smokeGeometry.setAttribute('position', new BufferAttribute(positions, 3));
+  smokeGeometry.setAttribute('size', new BufferAttribute(sizes, 1));
+
+  const smokeMaterial = new PointsMaterial({
+    size: 0.8,
+    color: '#d7dbde',
+    transparent: true,
+    opacity: 0.65,
+    depthWrite: false,
+    map: assets.smokeTexture
+  });
+  const smoke = new Points(smokeGeometry, smokeMaterial);
+  smoke.position.set(0.6, 2.6, 0.1);
+  group.add(smoke);
+
+  parent.add(group);
+
+  const hitArea = new Mesh(new CylinderGeometry(2.4, 2.4, 0.4, 12));
+  hitArea.position.y = 0.2;
+  hitArea.visible = false;
+  group.add(hitArea);
+
+  const hotspot = new Hotspot({
+    name: 'Grill Island',
+    route: '#cooking',
+    ariaLabel: 'Open cooking and grilling notes',
+    mesh: group,
+    hitArea,
+    interestKey: 'cooking',
+    summary: content.interests.cooking.summary
   });
 
-  return { group, hotspot };
+  const offsets = new Array(smokeCount).fill(0).map(() => Math.random());
+
+  hotspot.setUpdate(({ delta, elapsed, reducedMotion }) => {
+    if (reducedMotion) return;
+    const arr = smokeGeometry.getAttribute('position') as BufferAttribute;
+    for (let i = 0; i < smokeCount; i++) {
+      const baseY = offsets[i];
+      const y = ((elapsed * 0.2 + baseY) % 1) * 1.5;
+      arr.setY(i, y);
+      arr.setX(i, Math.sin(elapsed * 0.5 + baseY * Math.PI * 2) * 0.2);
+      arr.setZ(i, Math.cos(elapsed * 0.5 + baseY * Math.PI) * 0.2);
+    }
+    arr.needsUpdate = true;
+  });
+
+  return hotspot;
 }

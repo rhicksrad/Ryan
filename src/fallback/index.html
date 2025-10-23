@@ -1,127 +1,149 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Ryan – Accessible Profile</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="stylesheet" href="../css/styles.css" />
+    <title>Ryan 3D World – Fallback</title>
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <style>
+      body {
+        overflow: auto;
+        background: var(--color-bg);
+        color: var(--color-text);
+        padding-top: var(--hud-height);
+      }
+      main {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 2rem 1.5rem 4rem;
+      }
+      .grid {
+        display: grid;
+        gap: 1.5rem;
+      }
+      .card {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: 16px;
+        padding: 1.5rem;
+        box-shadow: var(--shadow-soft);
+      }
+      header h1 {
+        margin: 0;
+      }
+      nav {
+        margin-top: 1rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+      nav a {
+        padding: 0.5rem 0.9rem;
+        border-radius: 999px;
+        border: 1px solid var(--color-border);
+        text-decoration: none;
+        color: var(--color-text);
+      }
+      nav a:hover,
+      nav a:focus-visible {
+        border-color: var(--color-accent);
+      }
+    </style>
   </head>
-  <body data-theme="dark">
-    <header>
-      <h1>Ryan – Infrastructure Engineer</h1>
-      <button type="button" id="enable-3d">Enable 3D world</button>
-    </header>
-    <main id="fallback-app">
-      <nav>
-        <ul class="top-nav" role="list">
-          <li><a href="#overview">Overview</a></li>
-          <li><a href="#projects">Projects</a></li>
-          <li><a href="#writing">Writing</a></li>
-          <li><a href="#talks">Talks</a></li>
-          <li><a href="#contact">Contact</a></li>
-        </ul>
+  <body>
+    <header class="hud">
+      <a class="hud__logo" href="#top"><img src="../../assets/logo.svg" width="32" height="32" alt="Ryan logo" /><span>Ryan</span></a>
+      <nav class="hud__nav">
+        <a href="#cooking">Cooking</a>
+        <a href="#it">IT</a>
+        <a href="#gardening">Gardening</a>
+        <a href="#ai">AI</a>
+        <a href="#music">Music</a>
+        <a href="#projects">Projects</a>
+        <a href="#writing">Writing</a>
+        <a href="#talks">Talks</a>
+        <a href="../../resume.html" target="_blank" rel="noopener">Resume</a>
+        <a href="#contact">Contact</a>
       </nav>
-      <article id="content"></article>
+    </header>
+    <main id="content">
+      <p>Loading profile…</p>
     </main>
-    <footer>
-      <small>&copy; <span data-js="year"></span> Ryan. All rights reserved.</small>
-    </footer>
     <script type="module">
-      const contentRoot = document.getElementById('content');
-      document.querySelectorAll('[data-js="year"]').forEach((el) => (el.textContent = String(new Date().getFullYear())));
-      document.getElementById('enable-3d')?.addEventListener('click', () => {
-        localStorage.setItem('ryan.motion.allow', 'true');
-        window.location.href = '../';
-      });
-      const render = (section, profile) => {
-        contentRoot.innerHTML = '';
-        const heading = document.createElement('h2');
-        heading.textContent = section;
-        contentRoot.appendChild(heading);
-        switch (section) {
-          case 'Overview': {
-            const intro = document.createElement('p');
-            intro.textContent = profile.bio_short;
-            const long = document.createElement('p');
-            long.textContent = profile.bio_long;
-            contentRoot.append(intro, long);
-            break;
-          }
-          case 'Projects': {
-            profile.projects.forEach((project) => {
-              const card = document.createElement('section');
-              card.className = 'card';
-              card.innerHTML = `<h3>${project.name}</h3><p>${project.summary}</p>`;
-              contentRoot.appendChild(card);
-            });
-            break;
-          }
-          case 'Writing': {
-            profile.posts.forEach((post) => {
-              const card = document.createElement('section');
-              card.className = 'card';
-              card.innerHTML = `<h3>${post.title}</h3><p>${post.date}</p><p>${post.summary}</p>`;
-              const link = document.createElement('a');
-              link.href = post.url;
-              link.textContent = 'Read post';
-              link.target = '_blank';
-              card.appendChild(link);
-              contentRoot.appendChild(card);
-            });
-            break;
-          }
-          case 'Talks': {
-            profile.talks.forEach((talk) => {
-              const card = document.createElement('section');
-              card.className = 'card';
-              card.innerHTML = `<h3>${talk.title}</h3><p>${talk.event} · ${talk.date}</p>`;
-              const link = document.createElement('a');
-              link.href = talk.link;
-              link.textContent = 'View talk';
-              link.target = '_blank';
-              card.appendChild(link);
-              contentRoot.appendChild(card);
-            });
-            break;
-          }
-          case 'Contact': {
-            const list = document.createElement('ul');
-            list.className = 'card-list';
-            if (profile.email && profile.email !== 'TODO') {
-              const li = document.createElement('li');
-              const link = document.createElement('a');
-              link.href = `mailto:${profile.email}`;
-              link.textContent = profile.email;
-              li.appendChild(link);
-              list.appendChild(li);
-            }
-            Object.entries(profile.social).forEach(([key, value]) => {
-              if (!value || value === 'TODO') return;
-              const li = document.createElement('li');
-              const link = document.createElement('a');
-              link.href = value;
-              link.textContent = key;
-              link.target = '_blank';
-              li.appendChild(link);
-              list.appendChild(li);
-            });
-            contentRoot.appendChild(list);
-            break;
-          }
+      import profileUrl from '../../content/profile.json?url';
+      async function load() {
+        const main = document.getElementById('content');
+        try {
+          const res = await fetch(profileUrl);
+          const data = await res.json();
+          main.innerHTML = `
+            <section id="top" class="card">
+              <h1>${data.name}</h1>
+              <p>${data.bio_short}</p>
+              <p><strong>Location:</strong> ${data.location}</p>
+              <p><a href="mailto:${data.email}">${data.email}</a></p>
+            </section>
+            <section id="projects" class="card">
+              <h2>Projects</h2>
+              <div class="grid">
+                ${data.projects
+                  .map(
+                    (project) => `
+                      <article>
+                        <h3>${project.name}</h3>
+                        <p>${project.summary}</p>
+                        <p><strong>Role:</strong> ${project.role}</p>
+                        <p><strong>Highlights:</strong> ${project.highlights.join(', ')}</p>
+                      </article>
+                    `
+                  )
+                  .join('')}
+              </div>
+            </section>
+            <section id="writing" class="card">
+              <h2>Writing</h2>
+              <ul>
+                ${data.posts
+                  .map((post) => `<li><a href="${post.url}">${post.title}</a> — ${post.summary}</li>`)
+                  .join('')}
+              </ul>
+            </section>
+            <section id="talks" class="card">
+              <h2>Talks</h2>
+              <ul>
+                ${data.talks
+                  .map((talk) => `<li><a href="${talk.link}">${talk.title}</a> — ${talk.event}</li>`)
+                  .join('')}
+              </ul>
+            </section>
+            <section id="interests" class="card">
+              <h2>Interests</h2>
+              <div class="grid">
+                ${Object.entries(data.interests)
+                  .map(
+                    ([key, interest]) => `
+                      <article id="${key}">
+                        <h3>${key.charAt(0).toUpperCase() + key.slice(1)}</h3>
+                        <p>${interest.summary}</p>
+                      </article>
+                    `
+                  )
+                  .join('')}
+              </div>
+            </section>
+            <section id="contact" class="card">
+              <h2>Contact</h2>
+              <p>${data.contact.cta}</p>
+              <p>${data.contact.availability}</p>
+              <p><a href="mailto:${data.email}">${data.email}</a></p>
+            </section>
+          `;
+        } catch (error) {
+          main.textContent = 'Failed to load profile.';
+          console.error(error);
         }
-      };
-      fetch('../content/profile.json')
-        .then((res) => res.json())
-        .then((profile) => {
-          render('Overview', profile);
-          document.querySelectorAll('a[href^="#"]').forEach((link) => {
-            link.addEventListener('click', (event) => {
-              event.preventDefault();
-              const label = link.textContent || 'Overview';
-              render(label, profile);
-            });
-          });
-        });
+      }
+      load();
     </script>
   </body>
 </html>

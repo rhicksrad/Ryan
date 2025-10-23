@@ -1,100 +1,58 @@
+import '../css/styles.css';
+import fallbackUrl from './fallback/index.html?url';
 import { supports3D } from './polyfills/webglCheck';
-import { loadContent } from './content';
 import { AssetLoader } from './utils/AssetLoader';
 import { AudioController } from './utils/Audio';
+import { content } from './content';
 import { Overlay } from './ui/Overlay';
+import { Router } from './ui/Router';
 import { HUD } from './ui/HUD';
-import { Router, type RouteName } from './ui/Router';
 import { World } from './world/World';
+import { DebugUI } from './debug/DebugUI';
 
-type Theme = 'light' | 'dark';
+async function bootstrap() {
+  const container = document.getElementById('app');
+  if (!container) {
+    throw new Error('Missing app container');
+  }
 
-document.querySelectorAll('[data-js="year"]').forEach((el) => {
-  el.textContent = String(new Date().getFullYear());
-});
+  if (!supports3D()) {
+    window.location.replace(fallbackUrl);
+    return;
+  }
 
-const reducedMotionMedia = window.matchMedia('(prefers-reduced-motion: reduce)');
-const allowMotion = localStorage.getItem('ryan.motion.allow') === 'true';
-const shouldFallback = !supports3D() || (reducedMotionMedia.matches && !allowMotion);
+  const loader = new AssetLoader();
+  const assets = await loader.load();
 
-if (shouldFallback) {
-  window.location.replace('fallback/index.html');
-} else {
-  (async () => {
-    const content = await loadContent();
-    const assets = new AssetLoader();
-    await assets.preload();
-    const audio = new AudioController();
+  const audio = new AudioController();
+  const overlay = new Overlay(content.profile);
+  const router = new Router();
+  const hud = new HUD(overlay, audio, content.profile);
 
-    const overlayRoot = document.getElementById('overlay-root');
-    const hudRoot = document.getElementById('hud-root');
-    const canvas = document.getElementById('world') as HTMLCanvasElement | null;
-    if (!overlayRoot || !hudRoot || !canvas) {
-      throw new Error('Missing required DOM nodes');
-    }
+  const world = new World({
+    container,
+    content: content.profile,
+    assets,
+    router,
+    overlay,
+    hud,
+    audio
+  });
 
-    let router: Router;
-    let hud: HUD;
+  const debug = new DebugUI(world);
+  debug.init();
 
-    const overlay = new Overlay(overlayRoot, content, {
-      onClose: () => {
-        if (!location.hash || location.hash === '#home') {
-          router.navigate('home', { replace: true });
-        }
-      }
-    });
+  router.onChange((route) => world.handleRoute(route));
+  overlay.onRequestRoute((route) => router.go(route));
+  hud.onNavigate((route) => router.go(route));
+  hud.onAudioToggle(() => audio.toggle());
+  audio.onChange((enabled) => hud.setAudioState(enabled));
 
-    const storedTheme = (localStorage.getItem('ryan.theme') as Theme | null) ?? null;
-    let currentTheme: Theme = storedTheme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-    const applyTheme = (theme: Theme) => {
-      currentTheme = theme;
-      document.documentElement.setAttribute('data-theme', theme);
-      localStorage.setItem('ryan.theme', theme);
-      hud?.setTheme(theme);
-    };
-
-    const storedMotion = localStorage.getItem('ryan.motion.disabled');
-    let motionDisabled = storedMotion ? storedMotion === 'true' : reducedMotionMedia.matches;
-
-    hud = new HUD(hudRoot, {
-      onNavigate: (route) => router.navigate(route as RouteName),
-      onThemeToggle: () => {
-        applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
-      },
-      onAudioToggle: () => {
-        const muted = audio.toggleMute();
-        hud.setAudioMuted(muted);
-      },
-      onMotionToggle: () => {
-        motionDisabled = !motionDisabled;
-        localStorage.setItem('ryan.motion.disabled', String(motionDisabled));
-        hud.setMotionDisabled(motionDisabled);
-      }
-    });
-
-    applyTheme(currentTheme);
-    hud.setAudioMuted(audio.isMuted());
-    hud.setMotionDisabled(motionDisabled);
-
-    const world = new World({
-      canvas,
-      content,
-      assets,
-      audio,
-      reducedMotion: () => motionDisabled,
-      onHotspotSelected: (id) => router.navigate(id as RouteName)
-    });
-
-    router = new Router({
-      world,
-      overlay,
-      hud,
-      reducedMotion: () => motionDisabled
-    });
-
-    const lastHotspot = (localStorage.getItem('ryan.lastHotspot') as RouteName) || 'home';
-    router.start(lastHotspot);
-
-    window.addEventListener('pointerdown', () => audio.resume(), { once: true });
-  })();
+  document.addEventListener('visibilitychange', () => {
+    world.setPaused(document.hidden);
+  });
 }
+
+bootstrap().catch((error) => {
+  console.error('Failed to bootstrap world', error);
+});
