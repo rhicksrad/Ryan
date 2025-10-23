@@ -1,12 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://example.com/</loc>
+    <loc>https://example.com/ryan-3d-world/</loc>
   </url>
   <url>
-    <loc>https://example.com/resume.html</loc>
-  </url>
-  <url>
-    <loc>https://example.com/fallback/</loc>
+    <loc>https://example.com/ryan-3d-world/resume.html</loc>
   </url>
 </urlset>

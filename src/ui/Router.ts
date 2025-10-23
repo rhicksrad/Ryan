@@ -1,72 +1,68 @@
-import type { RouteName } from '../types';
+const ROUTE_TITLES = {
+  '#home': 'Home',
+  '#cooking': 'Cooking Island',
+  '#it': 'IT Lab',
+  '#gardening': 'Garden Retreat',
+  '#ai': 'AI Hub',
+  '#music': 'Music Studio',
+  '#projects': 'Projects',
+  '#writing': 'Writing',
+  '#talks': 'Talks',
+  '#resume': 'Resume',
+  '#contact': 'Contact'
+} as const;
 
-type Listener = (route: RouteName) => void;
+export type RouteName = keyof typeof ROUTE_TITLES;
 
-const ROUTE_TITLES: Record<RouteName, string> = {
-  '#home': 'Ryan 3D World',
-  '#cooking': 'Ryan 3D World — Cooking',
-  '#it': 'Ryan 3D World — IT',
-  '#gardening': 'Ryan 3D World — Gardening',
-  '#ai': 'Ryan 3D World — AI',
-  '#music': 'Ryan 3D World — Music',
-  '#projects': 'Ryan 3D World — Projects',
-  '#writing': 'Ryan 3D World — Writing',
-  '#talks': 'Ryan 3D World — Talks',
-  '#resume': 'Ryan 3D World — Resume',
-  '#contact': 'Ryan 3D World — Contact'
-};
+interface RouterOptions {
+  onChange: (route: RouteName) => void;
+}
 
-export class Router {
-  private listeners = new Set<Listener>();
-  private current: RouteName = '#home';
+export interface RouterController {
+  current: RouteName;
+  navigate(route: RouteName): void;
+}
 
-  constructor() {
-    window.addEventListener('hashchange', () => this.handleChange());
-    if (!window.location.hash) {
-      window.location.hash = '#home';
-    }
-    this.handleChange();
+function normalize(hash: string): RouteName {
+  return (Object.keys(ROUTE_TITLES).includes(hash) ? hash : '#home') as RouteName;
+}
+
+export function createRouter(options: RouterOptions): RouterController {
+  const { onChange } = options;
+
+  function applyTitle(route: RouteName): void {
+    const suffix = ROUTE_TITLES[route];
+    document.title = suffix ? `Ryan 3D World — ${suffix}` : 'Ryan 3D World';
   }
 
-  private handleChange() {
-    const hash = (window.location.hash || '#home') as RouteName;
-    if (!ROUTE_TITLES[hash]) {
-      window.location.hash = '#home';
-      return;
-    }
-    this.current = hash;
-    document.title = ROUTE_TITLES[hash];
-    for (const listener of this.listeners) {
-      listener(hash);
-    }
+  function emit(route: RouteName): void {
+    applyTitle(route);
+    onChange(route);
   }
 
-  onChange(listener: Listener) {
-    this.listeners.add(listener);
-    listener(this.current);
-    return () => this.listeners.delete(listener);
-  }
+  const controller: RouterController = {
+    get current() {
+      return normalize(window.location.hash || '#home');
+    },
+    navigate(route: RouteName) {
+      if (controller.current === route) {
+        emit(route);
+      } else {
+        window.location.hash = route;
+      }
+    }
+  };
 
-  go(route: RouteName) {
-    if (route === '#resume') {
-      window.open('/resume.html', '_blank', 'noopener');
-      return;
-    }
-    if (route === '#contact') {
-      document.dispatchEvent(
-        new CustomEvent('ryan-world-contact-intent', {
-          detail: { route }
-        })
-      );
-    }
-    if (window.location.hash !== route) {
-      window.location.hash = route;
-    } else {
-      this.handleChange();
-    }
-  }
+  window.addEventListener('hashchange', () => {
+    const route = controller.current;
+    emit(route);
+  });
 
-  getRoute(): RouteName {
-    return this.current;
+  const initial = controller.current;
+  if (!window.location.hash) {
+    window.location.hash = initial;
   }
+  emit(initial);
+
+  return controller;
 }

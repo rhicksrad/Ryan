@@ -1,40 +1,53 @@
-import type { HotspotDefinition, HotspotUpdateContext, RouteName } from '../types';
 import type { Object3D } from 'three';
 
-export class Hotspot extends EventTarget {
+export interface HotspotConfig {
   name: string;
-  route: RouteName;
   ariaLabel: string;
   mesh: Object3D;
-  hitArea: Object3D;
-  interestKey: HotspotDefinition['interestKey'];
-  summary: string;
-  onEnter: () => void;
-  onClick: () => void;
-  update?: (context: HotspotUpdateContext) => void;
+  hitArea?: Object3D;
+  onEnter?: () => void;
+  onLeave?: () => void;
+  onClick?: () => void;
+  onUpdate?: (delta: number) => void;
+  route: '#home' | '#cooking' | '#it' | '#gardening' | '#ai' | '#music';
+}
 
-  constructor(definition: HotspotDefinition) {
-    super();
-    this.name = definition.name;
-    this.route = definition.route;
-    this.ariaLabel = definition.ariaLabel;
-    this.mesh = definition.mesh;
-    this.hitArea = definition.hitArea;
-    this.interestKey = definition.interestKey;
-    this.summary = definition.summary;
-    this.hitArea.userData.hotspot = this;
+export class Hotspot {
+  public readonly name: string;
+  public readonly ariaLabel: string;
+  public readonly mesh: Object3D;
+  public readonly hitArea: Object3D;
+  public readonly route: HotspotConfig['route'];
+  private readonly enter?: () => void;
+  private readonly leave?: () => void;
+  private readonly click?: () => void;
+  private readonly update?: (delta: number) => void;
 
-    this.onEnter = () => this.trigger('enter');
-    this.onClick = () => this.trigger('click');
+  constructor(config: HotspotConfig) {
+    this.name = config.name;
+    this.ariaLabel = config.ariaLabel;
+    this.mesh = config.mesh;
+    this.hitArea = config.hitArea ?? config.mesh;
+    this.route = config.route;
+    this.enter = config.onEnter;
+    this.leave = config.onLeave;
+    this.click = config.onClick;
+    this.update = config.onUpdate;
   }
 
-  setUpdate(callback: (context: HotspotUpdateContext) => void) {
-    this.update = callback;
+  onEnter(): void {
+    this.enter?.();
   }
 
-  trigger(event: 'enter' | 'click') {
-    const detail = { route: this.route };
-    this.dispatchEvent(new CustomEvent(event, { detail }));
-    document.dispatchEvent(new CustomEvent(`hotspot-${event}`, { detail }));
+  onLeave(): void {
+    this.leave?.();
+  }
+
+  onClick(): void {
+    this.click?.();
+  }
+
+  onUpdate(delta: number): void {
+    this.update?.(delta);
   }
 }

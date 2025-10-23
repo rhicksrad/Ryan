@@ -1,59 +1,82 @@
 # Ryan 3D World
 
-Ryan's 3D world is a lightweight personal experience that showcases five themed islands, interactive hotspots, and overlay content sourced from `content/profile.json`. The project is written in TypeScript, powered by Three.js, and bundled with Vite.
+An interactive Three.js portfolio that orbits five themed islands around Ryan's world. The experience is built with Vite, TypeScript, and Playwright smoke tests so it can ship confidently to GitHub Pages.
 
 ## Features
 
-- **Five interactive islands** arranged around a central hub: cooking, infrastructure, gardening, AI, and music.
-- **Accessible UI** with keyboard navigation, overlay panels, HTML labels, and aria-live announcements.
-- **Hash-based routing** for deep links to interests, projects, writing, talks, resume, and contact information.
-- **Reduced motion awareness** and an audio controller with persisted preferences.
-- **Automatic fallback** page that renders the same content when WebGL is unavailable.
+- Perspective camera with smooth orbit controls and route-aware camera rig
+- Five low-poly islands with custom interactions, instanced details, and responsive HTML labels
+- Overlay and HUD fed by `content/profile.json` with accessible navigation and deep links
+- Prefers-reduced-motion and mute state persistence
+- Automated Playwright smoke test that captures a screenshot artifact
+- GitHub Actions workflow that runs tests, checks size budgets, and deploys to Pages
 
-## Project structure
-
-- `src/world` – Three.js scene setup, camera rig, hotspots, labels, and island builders.
-- `src/ui` – HUD navigation, overlay panels, and router helpers.
-- `src/utils` – Asset loader (procedural textures) and audio controller.
-- `content/profile.json` – Single source of truth for profile data.
-- `src/fallback/index.html` – Static experience served when WebGL checks fail.
-
-## Development
+## Getting started
 
 ```bash
 npm install
 npm run dev
 ```
 
-The dev server starts on port 5173. Navigate to `http://localhost:5173` and explore the 3D world. Press `H` to return home, `1-5` to jump to islands, and use the HUD toggles for theme and audio.
+Visit http://localhost:5173 to explore the world. If WebGL is unavailable, the app redirects to a static fallback page with the same content.
 
-## Building & previewing
+## Scripts
+
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Start the Vite dev server |
+| `npm run dev:ci` | Start the dev server on 127.0.0.1:5173 for CI |
+| `npm run build` | Build the production bundle |
+| `npm run preview` | Preview the production build |
+| `npm run typecheck` | Run TypeScript in no-emit mode |
+| `npm run test:e2e` | Run Playwright end-to-end tests |
+| `npm run verify:screenshot` | Ensure the Playwright screenshot exists and is > 40 KB |
+| `npm run check:size` | Check gzipped bundle sizes against the budget |
+| `npm run test:ci` | Run Playwright tests and screenshot verification |
+| `npm run ci` | Run tests, build, and size checks sequentially |
+
+## Testing
+
+The Playwright suite spins up the dev server, waits for the scene to announce readiness via `data-test-ready="1"`, asserts key HUD elements, and writes a full-page screenshot to `artifacts/dev-home.png` (generated at test time and omitted from git).
 
 ```bash
-npm run build
-npm run preview
+npm run test:ci
 ```
 
-The preview server hosts the production build on port 4173.
+After the tests complete you can double-check the screenshot budget enforcement with:
 
-## Fallback experience
+```bash
+npm run verify:screenshot
+```
 
-If `supports3D()` detects missing WebGL2 features, users are redirected to the fallback page. You can test it manually by visiting `/src/fallback/index.html` during development.
+## Size budget
 
-## Data updates
+`scripts/size-budget.mjs` gzips each built asset in memory and enforces two limits:
 
-All overlay and fallback content is populated from [`content/profile.json`](content/profile.json). Update that file to change skills, links, projects, or island summaries.
+- ≤ 400 KB per gzipped file
+- ≤ 2 MB total gzipped bundle size
 
-## Deployment notes
+The script prints a report and exits non-zero if the budget is exceeded.
 
-- Ensure `/content/profile.json` and the fallback HTML are hosted alongside the bundle.
-- Keep the gzipped build under 2 MB by relying on procedurally generated assets.
-- The site is static and can be served from any CDN or static file host.
+## Continuous integration & deployment
 
-## Commands history
+`.github/workflows/ci.yml` defines three jobs:
 
-- npm create vite@latest ryan-world -- --template vanilla-ts
-- npm i three
-- npm run dev
-- npm run build
-- python3 -m http.server 4173 from dist for a simple local serve
+1. **test** – installs dependencies, runs Playwright (with browsers) and uploads the screenshot/report artifacts
+2. **build** – depends on the test job, builds the app, checks size budgets, and uploads the dist folder for Pages
+3. **deploy** – runs on pushes to `main` to publish the uploaded build with GitHub Pages
+
+To deploy from your fork, enable GitHub Pages and ensure the workflow has the required permissions (`pages: write`, `id-token: write`).
+
+## Content updates
+
+All overlay and fallback content is sourced from [`content/profile.json`](content/profile.json). Update that single file to change the HUD labels, overlay lists, and fallback page.
+
+## Accessibility & keyboard controls
+
+- Focusable HTML labels mirror every 3D hotspot
+- Press `1`–`5` to jump between islands
+- Press `H` or `Escape` to return home
+- Motion and audio preferences persist between sessions
+
+Enjoy exploring! 🎛️

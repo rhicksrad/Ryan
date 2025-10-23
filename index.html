@@ -1,35 +1,32 @@
 <!doctype html>
-<html lang="en" data-theme="system">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#101828" />
     <title>Ryan 3D World</title>
-    <meta name="description" content="Explore Ryan's 3D world of interests and work." />
-    <meta name="theme-color" content="#10131a" />
-    <link rel="canonical" href="https://example.com/ryan-world" />
-    <meta property="og:type" content="website" />
+    <meta name="description" content="Ryan's interactive 3D island portfolio exploring cooking, IT, gardening, AI, and music passions." />
+    <link rel="canonical" href="https://example.com/ryan-3d-world" />
     <meta property="og:title" content="Ryan 3D World" />
-    <meta property="og:description" content="Explore Ryan's 3D world of interests and work." />
-    <meta property="og:url" content="https://example.com/ryan-world" />
-    <meta property="og:image" content="/assets/logo.svg" />
-    <meta name="twitter:card" content="summary" />
+    <meta property="og:description" content="Explore Ryan's interactive 3D island portfolio." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://example.com/ryan-3d-world" />
+    <meta property="og:image" content="https://example.com/ryan-3d-world/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Ryan 3D World" />
-    <meta name="twitter:description" content="Explore Ryan's 3D world of interests and work." />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="preload" href="/assets/logo.svg" as="image" />
-    <link rel="stylesheet" href="/css/styles.css" />
+    <meta name="twitter:description" content="Explore Ryan's interactive 3D island portfolio." />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./css/styles.css" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
         "@type": "Person",
         "name": "Ryan",
-        "url": "https://example.com/ryan-world",
-        "jobTitle": "Infrastructure Engineer",
+        "url": "https://example.com/ryan-3d-world",
         "sameAs": [
-          "https://github.com/TODO",
-          "https://www.linkedin.com/in/TODO"
-        ]
+          "https://github.com/ryan"
+        ],
+        "knowsAbout": ["Web Development", "Three.js", "Audio Engineering"]
       }
     </script>
     <script type="application/ld+json">
@@ -37,20 +34,12 @@
         "@context": "https://schema.org",
         "@type": "WebSite",
         "name": "Ryan 3D World",
-        "url": "https://example.com/ryan-world",
-        "potentialAction": {
-          "@type": "SearchAction",
-          "target": "https://example.com/search?q={search_term_string}",
-          "query-input": "required name=search_term_string"
-        }
+        "url": "https://example.com/ryan-3d-world"
       }
     </script>
   </head>
   <body>
-    <noscript>
-      <p class="no-js">This experience needs JavaScript enabled. A fallback version is available without 3D.</p>
-    </noscript>
-    <div id="app" aria-label="Ryan 3D world" role="application"></div>
-    <script type="module" src="/src/main.ts"></script>
+    <div id="app" aria-live="polite"></div>
+    <script type="module" src="./src/main.ts"></script>
   </body>
 </html>

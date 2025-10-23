@@ -1,87 +1,77 @@
-import {
-  BoxGeometry,
-  Group,
-  InstancedMesh,
-  Matrix4,
-  Mesh,
-  MeshStandardMaterial,
-  Object3D,
-  Color
-} from 'three';
-import type { LoadedAssets, ProfileContent } from '../../types';
+import { BoxGeometry, Color, Group, InstancedMesh, Mesh, MeshStandardMaterial, Object3D } from 'three';
 import { Hotspot } from '../Hotspot';
+import { AudioController } from '../../utils/Audio';
 
-const tempMatrix = new Matrix4();
-const tempObject = new Object3D();
+interface ITRackOptions {
+  audio: AudioController;
+  reducedMotion: boolean;
+}
 
-export function create(parent: Group, content: ProfileContent, _assets: LoadedAssets) {
+export function createITRackIsland(options: ITRackOptions): Hotspot {
+  const { audio, reducedMotion } = options;
   const group = new Group();
-  group.name = 'IT Rack Island';
 
-  const rackMaterial = new MeshStandardMaterial({ color: '#2b2f38', metalness: 0.3, roughness: 0.6 });
-  const rack = new Mesh(new BoxGeometry(1.6, 3.2, 1.2), rackMaterial);
-  rack.position.y = 1.6;
-  rack.castShadow = true;
-  rack.receiveShadow = true;
-  group.add(rack);
+  const base = new Mesh(new BoxGeometry(4, 0.6, 3), new MeshStandardMaterial({ color: 0x111827 }));
+  base.position.y = 0.3;
+  group.add(base);
 
-  const top = new Mesh(new BoxGeometry(2.4, 0.3, 1.6), rackMaterial);
-  top.position.y = 3.2;
-  group.add(top);
-
-  const ledMaterial = new MeshStandardMaterial({ color: '#56cfe1', emissive: new Color('#56cfe1'), emissiveIntensity: 2 });
-  const ledGeometry = new BoxGeometry(0.2, 0.05, 0.05);
-  const ledRows = 6;
-  const ledsPerRow = 12;
-  const ledMesh = new InstancedMesh(ledGeometry, ledMaterial, ledRows * ledsPerRow);
-
-  const baseColors: Color[] = [];
-  let index = 0;
-  for (let row = 0; row < ledRows; row++) {
-    for (let col = 0; col < ledsPerRow; col++) {
-      tempObject.position.set(-0.9 + col * 0.16, 0.8 + row * 0.4, 0.63);
-      tempObject.updateMatrix();
-      tempMatrix.copy(tempObject.matrix);
-      ledMesh.setMatrixAt(index, tempMatrix);
-      const base = new Color().setHSL(0.45 + Math.random() * 0.1, 0.9, 0.5);
-      ledMesh.setColorAt(index, base);
-      baseColors.push(base.clone());
-      index++;
-    }
+  const rackGeometry = new BoxGeometry(0.8, 3, 0.8);
+  const rackMaterial = new MeshStandardMaterial({ color: 0x1f2937, metalness: 0.3, roughness: 0.5 });
+  const rackPositions = [
+    [-1, 1.8, -0.9],
+    [0, 1.8, 0],
+    [1, 1.8, 0.9]
+  ];
+  for (const [x, y, z] of rackPositions) {
+    const rack = new Mesh(rackGeometry, rackMaterial);
+    rack.position.set(x, y, z);
+    group.add(rack);
   }
-  ledMesh.instanceMatrix.needsUpdate = true;
-  ledMesh.castShadow = false;
-  group.add(ledMesh);
 
-  parent.add(group);
-
-  const hitArea = new Mesh(new BoxGeometry(3, 0.5, 3));
-  hitArea.position.y = 0.25;
-  hitArea.visible = false;
-  group.add(hitArea);
-
-  const hotspot = new Hotspot({
-    name: 'IT Rack Island',
-    route: '#it',
-    ariaLabel: 'Open infrastructure work notes',
-    mesh: group,
-    hitArea,
-    interestKey: 'it',
-    summary: content.interests.it.summary
-  });
-
-  const speeds = Array.from({ length: ledMesh.count }, () => Math.random() * 2 + 0.5);
+  const ledGeometry = new BoxGeometry(0.08, 0.08, 0.02);
+  const ledMaterial = new MeshStandardMaterial({ color: 0xffffff, emissive: 0x22d3ee, emissiveIntensity: 0.7 });
+  ledMaterial.vertexColors = true;
+  const ledCount = 120;
+  const leds = new InstancedMesh(ledGeometry, ledMaterial, ledCount);
+  const dummy = new Object3D();
   const color = new Color();
+  for (let i = 0; i < ledCount; i += 1) {
+    const rackIndex = i % rackPositions.length;
+    const [baseX, baseY, baseZ] = rackPositions[rackIndex];
+    const row = Math.floor(i / rackPositions.length) % 10;
+    const column = Math.floor(i / (rackPositions.length * 10));
+    dummy.position.set(baseX + (Math.random() - 0.5) * 0.1, baseY + 1.2 - row * 0.2, baseZ + column * 0.25 - 0.3);
+    dummy.updateMatrix();
+    leds.setMatrixAt(i, dummy.matrix);
+    color.setHSL(0.54 + rackIndex * 0.08, 0.8, 0.6);
+    leds.setColorAt(i, color);
+  }
+  leds.instanceMatrix.needsUpdate = true;
+  group.add(leds);
 
-  hotspot.setUpdate(({ elapsed, reducedMotion }) => {
-    if (reducedMotion) return;
-    for (let i = 0; i < ledMesh.count; i++) {
-      const intensity = (Math.sin(elapsed * speeds[i] + i * 0.13) + 1) * 0.5;
-      color.copy(baseColors[i]).multiplyScalar(0.4 + intensity * 0.6);
-      ledMesh.setColorAt(i, color);
+  const state = { time: 0 };
+
+  return new Hotspot({
+    name: 'IT Lab',
+    ariaLabel: 'Visit Ryan\'s infrastructure rack builds',
+    mesh: group,
+    hitArea: base,
+    route: '#it',
+    onEnter: () => {
+      audio.playHoverBleep().catch(() => undefined);
+    },
+    onUpdate: (delta) => {
+      if (reducedMotion) {
+        return;
+      }
+      state.time += delta;
+      const blink = (index: number) => 0.4 + 0.6 * Math.abs(Math.sin(state.time * 2 + index));
+      for (let i = 0; i < ledCount; i += 1) {
+        const intensity = blink(i * 0.3);
+        color.setHSL(0.54, 0.8, intensity * 0.5 + 0.2);
+        leds.setColorAt(i, color);
+      }
+      leds.instanceColor!.needsUpdate = true;
     }
-    ledMesh.instanceColor!.needsUpdate = true;
   });
-
-  return hotspot;
 }

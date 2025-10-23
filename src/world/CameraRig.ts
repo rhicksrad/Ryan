@@ -1,94 +1,111 @@
-import { Matrix4, Quaternion, Vector3 } from 'three';
-import type { PerspectiveCamera } from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import type { RouteName } from '../types';
+import { PerspectiveCamera, Quaternion, Vector3 } from 'three';
+import type { RouteName } from '../ui/Router';
+
+export type CameraRoute = Extract<RouteName, '#home' | '#cooking' | '#it' | '#gardening' | '#ai' | '#music'>;
 
 interface Pose {
   position: Vector3;
-  target: Vector3;
   quaternion: Quaternion;
+  target: Vector3;
 }
 
-interface AnimateOptions {
-  immediate?: boolean;
-  duration?: number;
+interface CameraRigOptions {
+  camera: PerspectiveCamera;
+  prefersReducedMotion: boolean;
+  onTargetChange: (target: Vector3) => void;
 }
 
 export class CameraRig {
-  private poses = new Map<RouteName, Pose>();
-  private startPosition = new Vector3();
-  private endPosition = new Vector3();
-  private startTarget = new Vector3();
-  private endTarget = new Vector3();
-  private startQuaternion = new Quaternion();
-  private endQuaternion = new Quaternion();
-  private elapsed = 0;
-  private duration = 0;
-  private reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  private matrixHelper = new Matrix4();
+  private readonly camera: PerspectiveCamera;
+  private readonly prefersReducedMotion: boolean;
+  private readonly onTargetChange: (target: Vector3) => void;
+  private poses: Record<CameraRoute, Pose>;
+  private startPose: Pose;
+  private targetPose: Pose;
+  private transition = 1;
+  private readonly duration = 1.2;
+  private currentTarget: Vector3;
 
-  constructor(private camera: PerspectiveCamera, private controls: OrbitControls) {}
+  constructor(options: CameraRigOptions) {
+    this.camera = options.camera;
+    this.prefersReducedMotion = options.prefersReducedMotion;
+    this.onTargetChange = options.onTargetChange;
+    this.currentTarget = new Vector3();
 
-  setReducedMotion(value: boolean) {
-    this.reducedMotion = value;
-  }
-
-  addPose(route: RouteName, position: Vector3, target: Vector3) {
-    const quaternion = new Quaternion();
-    this.matrixHelper.lookAt(position, target, new Vector3(0, 1, 0));
-    quaternion.setFromRotationMatrix(this.matrixHelper);
-    const pose: Pose = {
-      position: position.clone(),
-      target: target.clone(),
-      quaternion
+    this.poses = {
+      '#home': this.createPose(new Vector3(0, 6, 14), new Vector3(0, 2, 0)),
+      '#cooking': this.createPose(new Vector3(10, 4, 4), new Vector3(8, 1.5, 0)),
+      '#it': this.createPose(new Vector3(4, 5, -11), new Vector3(6, 1.5, -8)),
+      '#gardening': this.createPose(new Vector3(-11, 4, 5), new Vector3(-8, 1.5, 3)),
+      '#ai': this.createPose(new Vector3(-4, 6, -10), new Vector3(-3, 2, -8)),
+      '#music': this.createPose(new Vector3(0, 5, 12), new Vector3(0, 2, 10))
     };
-    this.poses.set(route, pose);
+
+    this.startPose = this.poses['#home'];
+    this.targetPose = this.startPose;
+    this.applyPose(this.startPose);
   }
 
-  animateTo(route: RouteName, options: AnimateOptions = {}) {
-    const pose = this.poses.get(route);
-    if (!pose) return;
+  private createPose(position: Vector3, target: Vector3): Pose {
+    const direction = new Vector3().copy(target).sub(position).normalize();
+    const quaternion = new Quaternion().setFromUnitVectors(new Vector3(0, 0, -1), direction);
+    return {
+      position,
+      quaternion,
+      target
+    };
+  }
 
-    this.startPosition.copy(this.camera.position);
-    this.startTarget.copy(this.controls.target);
-    this.startQuaternion.copy(this.camera.quaternion);
+  private captureCurrentPose(): Pose {
+    return {
+      position: this.camera.position.clone(),
+      quaternion: this.camera.quaternion.clone(),
+      target: this.currentTarget.clone()
+    };
+  }
 
-    this.endPosition.copy(pose.position);
-    this.endTarget.copy(pose.target);
-    this.endQuaternion.copy(pose.quaternion);
+  private applyPose(pose: Pose): void {
+    this.camera.position.copy(pose.position);
+    this.camera.quaternion.copy(pose.quaternion);
+    this.currentTarget.copy(pose.target);
+    this.onTargetChange(pose.target.clone());
+  }
 
-    if (options.immediate || this.reducedMotion) {
-      this.duration = 0;
-      this.applyPose(1);
+  animateTo(route: CameraRoute): void {
+    const pose = this.poses[route];
+    this.targetPose = pose;
+    if (this.prefersReducedMotion) {
+      this.startPose = this.captureCurrentPose();
+      this.applyPose(pose);
+      this.transition = 1;
       return;
     }
-
-    this.elapsed = 0;
-    this.duration = options.duration ?? 1.6;
+    this.startPose = this.captureCurrentPose();
+    this.transition = 0;
   }
 
-  update(delta: number) {
-    if (this.duration <= 0) return;
-    this.elapsed = Math.min(this.elapsed + delta, this.duration);
-    const t = this.elapsed / this.duration;
-    const eased = this.easeInOut(t);
-    this.applyPose(eased);
-    if (this.elapsed >= this.duration) {
-      this.duration = 0;
+  jumpTo(route: CameraRoute): void {
+    const pose = this.poses[route];
+    this.startPose = this.captureCurrentPose();
+    this.targetPose = pose;
+    this.applyPose(pose);
+    this.transition = 1;
+  }
+
+  update(delta: number): void {
+    if (this.transition >= 1) {
+      return;
     }
+    this.transition = Math.min(1, this.transition + delta / this.duration);
+    const eased = this.easeInOut(this.transition);
+    this.camera.position.lerpVectors(this.startPose.position, this.targetPose.position, eased);
+    this.camera.quaternion.slerpQuaternions(this.startPose.quaternion, this.targetPose.quaternion, eased);
+    const target = new Vector3().lerpVectors(this.startPose.target, this.targetPose.target, eased);
+    this.currentTarget.copy(target);
+    this.onTargetChange(target);
   }
 
-  private applyPose(alpha: number) {
-    this.camera.position.lerpVectors(this.startPosition, this.endPosition, alpha);
-    this.controls.target.lerpVectors(this.startTarget, this.endTarget, alpha);
-    const quat = new Quaternion();
-    quat.slerpQuaternions(this.startQuaternion, this.endQuaternion, alpha);
-    this.camera.quaternion.copy(quat);
-    this.camera.updateMatrixWorld();
-    this.controls.update();
-  }
-
-  private easeInOut(t: number) {
-    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  private easeInOut(t: number): number {
+    return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
   }
 }
