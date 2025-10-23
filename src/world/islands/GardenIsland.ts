@@ -10,6 +10,7 @@ import {
   Vector3
 } from 'three';
 import { Hotspot } from '../Hotspot';
+import type { IslandHotspotBundle } from './types';
 import { AudioController } from '../../utils/Audio';
 
 interface GardenOptions {
@@ -17,7 +18,7 @@ interface GardenOptions {
   reducedMotion: boolean;
 }
 
-export function createGardenIsland(options: GardenOptions): Hotspot {
+export function createGardenIsland(options: GardenOptions): IslandHotspotBundle {
   const { audio, reducedMotion } = options;
   const group = new Group();
 
@@ -149,7 +150,7 @@ export function createGardenIsland(options: GardenOptions): Hotspot {
 
   const state = { time: 0 };
 
-  return new Hotspot({
+  const hotspot = new Hotspot({
     name: 'Greenhouse Atrium',
     ariaLabel: 'Explore Ryan\'s greenhouse-inspired workspace',
     mesh: group,
@@ -182,4 +183,6 @@ export function createGardenIsland(options: GardenOptions): Hotspot {
       interiorTree.scale.y = 1 + Math.sin(state.time * 1.1) * 0.05;
     }
   });
+
+  return { main: hotspot };
 }

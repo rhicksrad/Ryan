@@ -1,25 +1,31 @@
 import {
   BoxGeometry,
+  CircleGeometry,
   Color,
   CylinderGeometry,
+  DoubleSide,
   Group,
   InstancedMesh,
   Mesh,
   MeshStandardMaterial,
   Object3D,
+  PointLight,
   TorusGeometry
 } from 'three';
 import { Hotspot } from '../Hotspot';
 import { AudioController } from '../../utils/Audio';
+import type { IslandHotspotBundle } from './types';
 
 interface AIHubOptions {
   audio: AudioController;
   reducedMotion: boolean;
 }
 
-export function createAIHubIsland(options: AIHubOptions): Hotspot {
+export function createAIHubIsland(options: AIHubOptions): IslandHotspotBundle {
   const { audio, reducedMotion } = options;
   const group = new Group();
+  const extras: Hotspot[] = [];
+  const tableDynamics: Array<{ projection: Mesh; phase: number; baseY: number }> = [];
 
   const plaza = new Mesh(new CylinderGeometry(3.4, 3.8, 0.5, 48), new MeshStandardMaterial({ color: 0x14532d, roughness: 0.82 }));
   plaza.position.y = 0.25;
@@ -30,13 +36,17 @@ export function createAIHubIsland(options: AIHubOptions): Hotspot {
     metalness: 0.75,
     roughness: 0.25,
     emissive: new Color(0x38bdf8),
-    emissiveIntensity: 0.2
+    emissiveIntensity: 0.2,
+    side: DoubleSide
   });
   const tower = new Mesh(new BoxGeometry(2.6, 4.6, 2.6), towerMaterial);
   tower.position.y = 2.8;
   group.add(tower);
 
-  const lobby = new Mesh(new BoxGeometry(3.2, 0.6, 3.4), new MeshStandardMaterial({ color: 0x0f172a, roughness: 0.45 }));
+  const lobby = new Mesh(
+    new BoxGeometry(3.2, 0.6, 3.4),
+    new MeshStandardMaterial({ color: 0x0f172a, roughness: 0.45, side: DoubleSide })
+  );
   lobby.position.y = 0.8;
   group.add(lobby);
 
@@ -58,6 +68,125 @@ export function createAIHubIsland(options: AIHubOptions): Hotspot {
   const walkway = new Mesh(new BoxGeometry(2.0, 0.12, 3.2), new MeshStandardMaterial({ color: 0xdbeafe, roughness: 0.85 }));
   walkway.position.set(0, 0.06, 2.4);
   group.add(walkway);
+
+  const interiorGroup = new Group();
+  interiorGroup.position.y = 0.5;
+  group.add(interiorGroup);
+
+  const interiorFloor = new Mesh(
+    new CylinderGeometry(1.9, 1.9, 0.08, 48),
+    new MeshStandardMaterial({ color: 0x0f172a, roughness: 0.6, metalness: 0.2, side: DoubleSide })
+  );
+  interiorFloor.position.y = 0;
+  interiorGroup.add(interiorFloor);
+
+  const floorInlay = new Mesh(new CircleGeometry(1.25, 48), new MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4 }));
+  floorInlay.rotation.x = -Math.PI / 2;
+  floorInlay.position.y = 0.045;
+  interiorGroup.add(floorInlay);
+
+  const interiorLight = new PointLight(0x38bdf8, 1.5, 6);
+  interiorLight.position.set(0, 2.6, 0);
+  interiorGroup.add(interiorLight);
+
+  const pedestalMaterial = new MeshStandardMaterial({ color: 0x111827, roughness: 0.6, metalness: 0.2 });
+  const tableBaseMaterial = new MeshStandardMaterial({ color: 0x1f2937, roughness: 0.45, metalness: 0.35 });
+
+  const tableConfigs = [
+    {
+      name: 'NBA Analytics Table',
+      aria: 'Open the NBA analytics lab project',
+      url: 'https://rhicksrad.github.io/NBA/index.html',
+      position: [-0.95, 0.95],
+      color: 0x38bdf8
+    },
+    {
+      name: 'NASA Mission Table',
+      aria: 'Open the NASA exploration project',
+      url: 'https://rhicksrad.github.io/NASA/',
+      position: [0.95, 0.95],
+      color: 0x38e8f8
+    },
+    {
+      name: 'WAR Analysis Table',
+      aria: 'Open the WAR analytics project',
+      url: 'https://rhicksrad.github.io/WAR/',
+      position: [-0.95, -0.95],
+      color: 0xa855f7
+    },
+    {
+      name: 'AIR Research Table',
+      aria: 'Open the AIR research project',
+      url: 'https://rhicksrad.github.io/AIR/',
+      position: [0.95, -0.95],
+      color: 0x22d3ee
+    }
+  ] as const;
+
+  for (const config of tableConfigs) {
+    const tableGroup = new Group();
+    tableGroup.position.set(config.position[0], 0, config.position[1]);
+    interiorGroup.add(tableGroup);
+
+    const pedestal = new Mesh(new CylinderGeometry(0.18, 0.26, 0.9, 20), pedestalMaterial);
+    pedestal.position.y = 0.45;
+    tableGroup.add(pedestal);
+
+    const deck = new Mesh(new CylinderGeometry(0.78, 0.78, 0.08, 32), tableBaseMaterial);
+    deck.position.y = 0.9;
+    tableGroup.add(deck);
+
+    const glowMaterial = new MeshStandardMaterial({
+      color: config.color,
+      emissive: new Color(config.color),
+      emissiveIntensity: 0.36,
+      transparent: true,
+      opacity: 0.85,
+      roughness: 0.28,
+      metalness: 0.6
+    });
+    const surface = new Mesh(new CylinderGeometry(0.64, 0.64, 0.06, 48), glowMaterial);
+    surface.position.y = 0.96;
+    tableGroup.add(surface);
+
+    const projection = new Mesh(
+      new CylinderGeometry(0.42, 0.24, 0.48, 32),
+      new MeshStandardMaterial({
+        color: config.color,
+        emissive: new Color(config.color),
+        emissiveIntensity: 0.18,
+        transparent: true,
+        opacity: 0.32,
+        roughness: 0.2,
+        metalness: 0.45
+      })
+    );
+    projection.position.y = 1.32;
+    tableGroup.add(projection);
+
+    tableDynamics.push({ projection, phase: Math.random() * Math.PI * 2, baseY: projection.position.y });
+
+    const tableHotspot = new Hotspot({
+      name: config.name,
+      ariaLabel: config.aria,
+      mesh: tableGroup,
+      hitArea: surface,
+      route: '#ai',
+      onEnter: () => {
+        glowMaterial.emissiveIntensity = 0.75;
+        surface.scale.set(1.05, 1, 1.05);
+        audio.playHoverBleep().catch(() => undefined);
+      },
+      onLeave: () => {
+        glowMaterial.emissiveIntensity = 0.36;
+        surface.scale.set(1, 1, 1);
+      },
+      onClick: () => {
+        window.open(config.url, '_blank', 'noopener,noreferrer');
+      }
+    });
+    extras.push(tableHotspot);
+  }
 
   const dataCoreMaterial = new MeshStandardMaterial({
     color: 0x22d3ee,
@@ -162,7 +291,7 @@ export function createAIHubIsland(options: AIHubOptions): Hotspot {
 
   const state = { time: 0 };
 
-  return new Hotspot({
+  const hotspot = new Hotspot({
     name: 'AI Innovation Tower',
     ariaLabel: 'See Ryan\'s AI explorations inside a futuristic tower',
     mesh: group,
@@ -188,6 +317,12 @@ export function createAIHubIsland(options: AIHubOptions): Hotspot {
         windows.setColorAt(i, windowColor);
       }
       windows.instanceColor!.needsUpdate = true;
+      for (const dynamic of tableDynamics) {
+        dynamic.projection.rotation.y += delta * 0.6;
+        dynamic.projection.position.y = dynamic.baseY + Math.sin(state.time * 1.6 + dynamic.phase) * 0.05;
+      }
     }
   });
+
+  return { main: hotspot, extras };
 }

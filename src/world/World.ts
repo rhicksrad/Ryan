@@ -39,6 +39,7 @@ import { createITRackIsland } from './islands/ITRackIsland';
 import { createGardenIsland } from './islands/GardenIsland';
 import { createAIHubIsland } from './islands/AIHubIsland';
 import { createMusicIsland } from './islands/MusicIsland';
+import type { IslandHotspotBundle } from './islands/types';
 import type { RouteName } from '../ui/Router';
 
 interface WorldOptions {
@@ -122,8 +123,11 @@ export class World {
     });
 
     const radius = 9.5;
-    const placements: Array<{ angle: number; create: () => Hotspot }> = [
-      { angle: 0, create: () => createGrillIsland({ assetLoader: this.assetLoader, audio: this.audio, reducedMotion: this.prefersReducedMotion }) },
+    const placements: Array<{ angle: number; create: () => IslandHotspotBundle }> = [
+      {
+        angle: 0,
+        create: () => createGrillIsland({ assetLoader: this.assetLoader, audio: this.audio, reducedMotion: this.prefersReducedMotion })
+      },
       { angle: (Math.PI * 2) / 5, create: () => createITRackIsland({ audio: this.audio, reducedMotion: this.prefersReducedMotion }) },
       { angle: (Math.PI * 4) / 5, create: () => createGardenIsland({ audio: this.audio, reducedMotion: this.prefersReducedMotion }) },
       { angle: (Math.PI * 6) / 5, create: () => createAIHubIsland({ audio: this.audio, reducedMotion: this.prefersReducedMotion }) },
@@ -131,7 +135,7 @@ export class World {
     ];
 
     for (const placement of placements) {
-      const hotspot = placement.create();
+      const { main: hotspot, extras = [] } = placement.create();
       const x = Math.cos(placement.angle) * radius;
       const z = Math.sin(placement.angle) * radius;
       hotspot.mesh.position.set(x, 0, z);
@@ -141,6 +145,11 @@ export class World {
       this.hotspots.push(hotspot);
       this.labels.add(hotspot);
       this.updates.push((delta) => hotspot.onUpdate(delta));
+      for (const extra of extras) {
+        extra.hitArea.userData.hotspot = extra;
+        this.hotspots.push(extra);
+        this.updates.push((delta) => extra.onUpdate(delta));
+      }
     }
 
     this.rig = new CameraRig({

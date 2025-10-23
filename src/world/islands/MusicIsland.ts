@@ -10,6 +10,7 @@ import {
   Vector3
 } from 'three';
 import { Hotspot } from '../Hotspot';
+import type { IslandHotspotBundle } from './types';
 import { AudioController } from '../../utils/Audio';
 
 interface MusicOptions {
@@ -17,7 +18,7 @@ interface MusicOptions {
   reducedMotion: boolean;
 }
 
-export function createMusicIsland(options: MusicOptions): Hotspot {
+export function createMusicIsland(options: MusicOptions): IslandHotspotBundle {
   const { audio, reducedMotion } = options;
   const group = new Group();
 
@@ -111,7 +112,7 @@ export function createMusicIsland(options: MusicOptions): Hotspot {
 
   const state = { time: 0 };
 
-  return new Hotspot({
+  const hotspot = new Hotspot({
     name: 'Music Hall',
     ariaLabel: 'Listen to Ryan\'s synth experiments inside the concert dome',
     mesh: group,
@@ -143,4 +144,6 @@ export function createMusicIsland(options: MusicOptions): Hotspot {
       bars.instanceMatrix.needsUpdate = true;
     }
   });
+
+  return { main: hotspot };
 }

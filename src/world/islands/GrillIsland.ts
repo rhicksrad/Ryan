@@ -11,6 +11,7 @@ import {
   Texture
 } from 'three';
 import { Hotspot } from '../Hotspot';
+import type { IslandHotspotBundle } from './types';
 import { AssetLoader } from '../../utils/AssetLoader';
 import { AudioController } from '../../utils/Audio';
 
@@ -20,7 +21,7 @@ interface GrillOptions {
   reducedMotion: boolean;
 }
 
-export function createGrillIsland(options: GrillOptions): Hotspot {
+export function createGrillIsland(options: GrillOptions): IslandHotspotBundle {
   const { assetLoader, audio, reducedMotion } = options;
   const group = new Group();
 
@@ -147,7 +148,7 @@ export function createGrillIsland(options: GrillOptions): Hotspot {
 
   const state = { time: 0 };
 
-  return new Hotspot({
+  const hotspot = new Hotspot({
     name: 'Culinary Workshop',
     ariaLabel: 'Step inside Ryan\'s culinary studio building',
     mesh: group,
@@ -178,4 +179,6 @@ export function createGrillIsland(options: GrillOptions): Hotspot {
       awning.position.y = 2.05 + Math.sin(state.time * 1.2) * 0.04;
     }
   });
+
+  return { main: hotspot };
 }
