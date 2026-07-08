@@ -189,14 +189,18 @@ export function buildCityPlan(data: WorldData): CityPlan {
   // --- Bridges wherever a horizontal road crosses the river. ---
   const bridges = roads.filter((r) => r.horizontal).map((r) => ({ z: r.z }));
 
-  // --- Street lamps at block corners along the road grid. ---
+  // --- Street lamps at every block corner, plus mid-edge lamps along the grid. ---
+  const off = BLOCK / 2 + 1.2;
   for (const c of COLS) {
     for (const r of ROWS) {
-      if (rand() < 0.65) {
-        const dx = (rand() < 0.5 ? -1 : 1) * (BLOCK / 2 + 1.2);
-        const dz = (rand() < 0.5 ? -1 : 1) * (BLOCK / 2 + 1.2);
-        lamps.push({ x: colX(c) + dx, z: rowZ(r) + dz });
+      for (const dx of [-off, off]) {
+        for (const dz of [-off, off]) {
+          lamps.push({ x: colX(c) + dx, z: rowZ(r) + dz });
+        }
       }
+      // one lamp mid-way along each block edge
+      lamps.push({ x: colX(c), z: rowZ(r) + off });
+      lamps.push({ x: colX(c) + off, z: rowZ(r) });
     }
   }
 

@@ -10,9 +10,11 @@ import {
   createRiver,
   createTrees,
   createOutskirts,
+  createLampKit,
   createLamps,
   createSigns,
-  createSpire
+  createSpire,
+  createSky
 } from './environment';
 import { buildCityPlan, planCenterX, type CityPlan } from './cityplan';
 import { createPerson, updatePerson, citizenCount, type Person } from './people';
@@ -21,20 +23,20 @@ import { bubbleSprite } from './textures';
 
 /** Everything that changes between night and day, lerped by a single mix factor. */
 const NIGHT = {
-  sky: new THREE.Color('#05070f'),
-  fogDensity: 0.0042,
-  ambient: new THREE.Color(0x46548c),
-  ambientIntensity: 1.6,
-  hemiSky: new THREE.Color(0x46548c),
-  hemiGround: new THREE.Color(0x10131f),
-  hemiIntensity: 1.1,
-  sun: new THREE.Color(0x93a7ff),
-  sunIntensity: 0.85,
-  terrain: new THREE.Color(0x11201a),
-  sidewalk: new THREE.Color(0x3a4160),
-  lot: new THREE.Color(0x232a44),
-  plaza: new THREE.Color(0x2c3556),
-  park: new THREE.Color(0x1e4630),
+  sky: new THREE.Color('#0a0f1e'),
+  fogDensity: 0.0036,
+  ambient: new THREE.Color(0x5a6aa0),
+  ambientIntensity: 2.15,
+  hemiSky: new THREE.Color(0x5a6aa0),
+  hemiGround: new THREE.Color(0x191d2c),
+  hemiIntensity: 1.55,
+  sun: new THREE.Color(0xa8b8ff),
+  sunIntensity: 1.15,
+  terrain: new THREE.Color(0x182c22),
+  sidewalk: new THREE.Color(0x474f70),
+  lot: new THREE.Color(0x2c3450),
+  plaza: new THREE.Color(0x38416a),
+  park: new THREE.Color(0x265a3c),
   water: new THREE.Color(0xb8d2f0)
 };
 const DAY = {
@@ -98,6 +100,8 @@ export class CityWorld {
   private pickMeshes: THREE.Mesh[] = [];
   private spireRings: THREE.Mesh[] = [];
   private riverUpdate: (t: number) => void = () => {};
+  private outskirtsUpdate: (t: number) => void = () => {};
+  private skyUpdate: (t: number, dayMix: number, moving: boolean) => void = () => {};
   private districtCenters = new Map<string, THREE.Vector3>();
 
   // Day/night machinery.
@@ -231,12 +235,21 @@ export class CityWorld {
     this.riverUpdate = river.update;
     this.waterMaterial = river.waterMaterial;
     this.city.add(createTrees(this.plan));
-    this.city.add(createOutskirts(this.plan));
-    const lamps = createLamps(this.plan);
-    this.city.add(lamps.group);
-    this.lampBulbMaterial = lamps.bulbMaterial;
-    this.lampGlowMaterials = lamps.glowMaterials;
+
+    const lampKit = createLampKit();
+    this.lampBulbMaterial = lampKit.bulbMaterial;
+    this.lampGlowMaterials = [lampKit.glowMaterial];
+    this.city.add(createLamps(this.plan, lampKit));
+
+    const outskirts = createOutskirts(this.plan, lampKit);
+    this.city.add(outskirts.group);
+    this.outskirtsUpdate = outskirts.update;
+
     this.city.add(createSigns(this.plan));
+
+    const sky = createSky();
+    this.scene.add(sky.group);
+    this.skyUpdate = sky.update;
 
     this.traffic = createTraffic(this.plan);
     this.city.add(this.traffic.group);
@@ -539,11 +552,15 @@ export class CityWorld {
         this.applyAtmosphere();
       }
 
+      // Sky brightness tracks day/night even when motion is reduced.
+      this.skyUpdate(t, this.dayMix, !this.reducedMotion);
+
       if (!this.reducedMotion) {
         this.spireRings.forEach((ring, i) => {
           ring.rotation.z = t * (0.2 + i * 0.07);
         });
         this.riverUpdate(t);
+        this.outskirtsUpdate(t);
         this.traffic?.update(dt);
         for (const person of this.people) {
           updatePerson(person, t, dt);

@@ -9,9 +9,11 @@ TypeScript; deployed to GitHub Pages.
 ## How it works
 
 A gridded city with streets, traffic, a river with bridges, trees, and street lamps,
-set in open countryside — highways lead out to the horizon through a surrounding
-forest, hills, and ponds. Four districts ring a central spire, and the whole thing
-is explorable in day or night (top-right toggle):
+set in open countryside. A ring-road beltway loops the town and the main streets
+run out to meet it, through a surrounding forest with hills and ponds; the river
+flows off to the horizon. Clouds drift, birds wheel overhead, and the trees sway in
+the wind. Four districts ring a central spire, and the whole thing is explorable in
+day or night (top-right toggle):
 
 - **Arcade District** — playable browser games (SuperSolitaire, Choppa, Dot Souls, …)
 - **Data Observatory** — data visualizations and dashboards (NASA hub, WAR atlas, …)
