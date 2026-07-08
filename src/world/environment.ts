@@ -45,6 +45,44 @@ function applyWind(material: THREE.MeshStandardMaterial, strength: number): void
   material.needsUpdate = true;
 }
 
+/** Vertical-gradient sky dome. Colors are lerped between night and day. */
+export function createSkyDome(): { mesh: THREE.Mesh; material: THREE.ShaderMaterial } {
+  const material = new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    depthWrite: false,
+    fog: false,
+    uniforms: {
+      topColor: { value: new THREE.Color(0x05070f) },
+      bottomColor: { value: new THREE.Color(0x10162c) },
+      offset: { value: 120 },
+      exponent: { value: 0.7 }
+    },
+    vertexShader: `
+      varying vec3 vWorldPosition;
+      void main() {
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPosition = wp.xyz;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 topColor;
+      uniform vec3 bottomColor;
+      uniform float offset;
+      uniform float exponent;
+      varying vec3 vWorldPosition;
+      void main() {
+        float h = normalize(vWorldPosition + vec3(0.0, offset, 0.0)).y;
+        float f = pow(max(h, 0.0), exponent);
+        gl_FragColor = vec4(mix(bottomColor, topColor, f), 1.0);
+      }
+    `
+  });
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(600, 32, 16), material);
+  mesh.renderOrder = -1;
+  return { mesh, material };
+}
+
 /** Star dome as a point cloud. */
 export function createStars(): { points: THREE.Points; material: THREE.PointsMaterial } {
   const rand = mulberry32(1337);
@@ -549,7 +587,7 @@ export function createLampKit(): LampKit {
 }
 
 /** Place one lamp: tall pole, warm bulb, big additive glow. */
-export function addLamp(group: THREE.Group, kit: LampKit, x: number, z: number, height = 5, glowScale = 4.6): void {
+export function addLamp(group: THREE.Group, kit: LampKit, x: number, z: number, height = 5, glowScale = 3.6): void {
   const pole = new THREE.Mesh(kit.poleGeo, kit.poleMat);
   pole.scale.y = height;
   pole.position.set(x, height / 2, z);

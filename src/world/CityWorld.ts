@@ -1,5 +1,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { WorldData, Project } from '../data';
 import { createBuilding, type BuildingHandle } from './buildings';
 import {
@@ -14,7 +19,8 @@ import {
   createLamps,
   createSigns,
   createSpire,
-  createSky
+  createSky,
+  createSkyDome
 } from './environment';
 import { buildCityPlan, planCenterX, type CityPlan } from './cityplan';
 import { createPerson, updatePerson, citizenCount, type Person } from './people';
@@ -24,6 +30,10 @@ import { bubbleSprite } from './textures';
 /** Everything that changes between night and day, lerped by a single mix factor. */
 const NIGHT = {
   sky: new THREE.Color('#0a0f1e'),
+  skyTop: new THREE.Color('#04060e'),
+  skyBottom: new THREE.Color('#141b33'),
+  bloom: 0.72,
+  bloomThreshold: 0.72,
   fogDensity: 0.0036,
   ambient: new THREE.Color(0x5a6aa0),
   ambientIntensity: 2.15,
@@ -41,7 +51,11 @@ const NIGHT = {
 };
 const DAY = {
   sky: new THREE.Color('#8fb8dd'),
-  fogDensity: 0.0026,
+  skyTop: new THREE.Color('#2f6fb8'),
+  skyBottom: new THREE.Color('#bcd6ec'),
+  bloom: 0.28,
+  bloomThreshold: 0.88,
+  fogDensity: 0.0022,
   ambient: new THREE.Color(0xc4d2e8),
   ambientIntensity: 1.9,
   hemiSky: new THREE.Color(0xcfe4ff),
@@ -111,6 +125,9 @@ export class CityWorld {
   private hemiLight!: THREE.HemisphereLight;
   private sunLight!: THREE.DirectionalLight;
   private starsMaterial!: THREE.PointsMaterial;
+  private skyDomeMaterial!: THREE.ShaderMaterial;
+  private bloomPass!: UnrealBloomPass;
+  private composer!: EffectComposer;
   private terrainMaterial!: THREE.MeshStandardMaterial;
   private blockMaterials!: import('./environment').BlockMaterials;
   private waterMaterial!: THREE.MeshStandardMaterial;
@@ -136,11 +153,16 @@ export class CityWorld {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(container.clientWidth, container.clientHeight);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.35;
+    this.renderer.toneMappingExposure = 1.25;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.domElement.dataset.test = 'world-canvas';
     container.appendChild(this.renderer.domElement);
 
-    this.scene.background = new THREE.Color('#05070f');
+    // Neutral image-based lighting so glass, metal, and water read as real PBR.
+    const pmrem = new THREE.PMREMGenerator(this.renderer);
+    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
     this.scene.fog = new THREE.FogExp2(0x05070f, 0.0042);
 
     this.camera = new THREE.PerspectiveCamera(
@@ -171,6 +193,23 @@ export class CityWorld {
     this.plan = buildCityPlan(data);
     this.buildScene();
     this.bindEvents();
+
+    // HDR post-processing: MSAA render target + bloom + tone-mapped output.
+    const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+    const renderTarget = new THREE.WebGLRenderTarget(size.x, size.y, {
+      type: THREE.HalfFloatType,
+      samples: 4
+    });
+    this.composer = new EffectComposer(this.renderer, renderTarget);
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(container.clientWidth, container.clientHeight),
+      NIGHT.bloom,
+      0.6,
+      NIGHT.bloomThreshold
+    );
+    this.composer.addPass(this.bloomPass);
+    this.composer.addPass(new OutputPass());
 
     if (import.meta.env.DEV) {
       // Dev-only hook so e2e tests can find moving citizens on screen.
@@ -216,8 +255,24 @@ export class CityWorld {
     this.hemiLight = new THREE.HemisphereLight(0x46548c, 0x10131f, 1.1);
     this.scene.add(this.hemiLight);
     this.sunLight = new THREE.DirectionalLight(0x93a7ff, 0.85);
-    this.sunLight.position.set(70, 110, -50);
+    this.sunLight.position.set(90, 140, -70);
+    this.sunLight.castShadow = true;
+    this.sunLight.shadow.mapSize.set(2048, 2048);
+    this.sunLight.shadow.camera.near = 20;
+    this.sunLight.shadow.camera.far = 460;
+    this.sunLight.shadow.camera.left = -170;
+    this.sunLight.shadow.camera.right = 170;
+    this.sunLight.shadow.camera.top = 170;
+    this.sunLight.shadow.camera.bottom = -170;
+    this.sunLight.shadow.bias = -0.0004;
+    this.sunLight.shadow.normalBias = 0.03;
     this.scene.add(this.sunLight);
+    this.scene.add(this.sunLight.target);
+
+    const skyDome = createSkyDome();
+    skyDome.mesh.userData.skipShadow = true;
+    this.scene.add(skyDome.mesh);
+    this.skyDomeMaterial = skyDome.material;
 
     const stars = createStars();
     this.scene.add(stars.points);
@@ -259,6 +314,7 @@ export class CityWorld {
     }));
 
     const terrain = createTerrain();
+    terrain.mesh.userData.noCast = true; // flat ground: receive only
     this.scene.add(terrain.mesh);
     this.terrainMaterial = terrain.material;
 
@@ -317,6 +373,24 @@ export class CityWorld {
     this.city.add(spire.group);
     this.spireRings = spire.rings;
     this.pickMeshes.push(...spire.pickMeshes);
+
+    this.enableShadows();
+  }
+
+  /** Solid opaque meshes cast + receive; thin/transparent decals only receive. */
+  private enableShadows(): void {
+    this.scene.traverse((obj) => {
+      if (!(obj instanceof THREE.Mesh)) return; // InstancedMesh extends Mesh
+      if (obj.userData.skipShadow) {
+        obj.castShadow = false;
+        obj.receiveShadow = false;
+        return;
+      }
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      const transparent = mats.some((m) => (m as THREE.Material).transparent);
+      obj.castShadow = !transparent && !obj.userData.noCast;
+      obj.receiveShadow = true;
+    });
   }
 
   private bindEvents(): void {
@@ -470,10 +544,16 @@ export class CityWorld {
     const k = this.dayMix;
     const night = 1 - k;
 
-    (this.scene.background as THREE.Color).lerpColors(NIGHT.sky, DAY.sky, k);
+    // Gradient sky dome + matching fog so the horizon blends into the sky.
+    this.skyDomeMaterial.uniforms.topColor.value.lerpColors(NIGHT.skyTop, DAY.skyTop, k);
+    this.skyDomeMaterial.uniforms.bottomColor.value.lerpColors(NIGHT.skyBottom, DAY.skyBottom, k);
     const fog = this.scene.fog as THREE.FogExp2;
-    fog.color.lerpColors(NIGHT.sky, DAY.sky, k);
+    fog.color.lerpColors(NIGHT.skyBottom, DAY.skyBottom, k);
     fog.density = THREE.MathUtils.lerp(NIGHT.fogDensity, DAY.fogDensity, k);
+
+    // Bloom blooms hard at night (neon), gentle by day.
+    this.bloomPass.strength = THREE.MathUtils.lerp(NIGHT.bloom, DAY.bloom, k);
+    this.bloomPass.threshold = THREE.MathUtils.lerp(NIGHT.bloomThreshold, DAY.bloomThreshold, k);
 
     this.ambientLight.color.lerpColors(NIGHT.ambient, DAY.ambient, k);
     this.ambientLight.intensity = THREE.MathUtils.lerp(NIGHT.ambientIntensity, DAY.ambientIntensity, k);
@@ -492,7 +572,7 @@ export class CityWorld {
     this.waterMaterial.color.lerpColors(NIGHT.water, DAY.water, k);
     this.waterMaterial.emissiveIntensity = 0.9 * night + 0.15;
 
-    this.lampBulbMaterial.emissiveIntensity = 2.4 * night + 0.05;
+    this.lampBulbMaterial.emissiveIntensity = 3.4 * night + 0.1;
     for (const glow of this.lampGlowMaterials) glow.opacity = night;
     for (const { mat, base } of this.nightWindows) mat.emissiveIntensity = base * (1 - 0.78 * k);
     for (const { mat, base } of this.headlights) mat.emissiveIntensity = base * (1 - 0.7 * k);
@@ -522,6 +602,8 @@ export class CityWorld {
     this.camera.aspect = clientWidth / clientHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(clientWidth, clientHeight);
+    this.composer.setSize(clientWidth, clientHeight);
+    this.bloomPass.setSize(clientWidth, clientHeight);
   }
 
   start(): void {
@@ -598,7 +680,7 @@ export class CityWorld {
       }
 
       this.controls.update();
-      this.renderer.render(this.scene, this.camera);
+      this.composer.render();
 
       if (firstFrame) {
         firstFrame = false;

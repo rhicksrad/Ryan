@@ -51,6 +51,14 @@ so the city literally grows as you work.
 - District chips at the bottom fly the camera to each district
 - Deep links: `#/p/<project-id>` and `#/d/<district-id>`
 
+## Rendering
+
+Built for a modern-city look: real-time sun **shadows** (PCF soft), **HDR bloom**
+post-processing (an MSAA half-float pipeline via `EffectComposer`), neutral
+**image-based lighting** (`RoomEnvironment` PMREM) so glass, metal, and water read
+as PBR, a **gradient sky dome**, and exponential fog. Bloom and sky colors are
+driven by the day/night mix.
+
 ## Development
 
 ```bash
