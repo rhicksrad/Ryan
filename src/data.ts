@@ -28,15 +28,22 @@ export interface Project {
   demo: string | null;
   /** README lines spoken by the project's citizens. */
   quotes: string[];
+  /** Last push date (ISO). Recently active projects get a construction site. */
+  pushedAt: string;
+}
+
+/** Pushed to within the last 30 days → crane and scaffolding. */
+export function isUnderConstruction(project: Project): boolean {
+  return Date.now() - new Date(project.pushedAt).getTime() < 30 * 86_400_000;
 }
 
 /** Architecture tier derived from how much work went into the project. */
 export function tierOf(commits: number): 0 | 1 | 2 | 3 | 4 {
-  if (commits >= 100) return 4; // skyscraper with billboards
-  if (commits >= 40) return 3; // McMansion
-  if (commits >= 20) return 2; // townhouse / small office
-  if (commits >= 6) return 1; // modest house
-  return 0; // shack
+  if (commits >= 150) return 4; // downtown skyscraper with billboards
+  if (commits >= 60) return 3; // commercial mid-rise
+  if (commits >= 25) return 2; // large two-story suburban house
+  if (commits >= 6) return 1; // modest suburban house
+  return 0; // dilapidated shack
 }
 
 export interface WorldData {

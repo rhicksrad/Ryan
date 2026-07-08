@@ -46,7 +46,8 @@
       "quotes": [
         "A run is 8 antes — Small, Big, and Boss Blinds on fresh Klondike deals.",
         "No timer. Your limits are recycles and discards."
-      ]
+      ],
+      "pushedAt": "2026-07-07"
     },
     {
       "id": "choppa",
@@ -60,7 +61,8 @@
       "quotes": [
         "Operation Dawnshield: level the alien forward bases.",
         "A deterministic fixed-step loop, written entirely in TypeScript."
-      ]
+      ],
+      "pushedAt": "2025-09-24"
     },
     {
       "id": "vivaforte",
@@ -74,7 +76,8 @@
       "quotes": [
         "Pure 6502 assembly. Builds a cartridge-ready iNES ROM.",
         "Runs on real NES hardware — 32 KB PRG + 8 KB CHR."
-      ]
+      ],
+      "pushedAt": "2026-07-08"
     },
     {
       "id": "dotsouls",
@@ -88,7 +91,8 @@
       "quotes": [
         "Enemies telegraph attacks — slash, dodge, guard, parry.",
         "Collect relics, open the brass gate, defeat the Chapel Warden."
-      ]
+      ],
+      "pushedAt": "2026-07-07"
     },
     {
       "id": "breakout",
@@ -102,7 +106,8 @@
       "quotes": [
         "No build step, no frameworks — open index.html and play.",
         "If an asset fails to load, vector art kicks in. It always runs."
-      ]
+      ],
+      "pushedAt": "2026-07-08"
     },
     {
       "id": "rpg",
@@ -116,7 +121,8 @@
       "quotes": [
         "Zelda-style camera and movement, growing toward a D&D-grade ruleset.",
         "A bearded adventurer hero who can walk and animate."
-      ]
+      ],
+      "pushedAt": "2025-12-01"
     },
     {
       "id": "euchre",
@@ -130,7 +136,8 @@
       "quotes": [
         "Trump has been called. Partner, do not let me down.",
         "A full game of euchre, dealt lakeside in the Adirondacks."
-      ]
+      ],
+      "pushedAt": "2025-08-12"
     },
     {
       "id": "pokerinthefront",
@@ -144,7 +151,8 @@
       "quotes": [
         "Smart AI opponents with distinct personalities.",
         "An 1860s saloon — custom SVG avatars and proper poker rules."
-      ]
+      ],
+      "pushedAt": "2025-08-11"
     },
     {
       "id": "aircraftcarrier",
@@ -158,7 +166,8 @@
       "quotes": [
         "A 15×15 grid: Battleship with power-ups and a smarter AI.",
         "Four ship types, each with unique weapons."
-      ]
+      ],
+      "pushedAt": "2025-08-11"
     },
     {
       "id": "fruit",
@@ -172,7 +181,8 @@
       "quotes": [
         "Three reels, weighted symbols, fun coins only.",
         "Quick spin, adjustable bet, achievements to chase."
-      ]
+      ],
+      "pushedAt": "2025-08-19"
     },
     {
       "id": "fiver",
@@ -186,7 +196,8 @@
       "quotes": [
         "Five letters, validated against a local dictionary.",
         "A lightweight, static Wordle-style game."
-      ]
+      ],
+      "pushedAt": "2025-08-08"
     },
     {
       "id": "logicpuzzles",
@@ -200,7 +211,8 @@
       "quotes": [
         "A beautiful, offline-first logic puzzle starter.",
         "One commit. Sometimes that is all it takes."
-      ]
+      ],
+      "pushedAt": "2025-08-08"
     },
     {
       "id": "nasa",
@@ -214,7 +226,8 @@
       "quotes": [
         "NEO3D visualizes near-Earth objects and planetary orbits.",
         "Press W to toggle the Wow! Signal overlay from 1977."
-      ]
+      ],
+      "pushedAt": "2026-07-07"
     },
     {
       "id": "nba",
@@ -228,7 +241,8 @@
       "quotes": [
         "907 commits of power tiers, injury intel, and tempo analytics.",
         "A season-preview radar for the 2025-26 NBA season."
-      ]
+      ],
+      "pushedAt": "2025-12-01"
     },
     {
       "id": "ncaam",
@@ -242,7 +256,8 @@
       "quotes": [
         "All data flows through a Cloudflare Worker — no API keys in the browser.",
         "A fast multi-page hub for NCAA basketball."
-      ]
+      ],
+      "pushedAt": "2025-12-01"
     },
     {
       "id": "gme",
@@ -256,7 +271,8 @@
       "quotes": [
         "Live quotes and minute candles over WebSocket.",
         "When the worker sleeps, demo mode replays the tape at 2x."
-      ]
+      ],
+      "pushedAt": "2025-10-02"
     },
     {
       "id": "war",
@@ -270,7 +286,8 @@
       "quotes": [
         "Where does MLB talent come from? WAR archives × state populations.",
         "Maps, rankings, and a decade slider — all static, all instant."
-      ]
+      ],
+      "pushedAt": "2025-09-25"
     },
     {
       "id": "air",
@@ -284,7 +301,8 @@
       "quotes": [
         "CDC chronic disease burdens vs PM2.5, county by county.",
         "Highlights the outliers so you do not have to hunt."
-      ]
+      ],
+      "pushedAt": "2025-09-26"
     },
     {
       "id": "india",
@@ -298,7 +316,8 @@
       "quotes": [
         "Regional cuisine patterns vs cancer incidence, 2019–2022.",
         "Choropleths, scatterplots, correlations, residuals."
-      ]
+      ],
+      "pushedAt": "2025-09-26"
     },
     {
       "id": "booze",
@@ -312,7 +331,8 @@
       "quotes": [
         "Five D3 views of New Zealand alcohol availability.",
         "Volumes, per-capita, beer strength, seasonality, spirits."
-      ]
+      ],
+      "pushedAt": "2025-09-26"
     },
     {
       "id": "kevin",
@@ -326,7 +346,8 @@
       "quotes": [
         "Grid insights, dashboarded.",
         "Python under the hood, 44 commits on the meter."
-      ]
+      ],
+      "pushedAt": "2025-11-11"
     },
     {
       "id": "8beat",
@@ -340,7 +361,8 @@
       "quotes": [
         "An 808-inspired drum machine in your browser.",
         "Chiptune loops, no install required."
-      ]
+      ],
+      "pushedAt": "2025-09-20"
     },
     {
       "id": "art",
@@ -354,7 +376,8 @@
       "quotes": [
         "One search fans out to Harvard, Princeton, Dataverse, UBC, and arXiv.",
         "A Google for academic APIs, behind one Cloudflare Worker."
-      ]
+      ],
+      "pushedAt": "2026-04-28"
     },
     {
       "id": "goblin",
@@ -368,7 +391,8 @@
       "quotes": [
         "Whimsical creature profiles: goblins, gremlins, trolls…",
         "…ogres, raccoons, and the occasional pigeon."
-      ]
+      ],
+      "pushedAt": "2026-05-02"
     },
     {
       "id": "bee",
@@ -382,7 +406,8 @@
       "quotes": [
         "A vet from Persia runs a playful pet parlor.",
         "Seventeen commits of pure whimsy."
-      ]
+      ],
+      "pushedAt": "2026-06-09"
     },
     {
       "id": "pevs",
@@ -396,7 +421,8 @@
       "quotes": [
         "Live Teamup data through a Cloudflare Worker proxy.",
         "A React scheduling calendar for the ECC."
-      ]
+      ],
+      "pushedAt": "2026-02-24"
     },
     {
       "id": "food-roulette",
@@ -410,7 +436,8 @@
       "quotes": [
         "Cannot decide on dinner? Spin the wheel.",
         "Fate is a surprisingly good cook."
-      ]
+      ],
+      "pushedAt": "2025-08-19"
     },
     {
       "id": "envisirad",
@@ -424,7 +451,8 @@
       "quotes": [
         "Radiology IT: Fortinet, Intelerad, secure imaging.",
         "The day job, in website form."
-      ]
+      ],
+      "pushedAt": "2025-08-04"
     },
     {
       "id": "nothanks",
@@ -438,7 +466,8 @@
       "quotes": [
         "Why free-website cold calls get a polite no.",
         "All set, thanks."
-      ]
+      ],
+      "pushedAt": "2025-09-01"
     }
   ]
 }

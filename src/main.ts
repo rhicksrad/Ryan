@@ -68,6 +68,21 @@ function boot(): void {
     return;
   }
 
+  const DAY_KEY = 'project-city-daytime';
+  const dayButton = document.getElementById('btn-daynight') as HTMLButtonElement;
+  const renderDayButton = (day: boolean) => {
+    dayButton.textContent = day ? '☾' : '☀';
+    dayButton.title = day ? 'Switch to night' : 'Switch to day';
+  };
+  dayButton.addEventListener('click', () => {
+    const day = !(world?.isDaytime() ?? false);
+    world?.setDaytime(day);
+    renderDayButton(day);
+    localStorage.setItem(DAY_KEY, day ? '1' : '0');
+  });
+
+  const startAsDay = localStorage.getItem(DAY_KEY) === '1';
+
   world = new CityWorld(container, data, {
     onHover: (project) => ui.showTooltip(project),
     onSelect: (id) => {
@@ -85,6 +100,8 @@ function boot(): void {
       else if (initial.kind === 'district') world?.focusDistrict(initial.id);
     }
   });
+  world.setDaytime(startAsDay, true);
+  renderDayButton(startAsDay);
   world.start();
 }
 

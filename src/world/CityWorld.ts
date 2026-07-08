@@ -15,7 +15,44 @@ import {
 } from './environment';
 import { buildCityPlan, planCenterX, type CityPlan } from './cityplan';
 import { createPerson, updatePerson, citizenCount, type Person } from './people';
+import { createTraffic, type Traffic } from './cars';
 import { bubbleSprite } from './textures';
+
+/** Everything that changes between night and day, lerped by a single mix factor. */
+const NIGHT = {
+  sky: new THREE.Color('#05070f'),
+  fogDensity: 0.0042,
+  ambient: new THREE.Color(0x46548c),
+  ambientIntensity: 1.6,
+  hemiSky: new THREE.Color(0x46548c),
+  hemiGround: new THREE.Color(0x10131f),
+  hemiIntensity: 1.1,
+  sun: new THREE.Color(0x93a7ff),
+  sunIntensity: 0.85,
+  terrain: new THREE.Color(0x11201a),
+  sidewalk: new THREE.Color(0x3a4160),
+  lot: new THREE.Color(0x232a44),
+  plaza: new THREE.Color(0x2c3556),
+  park: new THREE.Color(0x1e4630),
+  water: new THREE.Color(0xb8d2f0)
+};
+const DAY = {
+  sky: new THREE.Color('#8fb8dd'),
+  fogDensity: 0.0026,
+  ambient: new THREE.Color(0xc4d2e8),
+  ambientIntensity: 1.9,
+  hemiSky: new THREE.Color(0xcfe4ff),
+  hemiGround: new THREE.Color(0x6a7a8a),
+  hemiIntensity: 1.25,
+  sun: new THREE.Color(0xfff2d8),
+  sunIntensity: 2.4,
+  terrain: new THREE.Color(0x3f6b4a),
+  sidewalk: new THREE.Color(0x9aa4bc),
+  lot: new THREE.Color(0x6e7994),
+  plaza: new THREE.Color(0x8a94b2),
+  park: new THREE.Color(0x4a8a5c),
+  water: new THREE.Color(0x7fb2e0)
+};
 
 export const ABOUT_ID = '__about__';
 
@@ -56,10 +93,26 @@ export class CityWorld {
   private plan: CityPlan;
   private buildings = new Map<string, BuildingHandle>();
   private people: Person[] = [];
+  private traffic: Traffic | null = null;
   private pickMeshes: THREE.Mesh[] = [];
   private spireRings: THREE.Mesh[] = [];
   private riverUpdate: (t: number) => void = () => {};
   private districtCenters = new Map<string, THREE.Vector3>();
+
+  // Day/night machinery.
+  private dayMix = 0;
+  private dayTarget = 0;
+  private ambientLight!: THREE.AmbientLight;
+  private hemiLight!: THREE.HemisphereLight;
+  private sunLight!: THREE.DirectionalLight;
+  private starsMaterial!: THREE.PointsMaterial;
+  private terrainMaterial!: THREE.MeshStandardMaterial;
+  private blockMaterials!: import('./environment').BlockMaterials;
+  private waterMaterial!: THREE.MeshStandardMaterial;
+  private lampBulbMaterial!: THREE.MeshStandardMaterial;
+  private lampGlowMaterials: THREE.SpriteMaterial[] = [];
+  private nightWindows: { mat: THREE.MeshStandardMaterial; base: number }[] = [];
+  private headlights: { mat: THREE.MeshStandardMaterial; base: number }[] = [];
 
   private hoveredId: string | null = null;
   private selectedId: string | null = null;
@@ -153,28 +206,46 @@ export class CityWorld {
   }
 
   private buildScene(): void {
-    this.scene.add(new THREE.AmbientLight(0x46548c, 1.6));
-    this.scene.add(new THREE.HemisphereLight(0x46548c, 0x10131f, 1.1));
-    const moon = new THREE.DirectionalLight(0x93a7ff, 0.85);
-    moon.position.set(70, 110, -50);
-    this.scene.add(moon);
+    this.ambientLight = new THREE.AmbientLight(0x46548c, 1.6);
+    this.scene.add(this.ambientLight);
+    this.hemiLight = new THREE.HemisphereLight(0x46548c, 0x10131f, 1.1);
+    this.scene.add(this.hemiLight);
+    this.sunLight = new THREE.DirectionalLight(0x93a7ff, 0.85);
+    this.sunLight.position.set(70, 110, -50);
+    this.scene.add(this.sunLight);
 
-    this.scene.add(createStars());
+    const stars = createStars();
+    this.scene.add(stars.points);
+    this.starsMaterial = stars.material;
 
     this.city.position.x = -planCenterX();
     this.scene.add(this.city);
 
-    this.city.add(createBlocks());
+    const blocks = createBlocks();
+    this.city.add(blocks.group);
+    this.blockMaterials = blocks.materials;
     this.city.add(createRoads(this.plan));
     const river = createRiver(this.plan);
     this.city.add(river.group);
     this.riverUpdate = river.update;
+    this.waterMaterial = river.waterMaterial;
     this.city.add(createTrees(this.plan));
-    this.city.add(createLamps(this.plan));
+    const lamps = createLamps(this.plan);
+    this.city.add(lamps.group);
+    this.lampBulbMaterial = lamps.bulbMaterial;
+    this.lampGlowMaterials = lamps.glowMaterials;
     this.city.add(createSigns(this.plan));
 
+    this.traffic = createTraffic(this.plan);
+    this.city.add(this.traffic.group);
+    this.headlights = this.traffic.headlightMaterials.map((mat) => ({
+      mat,
+      base: mat.emissiveIntensity
+    }));
+
     const terrain = createTerrain();
-    this.scene.add(terrain);
+    this.scene.add(terrain.mesh);
+    this.terrainMaterial = terrain.material;
 
     // Buildings and their citizens.
     const centroids = new Map<string, { sum: THREE.Vector3; n: number }>();
@@ -184,6 +255,23 @@ export class CityWorld {
       this.city.add(handle.group);
       this.buildings.set(placement.project.id, handle);
       this.pickMeshes.push(...handle.pickMeshes);
+
+      // Track window-style emissives so the day can switch them off.
+      const seen = new Set<THREE.Material>();
+      handle.group.traverse((obj) => {
+        if (!(obj instanceof THREE.Mesh)) return;
+        const mat = obj.material as THREE.MeshStandardMaterial;
+        if (seen.has(mat) || !(mat instanceof THREE.MeshStandardMaterial)) return;
+        seen.add(mat);
+        const isWindow = Boolean(mat.emissiveMap) || mat.emissiveIntensity >= 1.2;
+        const excluded =
+          mat === handle.craneBeacon ||
+          handle.billboards.includes(mat) ||
+          handle.glowMaterials.includes(mat);
+        if (isWindow && !excluded) {
+          this.nightWindows.push({ mat, base: mat.emissiveIntensity });
+        }
+      });
 
       const entry = centroids.get(placement.district.id) ?? { sum: new THREE.Vector3(), n: 0 };
       entry.sum.add(this.toWorld(placement.lot.x, placement.lot.z));
@@ -350,6 +438,51 @@ export class CityWorld {
     this.startTween(OVERVIEW_POS.clone(), OVERVIEW_TARGET.clone());
   }
 
+  /** Flip between night and day. The transition eases over ~1.5s. */
+  setDaytime(day: boolean, immediate = false): void {
+    this.dayTarget = day ? 1 : 0;
+    if (immediate || this.reducedMotion) {
+      this.dayMix = this.dayTarget;
+      this.applyAtmosphere();
+    }
+  }
+
+  isDaytime(): boolean {
+    return this.dayTarget === 1;
+  }
+
+  private applyAtmosphere(): void {
+    const k = this.dayMix;
+    const night = 1 - k;
+
+    (this.scene.background as THREE.Color).lerpColors(NIGHT.sky, DAY.sky, k);
+    const fog = this.scene.fog as THREE.FogExp2;
+    fog.color.lerpColors(NIGHT.sky, DAY.sky, k);
+    fog.density = THREE.MathUtils.lerp(NIGHT.fogDensity, DAY.fogDensity, k);
+
+    this.ambientLight.color.lerpColors(NIGHT.ambient, DAY.ambient, k);
+    this.ambientLight.intensity = THREE.MathUtils.lerp(NIGHT.ambientIntensity, DAY.ambientIntensity, k);
+    this.hemiLight.color.lerpColors(NIGHT.hemiSky, DAY.hemiSky, k);
+    this.hemiLight.groundColor.lerpColors(NIGHT.hemiGround, DAY.hemiGround, k);
+    this.hemiLight.intensity = THREE.MathUtils.lerp(NIGHT.hemiIntensity, DAY.hemiIntensity, k);
+    this.sunLight.color.lerpColors(NIGHT.sun, DAY.sun, k);
+    this.sunLight.intensity = THREE.MathUtils.lerp(NIGHT.sunIntensity, DAY.sunIntensity, k);
+
+    this.starsMaterial.opacity = 0.95 * night;
+    this.terrainMaterial.color.lerpColors(NIGHT.terrain, DAY.terrain, k);
+    this.blockMaterials.sidewalk.color.lerpColors(NIGHT.sidewalk, DAY.sidewalk, k);
+    this.blockMaterials.lot.color.lerpColors(NIGHT.lot, DAY.lot, k);
+    this.blockMaterials.plaza.color.lerpColors(NIGHT.plaza, DAY.plaza, k);
+    this.blockMaterials.park.color.lerpColors(NIGHT.park, DAY.park, k);
+    this.waterMaterial.color.lerpColors(NIGHT.water, DAY.water, k);
+    this.waterMaterial.emissiveIntensity = 0.9 * night + 0.15;
+
+    this.lampBulbMaterial.emissiveIntensity = 2.4 * night + 0.05;
+    for (const glow of this.lampGlowMaterials) glow.opacity = night;
+    for (const { mat, base } of this.nightWindows) mat.emissiveIntensity = base * (1 - 0.78 * k);
+    for (const { mat, base } of this.headlights) mat.emissiveIntensity = base * (1 - 0.7 * k);
+  }
+
   focusAbout(): void {
     const plaza = this.toWorld(this.plan.plaza.x, this.plan.plaza.z);
     this.startTween(
@@ -393,18 +526,37 @@ export class CityWorld {
         if (progress >= 1) this.tween = null;
       }
 
+      // Ease the sky between night and day.
+      if (this.dayMix !== this.dayTarget) {
+        const step = this.reducedMotion ? 1 : dt * 0.7;
+        this.dayMix = THREE.MathUtils.clamp(
+          this.dayMix + Math.sign(this.dayTarget - this.dayMix) * step,
+          Math.min(this.dayMix, this.dayTarget),
+          Math.max(this.dayMix, this.dayTarget)
+        );
+        this.applyAtmosphere();
+      }
+
       if (!this.reducedMotion) {
         this.spireRings.forEach((ring, i) => {
           ring.rotation.z = t * (0.2 + i * 0.07);
         });
         this.riverUpdate(t);
+        this.traffic?.update(dt);
         for (const person of this.people) {
           updatePerson(person, t, dt);
         }
         for (const handle of this.buildings.values()) {
           handle.billboards.forEach((mat, i) => {
-            mat.emissiveIntensity = 1.15 + Math.sin(t * 2.2 + i * 1.7) * 0.18;
+            mat.emissiveIntensity =
+              (1.15 + Math.sin(t * 2.2 + i * 1.7) * 0.18) * (1 - 0.3 * this.dayMix);
           });
+          if (handle.craneJib) {
+            handle.craneJib.rotation.y = t * 0.16 + handle.height;
+          }
+          if (handle.craneBeacon) {
+            handle.craneBeacon.emissiveIntensity = Math.sin(t * 4) > 0 ? 2.2 : 0.25;
+          }
         }
         const ringMat = this.selectionRing.material as THREE.MeshBasicMaterial;
         if (ringMat.opacity > 0) {

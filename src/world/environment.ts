@@ -11,7 +11,7 @@ import {
 } from './cityplan';
 
 /** Star dome as a point cloud. */
-export function createStars(): THREE.Points {
+export function createStars(): { points: THREE.Points; material: THREE.PointsMaterial } {
   const rand = mulberry32(1337);
   const count = 1600;
   const positions = new Float32Array(count * 3);
@@ -41,41 +41,48 @@ export function createStars(): THREE.Points {
     depthWrite: false,
     fog: false
   });
-  return new THREE.Points(geo, mat);
+  return { points: new THREE.Points(geo, mat), material: mat };
 }
 
 /** Night grass beneath and beyond the city. */
-export function createTerrain(): THREE.Mesh {
-  const mesh = new THREE.Mesh(
-    new THREE.CircleGeometry(420, 64),
-    new THREE.MeshStandardMaterial({ color: 0x11201a, roughness: 1, metalness: 0 })
-  );
+export function createTerrain(): { mesh: THREE.Mesh; material: THREE.MeshStandardMaterial } {
+  const material = new THREE.MeshStandardMaterial({ color: 0x11201a, roughness: 1, metalness: 0 });
+  const mesh = new THREE.Mesh(new THREE.CircleGeometry(420, 64), material);
   mesh.rotation.x = -Math.PI / 2;
   mesh.position.y = -0.12;
-  return mesh;
+  return { mesh, material };
+}
+
+export interface BlockMaterials {
+  sidewalk: THREE.MeshStandardMaterial;
+  lot: THREE.MeshStandardMaterial;
+  plaza: THREE.MeshStandardMaterial;
+  park: THREE.MeshStandardMaterial;
 }
 
 /** Pavement slab + sidewalk for every block. */
-export function createBlocks(): THREE.Group {
+export function createBlocks(): { group: THREE.Group; materials: BlockMaterials } {
   const group = new THREE.Group();
-  const sidewalkMat = new THREE.MeshStandardMaterial({ color: 0x3a4160, roughness: 0.9 });
-  const lotMat = new THREE.MeshStandardMaterial({ color: 0x232a44, roughness: 0.95 });
-  const plazaMat = new THREE.MeshStandardMaterial({ color: 0x2c3556, roughness: 0.85 });
-  const parkMat = new THREE.MeshStandardMaterial({ color: 0x1e4630, roughness: 1 });
+  const materials: BlockMaterials = {
+    sidewalk: new THREE.MeshStandardMaterial({ color: 0x3a4160, roughness: 0.9 }),
+    lot: new THREE.MeshStandardMaterial({ color: 0x232a44, roughness: 0.95 }),
+    plaza: new THREE.MeshStandardMaterial({ color: 0x2c3556, roughness: 0.85 }),
+    park: new THREE.MeshStandardMaterial({ color: 0x1e4630, roughness: 1 })
+  };
 
   for (const block of allBlocks()) {
-    const sidewalk = new THREE.Mesh(new THREE.BoxGeometry(BLOCK, 0.12, BLOCK), sidewalkMat);
+    const sidewalk = new THREE.Mesh(new THREE.BoxGeometry(BLOCK, 0.12, BLOCK), materials.sidewalk);
     sidewalk.position.set(block.x, 0.06, block.z);
     group.add(sidewalk);
 
     const inner = new THREE.Mesh(
       new THREE.BoxGeometry(BLOCK - 2.4, 0.1, BLOCK - 2.4),
-      block.isPark ? parkMat : block.isPlaza ? plazaMat : lotMat
+      block.isPark ? materials.park : block.isPlaza ? materials.plaza : materials.lot
     );
     inner.position.set(block.x, 0.13, block.z);
     group.add(inner);
   }
-  return group;
+  return { group, materials };
 }
 
 /** Roads with dashed centerlines. */
@@ -97,7 +104,11 @@ export function createRoads(plan: CityPlan): THREE.Group {
 }
 
 /** The river: animated water, banks, and bridges where roads cross. */
-export function createRiver(plan: CityPlan): { group: THREE.Group; update: (t: number) => void } {
+export function createRiver(plan: CityPlan): {
+  group: THREE.Group;
+  waterMaterial: THREE.MeshStandardMaterial;
+  update: (t: number) => void;
+} {
   const group = new THREE.Group();
   const length = plan.bounds.maxZ - plan.bounds.minZ + 90;
   const centerZ = (plan.bounds.minZ + plan.bounds.maxZ) / 2;
@@ -120,17 +131,15 @@ export function createRiver(plan: CityPlan): { group: THREE.Group; update: (t: n
   water.repeat.set(1, length / 40);
   water.colorSpace = THREE.SRGBColorSpace;
 
-  const surface = new THREE.Mesh(
-    new THREE.PlaneGeometry(RIVER_WIDTH, length),
-    new THREE.MeshStandardMaterial({
-      map: water,
-      color: 0xb8d2f0,
-      roughness: 0.3,
-      metalness: 0.35,
-      emissive: 0x1c3c60,
-      emissiveIntensity: 0.9
-    })
-  );
+  const waterMaterial = new THREE.MeshStandardMaterial({
+    map: water,
+    color: 0xb8d2f0,
+    roughness: 0.3,
+    metalness: 0.35,
+    emissive: 0x1c3c60,
+    emissiveIntensity: 0.9
+  });
+  const surface = new THREE.Mesh(new THREE.PlaneGeometry(RIVER_WIDTH, length), waterMaterial);
   surface.rotation.x = -Math.PI / 2;
   surface.position.set(RIVER_CENTER_X, -0.04, centerZ);
   group.add(surface);
@@ -169,6 +178,7 @@ export function createRiver(plan: CityPlan): { group: THREE.Group; update: (t: n
 
   return {
     group,
+    waterMaterial,
     update: (t: number) => {
       water.offset.y = t * 0.035;
     }
@@ -208,8 +218,13 @@ export function createTrees(plan: CityPlan): THREE.Group {
 }
 
 /** Street lamps: pole, arm, warm bulb, additive glow — no extra lights needed. */
-export function createLamps(plan: CityPlan): THREE.Group {
+export function createLamps(plan: CityPlan): {
+  group: THREE.Group;
+  bulbMaterial: THREE.MeshStandardMaterial;
+  glowMaterials: THREE.SpriteMaterial[];
+} {
   const group = new THREE.Group();
+  const glowMaterials: THREE.SpriteMaterial[] = [];
   const poleMat = new THREE.MeshStandardMaterial({ color: 0x2c3350, roughness: 0.7, metalness: 0.4 });
   const bulbMat = new THREE.MeshStandardMaterial({
     color: 0xffd9a0,
@@ -239,19 +254,19 @@ export function createLamps(plan: CityPlan): THREE.Group {
     const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 8), bulbMat);
     bulb.position.set(lamp.x, 3.7, lamp.z);
     group.add(bulb);
-    const glow = new THREE.Sprite(
-      new THREE.SpriteMaterial({
-        map: glowTexture,
-        transparent: true,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false
-      })
-    );
+    const glowMat = new THREE.SpriteMaterial({
+      map: glowTexture,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    glowMaterials.push(glowMat);
+    const glow = new THREE.Sprite(glowMat);
     glow.scale.set(2.6, 2.6, 1);
     glow.position.set(lamp.x, 3.7, lamp.z);
     group.add(glow);
   }
-  return group;
+  return { group, bulbMaterial: bulbMat, glowMaterials };
 }
 
 /** District entrance signs. */

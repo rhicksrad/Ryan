@@ -8,8 +8,8 @@ TypeScript; deployed to GitHub Pages.
 
 ## How it works
 
-A gridded night city with streets, a river with bridges, trees, street lamps, and
-four districts around a central spire:
+A gridded city with streets, traffic, a river with bridges, trees, street lamps, and
+four districts around a central spire — explorable in day or night (top-right toggle):
 
 - **Arcade District** — playable browser games (SuperSolitaire, Choppa, Dot Souls, …)
 - **Data Observatory** — data visualizations and dashboards (NASA hub, WAR atlas, …)
@@ -21,17 +21,22 @@ project's real commit count in [`content/projects.json`](content/projects.json):
 
 | Commits | You get |
 | --- | --- |
-| 1–5 | a leaning shack with a crate out front |
-| 6–19 | a modest house with a pitched roof and a chimney |
-| 20–39 | a townhouse with lit windows and a neon awning |
-| 40–99 | a McMansion — portico columns, hedges, a wing |
-| 100+ | a skyscraper with Times-Square billboards advertising the project |
+| 1–5 | a dilapidated wooden shack — leaning planks, a boarded window, junk in the yard |
+| 6–24 | a modest suburban house — gable roof, porch, chimney, garage, mailbox, hedges |
+| 25–59 | a large two-story house — cross-gables, a columned portico, bay window, two-car garage, driveway |
+| 60–149 | a commercial mid-rise — brick facade, lit storefront and awning, fire escape, rooftop water tower |
+| 150+ | a downtown skyscraper — setbacks, a glowing crown, an antenna, and Times-Square billboards |
 
 The more you commit to a project, the taller its tower grows (NBA's 907 commits
 tops the skyline). **The citizens are READMEs** — every project spawns one to three
 locals who stroll around its lot; click one and they quote a line from their
-project's documentation. Click a building to fly in and open its panel with live
-demo and source links; the central spire opens the about panel.
+project's documentation. **Recently active repos are under construction** — projects
+pushed in the last 30 days get a rotating tower crane, scaffolding, and traffic
+cones. Click a building to fly in and open its panel with live demo and source
+links; the central spire opens the about panel.
+
+Stats are refreshed weekly by a GitHub Action ([`update-stats.yml`](.github/workflows/update-stats.yml)),
+so the city literally grows as you work.
 
 ## Controls
 
