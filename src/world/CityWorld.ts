@@ -9,6 +9,7 @@ import {
   createRoads,
   createRiver,
   createTrees,
+  createOutskirts,
   createLamps,
   createSigns,
   createSpire
@@ -230,6 +231,7 @@ export class CityWorld {
     this.riverUpdate = river.update;
     this.waterMaterial = river.waterMaterial;
     this.city.add(createTrees(this.plan));
+    this.city.add(createOutskirts(this.plan));
     const lamps = createLamps(this.plan);
     this.city.add(lamps.group);
     this.lampBulbMaterial = lamps.bulbMaterial;

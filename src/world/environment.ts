@@ -6,6 +6,7 @@ import {
   ROAD,
   RIVER_CENTER_X,
   RIVER_WIDTH,
+  planCenterX,
   allBlocks,
   type CityPlan
 } from './cityplan';
@@ -215,6 +216,220 @@ export function createTrees(plan: CityPlan): THREE.Group {
     }
   }
   return group;
+}
+
+/**
+ * The countryside around the city: highways continuing the main streets out to
+ * the horizon, roadside tree rows, a surrounding forest, low hills, and ponds.
+ * Everything is placed in plan coordinates and added to the city group.
+ */
+export function createOutskirts(plan: CityPlan): THREE.Group {
+  const group = new THREE.Group();
+  const rand = mulberry32(9091);
+
+  const centerX = planCenterX();
+  const centerZ = (plan.bounds.minZ + plan.bounds.maxZ) / 2;
+  const { minX, maxX, minZ, maxZ } = plan.bounds;
+  const halfX = (maxX - minX) / 2;
+  const halfZ = (maxZ - minZ) / 2;
+  const REACH = 340; // how far countryside extends from the city center
+
+  // --- Highways: extend two through-streets out past the city edge. ---
+  const HW_WIDTH = 11;
+  const HW_Z = -15; // matches a city cross-street
+  const HW_X = -15; // matches a city avenue
+  const roadMat = (length: number) => {
+    const tex = roadTexture();
+    tex.repeat.set(1, length / HW_WIDTH);
+    return new THREE.MeshStandardMaterial({ map: tex, roughness: 0.95 });
+  };
+  const shoulderMat = new THREE.MeshStandardMaterial({ color: 0x2b3040, roughness: 0.95 });
+
+  interface HighwayDef {
+    cx: number;
+    cz: number;
+    length: number;
+    horizontal: boolean;
+    // tree-row axis extent
+    from: number;
+    to: number;
+  }
+  const highways: HighwayDef[] = [
+    // East / West along z = HW_Z
+    { horizontal: true, cz: HW_Z, cx: (maxX + (centerX + REACH)) / 2, length: centerX + REACH - maxX, from: maxX, to: centerX + REACH },
+    { horizontal: true, cz: HW_Z, cx: (minX + (centerX - REACH)) / 2, length: minX - (centerX - REACH), from: centerX - REACH, to: minX },
+    // North / South along x = HW_X
+    { horizontal: false, cx: HW_X, cz: (maxZ + (centerZ + REACH)) / 2, length: centerZ + REACH - maxZ, from: maxZ, to: centerZ + REACH },
+    { horizontal: false, cx: HW_X, cz: (minZ + (centerZ - REACH)) / 2, length: minZ - (centerZ - REACH), from: centerZ - REACH, to: minZ }
+  ];
+
+  for (const hw of highways) {
+    const asphalt = new THREE.Mesh(new THREE.PlaneGeometry(HW_WIDTH, hw.length), roadMat(hw.length));
+    asphalt.rotation.x = -Math.PI / 2;
+    if (hw.horizontal) asphalt.rotation.z = Math.PI / 2;
+    asphalt.position.set(hw.cx, 0.0, hw.cz);
+    group.add(asphalt);
+
+    // Two shoulders flanking the asphalt.
+    for (const side of [-1, 1]) {
+      const shoulder = new THREE.Mesh(new THREE.PlaneGeometry(1.6, hw.length), shoulderMat);
+      shoulder.rotation.x = -Math.PI / 2;
+      if (hw.horizontal) shoulder.rotation.z = Math.PI / 2;
+      if (hw.horizontal) shoulder.position.set(hw.cx, -0.01, hw.cz + side * (HW_WIDTH / 2 + 0.8));
+      else shoulder.position.set(hw.cx + side * (HW_WIDTH / 2 + 0.8), -0.01, hw.cz);
+      group.add(shoulder);
+    }
+  }
+
+  // --- Rejection tests so nothing lands on a road or in the river's mouth. ---
+  const inCity = (x: number, z: number, pad: number) =>
+    x > minX - pad && x < maxX + pad && z > minZ - pad && z < maxZ + pad;
+  const onHighway = (x: number, z: number) =>
+    (Math.abs(z - HW_Z) < HW_WIDTH / 2 + 5 && (x < minX || x > maxX)) ||
+    (Math.abs(x - HW_X) < HW_WIDTH / 2 + 5 && (z < minZ || z > maxZ));
+  const onRiverMouth = (x: number, z: number) =>
+    Math.abs(x - RIVER_CENTER_X) < RIVER_WIDTH / 2 + 4 && (z < minZ || z > maxZ);
+
+  // --- Collect forest + roadside trees, then build them as instanced meshes. ---
+  interface T { x: number; z: number; s: number; pine: boolean; autumn: boolean }
+  const trees: T[] = [];
+
+  // Clustered forest ringing the city.
+  const belt = 10;
+  for (let c = 0; c < 150; c += 1) {
+    const angle = rand() * Math.PI * 2;
+    // bias toward the outer ring so the immediate surroundings stay open
+    const radius = Math.max(halfX, halfZ) + belt + Math.pow(rand(), 0.6) * (REACH - Math.max(halfX, halfZ) - belt);
+    const cxp = centerX + Math.cos(angle) * radius;
+    const czp = centerZ + Math.sin(angle) * radius * 0.92;
+    const clusterSize = 3 + Math.floor(rand() * 7);
+    for (let i = 0; i < clusterSize; i += 1) {
+      const x = cxp + (rand() - 0.5) * 14;
+      const z = czp + (rand() - 0.5) * 14;
+      if (inCity(x, z, belt) || onHighway(x, z) || onRiverMouth(x, z)) continue;
+      trees.push({
+        x,
+        z,
+        s: 1.3 + rand() * 1.7,
+        pine: rand() < 0.55,
+        autumn: rand() < 0.12
+      });
+    }
+  }
+
+  // Neat rows of trees lining both sides of every highway.
+  for (const hw of highways) {
+    const step = 9;
+    for (let d = hw.from + 5; d < hw.to - 5; d += step) {
+      for (const side of [-1, 1]) {
+        const offset = side * (HW_WIDTH / 2 + 3.5);
+        const x = hw.horizontal ? d + (rand() - 0.5) * 2 : hw.cx + offset;
+        const z = hw.horizontal ? hw.cz + offset : d + (rand() - 0.5) * 2;
+        if (inCity(x, z, 2)) continue;
+        trees.push({ x, z, s: 1.1 + rand() * 0.6, pine: rand() < 0.4, autumn: false });
+      }
+    }
+  }
+
+  buildForest(group, trees);
+
+  // --- Low hills on the horizon for a valley silhouette. ---
+  const hillMat = new THREE.MeshStandardMaterial({ color: 0x16241a, roughness: 1, flatShading: true });
+  for (let i = 0; i < 14; i += 1) {
+    const angle = (i / 14) * Math.PI * 2 + rand() * 0.3;
+    const radius = REACH - 20 + rand() * 55;
+    const hill = new THREE.Mesh(new THREE.IcosahedronGeometry(20 + rand() * 26, 0), hillMat);
+    hill.scale.y = 0.28 + rand() * 0.14;
+    hill.position.set(
+      centerX + Math.cos(angle) * radius,
+      -2 - rand() * 3,
+      centerZ + Math.sin(angle) * radius
+    );
+    hill.rotation.y = rand() * Math.PI;
+    group.add(hill);
+  }
+
+  // --- A couple of ponds nestled in the forest. ---
+  const pondMat = new THREE.MeshStandardMaterial({
+    color: 0x2d5878,
+    roughness: 0.25,
+    metalness: 0.5,
+    emissive: 0x14304a,
+    emissiveIntensity: 0.4
+  });
+  for (const [px, pz, r] of [
+    [centerX - 150, centerZ + 90, 22],
+    [centerX + 140, centerZ - 120, 18]
+  ] as const) {
+    const pond = new THREE.Mesh(new THREE.CircleGeometry(r, 24), pondMat);
+    pond.rotation.x = -Math.PI / 2;
+    pond.scale.x = 1.3;
+    pond.position.set(px, -0.08, pz);
+    group.add(pond);
+  }
+
+  return group;
+}
+
+/** Build a list of trees as three InstancedMeshes (trunks, pine + round canopies). */
+function buildForest(group: THREE.Group, trees: { x: number; z: number; s: number; pine: boolean; autumn: boolean }[]): void {
+  const rand = mulberry32(555);
+  const dummy = new THREE.Object3D();
+  const pines = trees.filter((t) => t.pine);
+  const rounds = trees.filter((t) => !t.pine);
+
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x3a2f22, roughness: 1 });
+  const trunkGeo = new THREE.CylinderGeometry(0.18, 0.24, 1, 5);
+  const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, trees.length);
+  trees.forEach((t, i) => {
+    const h = t.s * 1.3;
+    dummy.position.set(t.x, h / 2, t.z);
+    dummy.scale.set(t.s, h, t.s);
+    dummy.rotation.set(0, 0, 0);
+    dummy.updateMatrix();
+    trunks.setMatrixAt(i, dummy.matrix);
+  });
+  trunks.instanceMatrix.needsUpdate = true;
+  group.add(trunks);
+
+  const pineMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, flatShading: true });
+  const pineGeo = new THREE.ConeGeometry(1, 1, 6);
+  const pineMesh = new THREE.InstancedMesh(pineGeo, pineMat, pines.length);
+  const pineBase = new THREE.Color(0x1c4630);
+  pines.forEach((t, i) => {
+    const h = t.s * 1.3;
+    const coneH = t.s * 3.2;
+    const coneR = t.s * 1.25;
+    dummy.position.set(t.x, h + coneH / 2 - 0.3, t.z);
+    dummy.scale.set(coneR, coneH, coneR);
+    dummy.rotation.set(0, 0, 0);
+    dummy.updateMatrix();
+    pineMesh.setMatrixAt(i, dummy.matrix);
+    pineMesh.setColorAt(i, pineBase.clone().multiplyScalar(0.75 + rand() * 0.4));
+  });
+  pineMesh.instanceMatrix.needsUpdate = true;
+  if (pineMesh.instanceColor) pineMesh.instanceColor.needsUpdate = true;
+  group.add(pineMesh);
+
+  const roundMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, flatShading: true });
+  const roundGeo = new THREE.IcosahedronGeometry(1, 0);
+  const roundMesh = new THREE.InstancedMesh(roundGeo, roundMat, rounds.length);
+  const green = new THREE.Color(0x27553c);
+  const autumn = new THREE.Color(0xa8642c);
+  rounds.forEach((t, i) => {
+    const h = t.s * 1.3;
+    const r = t.s * 1.5;
+    dummy.position.set(t.x, h + r * 0.65, t.z);
+    dummy.scale.set(r, r * 0.95, r);
+    dummy.rotation.set(rand() * Math.PI, rand() * Math.PI, rand() * Math.PI);
+    dummy.updateMatrix();
+    roundMesh.setMatrixAt(i, dummy.matrix);
+    const base = t.autumn ? autumn : green;
+    roundMesh.setColorAt(i, base.clone().multiplyScalar(0.8 + rand() * 0.35));
+  });
+  roundMesh.instanceMatrix.needsUpdate = true;
+  if (roundMesh.instanceColor) roundMesh.instanceColor.needsUpdate = true;
+  group.add(roundMesh);
 }
 
 /** Street lamps: pole, arm, warm bulb, additive glow — no extra lights needed. */
