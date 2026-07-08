@@ -1,21 +1,20 @@
-# Ryan 3D World Runbook
+# Project City Runbook
 
 ## Setup
 1. Install dependencies: `npm install`
-2. Install Playwright browsers: `npx playwright install --with-deps`
+2. (For e2e tests) Install Playwright browsers: `npx playwright install --with-deps`
 
-## Test & Build Checks
-1. Run the Playwright smoke test and generate the screenshot: `npm run test:ci`
-2. Validate the screenshot size budget explicitly: `npm run verify:screenshot`
+## Checks
+1. `npm run typecheck` — TypeScript in no-emit mode
+2. `npm run build` — production bundle
+3. `npm run check:size` — gzipped size budget (≤ 400 KB per file, ≤ 2 MB total)
+4. `npm run test:e2e` — Playwright smoke test (loads the scene, asserts HUD + canvas,
+   writes `artifacts/dev-home.png`)
 
-## Success Evidence
-![Dev server home](artifacts/dev-home.png)
+## Content
+All projects and districts live in `content/projects.json`. The 3D city is generated
+entirely from that file — see README "Adding a project".
 
-> The screenshot is produced by running `npm run test:ci` and is intentionally not committed to the repository.
-
-## Checklist
-- [ ] `artifacts/dev-home.png` exists after tests finish
-- [ ] `artifacts/dev-home.png` is larger than 40 KB (automatically enforced by `npm run verify:screenshot`)
-- [ ] `npm run verify:screenshot` exits with code 0
-
-> ⚠️ Fail the run if the screenshot is missing or smaller than 40 KB.
+## Deploy
+Push to `main`. `.github/workflows/pages.yml` typechecks, builds, checks the size
+budget, and deploys `dist/` to GitHub Pages.

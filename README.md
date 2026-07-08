@@ -1,82 +1,67 @@
-# Ryan 3D World
+# Project City
 
-An interactive Three.js portfolio that orbits five themed islands around Ryan's world. The experience is built with Vite, TypeScript, and Playwright smoke tests so it can ship confidently to GitHub Pages.
+An explorable 3D night city where every building is a real project from
+[github.com/rhicksrad](https://github.com/rhicksrad). Built with Three.js, Vite, and
+TypeScript; deployed to GitHub Pages.
 
-## Features
+**Live:** https://rhicksrad.github.io/Ryan/
 
-- Perspective camera with smooth orbit controls and route-aware camera rig
-- Five low-poly islands with custom interactions, instanced details, and responsive HTML labels
-- Overlay and HUD fed by `content/profile.json` with accessible navigation and deep links
-- Prefers-reduced-motion and mute state persistence
-- Automated Playwright smoke test that captures a screenshot artifact
-- GitHub Actions workflow that runs tests, checks size budgets, and deploys to Pages
+## How it works
 
-## Getting started
+A gridded night city with streets, a river with bridges, trees, street lamps, and
+four districts around a central spire:
+
+- **Arcade District** — playable browser games (SuperSolitaire, Choppa, Dot Souls, …)
+- **Data Observatory** — data visualizations and dashboards (NASA hub, WAR atlas, …)
+- **Creative Quarter** — music machines and art explorers (8Beat, Art API Explorer, …)
+- **Web Works** — practical apps and sites (ECC Scheduler, Food Roulette, …)
+
+**Commits are square footage.** Every building is generated procedurally from the
+project's real commit count in [`content/projects.json`](content/projects.json):
+
+| Commits | You get |
+| --- | --- |
+| 1–5 | a leaning shack with a crate out front |
+| 6–19 | a modest house with a pitched roof and a chimney |
+| 20–39 | a townhouse with lit windows and a neon awning |
+| 40–99 | a McMansion — portico columns, hedges, a wing |
+| 100+ | a skyscraper with Times-Square billboards advertising the project |
+
+The more you commit to a project, the taller its tower grows (NBA's 907 commits
+tops the skyline). **The citizens are READMEs** — every project spawns one to three
+locals who stroll around its lot; click one and they quote a line from their
+project's documentation. Click a building to fly in and open its panel with live
+demo and source links; the central spire opens the about panel.
+
+## Controls
+
+- **Drag** to orbit, **scroll / pinch** to zoom, **click / tap** a building to select
+- **Esc** closes the panel and returns to the overview
+- **Project index** button lists every project as a clickable grid (also the fallback
+  when WebGL is unavailable)
+- District chips at the bottom fly the camera to each district
+- Deep links: `#/p/<project-id>` and `#/d/<district-id>`
+
+## Development
 
 ```bash
 npm install
-npm run dev
+npm run dev        # http://127.0.0.1:5173
+npm run typecheck  # tsc --noEmit
+npm run build      # production bundle in dist/
+npm run test:e2e   # Playwright smoke test (requires npx playwright install)
 ```
 
-Visit http://localhost:5173 to explore the world. If WebGL is unavailable, the app redirects to a static fallback page with the same content.
+## Adding a project
 
-## Scripts
+Add an entry to `content/projects.json` with an `id`, `title`, `repo`, `district`
+(`arcade` | `data` | `creative` | `web`), `lang`, `commits` (real count — decides
+the building tier and height), `blurb`, `quotes` (README lines the citizens recite),
+and `demo` URL (or `null`). The city rebuilds itself from the data — no scene code
+changes needed. To make a building grow, do more work on the project and bump its
+commit count.
 
-| Command | Description |
-| --- | --- |
-| `npm run dev` | Start the Vite dev server |
-| `npm run dev:ci` | Start the dev server on 127.0.0.1:5173 for CI |
-| `npm run build` | Build the production bundle |
-| `npm run preview` | Preview the production build |
-| `npm run typecheck` | Run TypeScript in no-emit mode |
-| `npm run test:e2e` | Run Playwright end-to-end tests |
-| `npm run verify:screenshot` | Ensure the Playwright screenshot exists and is > 40 KB |
-| `npm run check:size` | Check gzipped bundle sizes against the budget |
-| `npm run test:ci` | Run Playwright tests and screenshot verification |
-| `npm run ci` | Run tests, build, and size checks sequentially |
+## Deployment
 
-## Testing
-
-The Playwright suite spins up the dev server, waits for the scene to announce readiness via `data-test-ready="1"`, asserts key HUD elements, and writes a full-page screenshot to `artifacts/dev-home.png` (generated at test time and omitted from git).
-
-```bash
-npm run test:ci
-```
-
-After the tests complete you can double-check the screenshot budget enforcement with:
-
-```bash
-npm run verify:screenshot
-```
-
-## Size budget
-
-`scripts/size-budget.mjs` gzips each built asset in memory and enforces two limits:
-
-- ≤ 400 KB per gzipped file
-- ≤ 2 MB total gzipped bundle size
-
-The script prints a report and exits non-zero if the budget is exceeded.
-
-## Continuous integration & deployment
-
-`.github/workflows/ci.yml` defines three jobs:
-
-1. **test** – installs dependencies, runs Playwright (with browsers) and uploads the screenshot/report artifacts
-2. **build** – depends on the test job, builds the app, checks size budgets, and uploads the dist folder for Pages
-3. **deploy** – runs on pushes to `main` to publish the uploaded build with GitHub Pages
-
-To deploy from your fork, enable GitHub Pages and ensure the workflow has the required permissions (`pages: write`, `id-token: write`).
-
-## Content updates
-
-All overlay and fallback content is sourced from [`content/profile.json`](content/profile.json). Update that single file to change the HUD labels, overlay lists, and fallback page.
-
-## Accessibility & keyboard controls
-
-- Focusable HTML labels mirror every 3D hotspot
-- Press `1`–`5` to jump between islands
-- Press `H` or `Escape` to return home
-- Motion and audio preferences persist between sessions
-
-Enjoy exploring! 🎛️
+Pushes to `main` run `.github/workflows/pages.yml`: typecheck → build → size budget →
+deploy to GitHub Pages.

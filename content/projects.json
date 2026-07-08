@@ -1,0 +1,444 @@
+{
+  "profile": {
+    "name": "Ryan Hicks",
+    "github": "https://github.com/rhicksrad",
+    "tagline": "An explorable city of AI-built experiments — games, data visualizations, music tools, and more.",
+    "about": "Every building in this city is a real project from my GitHub. Most were designed, built, and shipped with AI-assisted engineering. Click any building to visit the live demo or read the source.",
+    "linkedin": "https://www.linkedin.com/in/ryan-hicks-10790a206/",
+    "email": "hicksrch@gmail.com"
+  },
+  "districts": [
+    {
+      "id": "arcade",
+      "name": "Arcade District",
+      "color": "#ff4d8f",
+      "blurb": "Playable browser games — shooters, roguelikes, card tables, and puzzlers."
+    },
+    {
+      "id": "data",
+      "name": "Data Observatory",
+      "color": "#38e1ff",
+      "blurb": "Interactive dashboards and visual explorations of real-world datasets."
+    },
+    {
+      "id": "creative",
+      "name": "Creative Quarter",
+      "color": "#ffb347",
+      "blurb": "Music machines, art explorers, and generative toys."
+    },
+    {
+      "id": "web",
+      "name": "Web Works",
+      "color": "#a78bfa",
+      "blurb": "Practical apps, schedulers, and sites for the real world."
+    }
+  ],
+  "projects": [
+    {
+      "id": "supersolitare",
+      "title": "SuperSolitaire",
+      "repo": "SuperSolitare",
+      "district": "arcade",
+      "lang": "TypeScript",
+      "blurb": "A roguelike deck-builder built on Klondike solitaire — Balatro's run structure married to the classic 52-card game, with blinds, jokers, and escalating score targets.",
+      "demo": "https://rhicksrad.github.io/SuperSolitare/",
+      "commits": 21,
+      "quotes": [
+        "A run is 8 antes — Small, Big, and Boss Blinds on fresh Klondike deals.",
+        "No timer. Your limits are recycles and discards."
+      ]
+    },
+    {
+      "id": "choppa",
+      "title": "Choppa",
+      "repo": "Choppa",
+      "district": "arcade",
+      "lang": "TypeScript",
+      "blurb": "A browser homage to classic isometric helicopter strike games: four handcrafted missions, cinematic briefings, reactive audio, and a deterministic fixed-step engine.",
+      "demo": "https://rhicksrad.github.io/Choppa/",
+      "commits": 300,
+      "quotes": [
+        "Operation Dawnshield: level the alien forward bases.",
+        "A deterministic fixed-step loop, written entirely in TypeScript."
+      ]
+    },
+    {
+      "id": "vivaforte",
+      "title": "Vivaforte",
+      "repo": "Vivaforte",
+      "district": "arcade",
+      "lang": "6502 ASM",
+      "blurb": "A complete Life Force–style scrolling shooter written in pure 6502 assembly that builds to a cartridge-ready NES ROM — plus a MonoGame ECS starter project.",
+      "demo": null,
+      "commits": 10,
+      "quotes": [
+        "Pure 6502 assembly. Builds a cartridge-ready iNES ROM.",
+        "Runs on real NES hardware — 32 KB PRG + 8 KB CHR."
+      ]
+    },
+    {
+      "id": "dotsouls",
+      "title": "Dot Souls",
+      "repo": "dotsouls",
+      "district": "arcade",
+      "lang": "JavaScript",
+      "blurb": "An 8-bit browser dungeon crawler turned tactical action-roguelike: telegraphed attacks, dodges, parries, relics, and the Chapel Warden boss fight.",
+      "demo": "https://rhicksrad.github.io/dotsouls/",
+      "commits": 30,
+      "quotes": [
+        "Enemies telegraph attacks — slash, dodge, guard, parry.",
+        "Collect relics, open the brass gate, defeat the Chapel Warden."
+      ]
+    },
+    {
+      "id": "breakout",
+      "title": "Neon Breakout",
+      "repo": "Breakout",
+      "district": "arcade",
+      "lang": "JavaScript",
+      "blurb": "A dependency-free breakout game in a single JavaScript file — nebula backdrops, a looping synth soundtrack, and vector-art fallbacks so it always runs.",
+      "demo": "https://rhicksrad.github.io/Breakout/",
+      "commits": 3,
+      "quotes": [
+        "No build step, no frameworks — open index.html and play.",
+        "If an asset fails to load, vector art kicks in. It always runs."
+      ]
+    },
+    {
+      "id": "rpg",
+      "title": "NES-Style RPG Sandbox",
+      "repo": "rpg",
+      "district": "arcade",
+      "lang": "TypeScript",
+      "blurb": "A top-down Zelda-style action-RPG sandbox with tile-based collision, an animated hero, and room to grow into a D&D-grade ruleset.",
+      "demo": "https://rhicksrad.github.io/rpg/",
+      "commits": 108,
+      "quotes": [
+        "Zelda-style camera and movement, growing toward a D&D-grade ruleset.",
+        "A bearded adventurer hero who can walk and animate."
+      ]
+    },
+    {
+      "id": "euchre",
+      "title": "Euchre in the Adirondacks",
+      "repo": "Euchre",
+      "district": "arcade",
+      "lang": "TypeScript",
+      "blurb": "A full game of euchre against AI opponents, dealt lakeside in a cozy Adirondack lodge theme.",
+      "demo": "https://rhicksrad.github.io/Euchre/",
+      "commits": 10,
+      "quotes": [
+        "Trump has been called. Partner, do not let me down.",
+        "A full game of euchre, dealt lakeside in the Adirondacks."
+      ]
+    },
+    {
+      "id": "pokerinthefront",
+      "title": "Poker in the Front",
+      "repo": "PokerInTheFront",
+      "district": "arcade",
+      "lang": "TypeScript",
+      "blurb": "Texas Hold'em in an 1860s Western saloon — AI opponents with distinct personalities, custom SVG avatars, and proper poker rules.",
+      "demo": "https://rhicksrad.github.io/PokerInTheFront/",
+      "commits": 11,
+      "quotes": [
+        "Smart AI opponents with distinct personalities.",
+        "An 1860s saloon — custom SVG avatars and proper poker rules."
+      ]
+    },
+    {
+      "id": "aircraftcarrier",
+      "title": "Aircraft Carrier",
+      "repo": "AircraftCarrier",
+      "district": "arcade",
+      "lang": "JavaScript",
+      "blurb": "A turn-based naval combat game and spiritual successor to Battleship: a 15×15 grid, four ship types with unique weapons, power-ups, and a smart AI admiral.",
+      "demo": "https://rhicksrad.github.io/AircraftCarrier/",
+      "commits": 2,
+      "quotes": [
+        "A 15×15 grid: Battleship with power-ups and a smarter AI.",
+        "Four ship types, each with unique weapons."
+      ]
+    },
+    {
+      "id": "fruit",
+      "title": "Fruit Machine",
+      "repo": "Fruit",
+      "district": "arcade",
+      "lang": "JavaScript",
+      "blurb": "A classic 3-reel fruit machine with weighted symbols, achievements, and a fun-coin economy. Zero dependencies.",
+      "demo": "https://rhicksrad.github.io/Fruit/",
+      "commits": 6,
+      "quotes": [
+        "Three reels, weighted symbols, fun coins only.",
+        "Quick spin, adjustable bet, achievements to chase."
+      ]
+    },
+    {
+      "id": "fiver",
+      "title": "Fiver",
+      "repo": "Fiver",
+      "district": "arcade",
+      "lang": "JavaScript",
+      "blurb": "A lightweight Wordle-style game with five-letter words validated against a locally stored dictionary.",
+      "demo": "https://rhicksrad.github.io/Fiver/",
+      "commits": 8,
+      "quotes": [
+        "Five letters, validated against a local dictionary.",
+        "A lightweight, static Wordle-style game."
+      ]
+    },
+    {
+      "id": "logicpuzzles",
+      "title": "Logic Puzzles",
+      "repo": "LogicPuzzles",
+      "district": "arcade",
+      "lang": "JavaScript",
+      "blurb": "An offline-first collection of logic puzzles with a clean, distraction-free interface.",
+      "demo": "https://rhicksrad.github.io/LogicPuzzles/",
+      "commits": 1,
+      "quotes": [
+        "A beautiful, offline-first logic puzzle starter.",
+        "One commit. Sometimes that is all it takes."
+      ]
+    },
+    {
+      "id": "nasa",
+      "title": "NASA Visualization Hub",
+      "repo": "NASA",
+      "district": "data",
+      "lang": "TypeScript",
+      "blurb": "Interactive NASA datasets rendered in custom Three.js scenes: NEO3D near-Earth objects, planetary orbits, and a Wow! Signal overlay marking the 1977 Big Ear candidates.",
+      "demo": "https://rhicksrad.github.io/NASA/",
+      "commits": 418,
+      "quotes": [
+        "NEO3D visualizes near-Earth objects and planetary orbits.",
+        "Press W to toggle the Wow! Signal overlay from 1977."
+      ]
+    },
+    {
+      "id": "nba",
+      "title": "NBA Intelligence Hub",
+      "repo": "NBA",
+      "district": "data",
+      "lang": "JavaScript",
+      "blurb": "A season-preview radar for the NBA: power tiers, training-camp atlas, injury intel, and tempo analytics across a multi-page app.",
+      "demo": "https://rhicksrad.github.io/NBA/",
+      "commits": 907,
+      "quotes": [
+        "907 commits of power tiers, injury intel, and tempo analytics.",
+        "A season-preview radar for the 2025-26 NBA season."
+      ]
+    },
+    {
+      "id": "ncaam",
+      "title": "NCAA Basketball Hub",
+      "repo": "NCAAM",
+      "district": "data",
+      "lang": "TypeScript",
+      "blurb": "A fast multi-page hub for NCAA men's basketball with all data flowing through a Cloudflare Worker proxy — no API keys in the browser.",
+      "demo": "https://rhicksrad.github.io/NCAAM/",
+      "commits": 545,
+      "quotes": [
+        "All data flows through a Cloudflare Worker — no API keys in the browser.",
+        "A fast multi-page hub for NCAA basketball."
+      ]
+    },
+    {
+      "id": "gme",
+      "title": "GME Radar",
+      "repo": "GME",
+      "district": "data",
+      "lang": "TypeScript",
+      "blurb": "A live dashboard for GameStop's quote stream and intraday tape: rolling VWAP, minute candles over WebSocket, and an automatic demo mode when markets sleep.",
+      "demo": "https://rhicksrad.github.io/GME/",
+      "commits": 29,
+      "quotes": [
+        "Live quotes and minute candles over WebSocket.",
+        "When the worker sleeps, demo mode replays the tape at 2x."
+      ]
+    },
+    {
+      "id": "war",
+      "title": "Birthplace WAR Atlas",
+      "repo": "WAR",
+      "district": "data",
+      "lang": "TypeScript",
+      "blurb": "Where does MLB talent come from? Baseball Reference WAR archives crossed with historical state populations, on a map with a decade slider.",
+      "demo": "https://rhicksrad.github.io/WAR/",
+      "commits": 31,
+      "quotes": [
+        "Where does MLB talent come from? WAR archives × state populations.",
+        "Maps, rankings, and a decade slider — all static, all instant."
+      ]
+    },
+    {
+      "id": "air",
+      "title": "County Health × Air Quality",
+      "repo": "AIR",
+      "district": "data",
+      "lang": "TypeScript",
+      "blurb": "Maps chronic disease burdens from CDC PLACES against PM2.5 pollution for every U.S. county, and highlights the outliers.",
+      "demo": "https://rhicksrad.github.io/AIR/",
+      "commits": 42,
+      "quotes": [
+        "CDC chronic disease burdens vs PM2.5, county by county.",
+        "Highlights the outliers so you do not have to hunt."
+      ]
+    },
+    {
+      "id": "india",
+      "title": "India Food × Cancer",
+      "repo": "India",
+      "district": "data",
+      "lang": "TypeScript",
+      "blurb": "An interactive choropleth of India probing regional cuisine patterns against cancer incidence, with scatterplots, correlation estimates, and residual analysis.",
+      "demo": "https://rhicksrad.github.io/India/",
+      "commits": 33,
+      "quotes": [
+        "Regional cuisine patterns vs cancer incidence, 2019–2022.",
+        "Choropleths, scatterplots, correlations, residuals."
+      ]
+    },
+    {
+      "id": "booze",
+      "title": "NZ Alcohol Explorer",
+      "repo": "Booze",
+      "district": "data",
+      "lang": "TypeScript",
+      "blurb": "Five interactive D3 views of long-run New Zealand alcohol availability: volumes, per-capita trends, beer strength, seasonality, and a spirits cross-check.",
+      "demo": "https://rhicksrad.github.io/Booze/",
+      "commits": 8,
+      "quotes": [
+        "Five D3 views of New Zealand alcohol availability.",
+        "Volumes, per-capita, beer strength, seasonality, spirits."
+      ]
+    },
+    {
+      "id": "kevin",
+      "title": "Grid Insights Dashboard",
+      "repo": "kevin",
+      "district": "data",
+      "lang": "Python",
+      "blurb": "A Python-built dashboard surfacing insights from energy grid data.",
+      "demo": "https://rhicksrad.github.io/kevin/",
+      "commits": 44,
+      "quotes": [
+        "Grid insights, dashboarded.",
+        "Python under the hood, 44 commits on the meter."
+      ]
+    },
+    {
+      "id": "8beat",
+      "title": "8Beat Chiptune Studio",
+      "repo": "8Beat",
+      "district": "creative",
+      "lang": "JavaScript",
+      "blurb": "An 808-inspired drum machine and chiptune studio that runs entirely in the browser.",
+      "demo": "https://rhicksrad.github.io/8Beat/",
+      "commits": 10,
+      "quotes": [
+        "An 808-inspired drum machine in your browser.",
+        "Chiptune loops, no install required."
+      ]
+    },
+    {
+      "id": "art",
+      "title": "Art API Explorer",
+      "repo": "art",
+      "district": "creative",
+      "lang": "TypeScript",
+      "blurb": "A 'Google for academic APIs': one search fans out to Harvard Art Museums, Princeton, Dataverse, UBC, and arXiv through a shared Cloudflare Worker.",
+      "demo": "https://rhicksrad.github.io/art/",
+      "commits": 137,
+      "quotes": [
+        "One search fans out to Harvard, Princeton, Dataverse, UBC, and arXiv.",
+        "A Google for academic APIs, behind one Cloudflare Worker."
+      ]
+    },
+    {
+      "id": "goblin",
+      "title": "Creature Creator Lab",
+      "repo": "goblin",
+      "district": "creative",
+      "lang": "TypeScript",
+      "blurb": "Generates whimsical creature profiles — goblins, gremlins, raccoons, trolls, ogres, and the occasional pigeon.",
+      "demo": "https://rhicksrad.github.io/goblin/",
+      "commits": 15,
+      "quotes": [
+        "Whimsical creature profiles: goblins, gremlins, trolls…",
+        "…ogres, raccoons, and the occasional pigeon."
+      ]
+    },
+    {
+      "id": "bee",
+      "title": "Playful Pet Parlor",
+      "repo": "bee",
+      "district": "creative",
+      "lang": "TypeScript",
+      "blurb": "A playful pet-parlor web toy starring a vet from Persia.",
+      "demo": "https://rhicksrad.github.io/bee/",
+      "commits": 17,
+      "quotes": [
+        "A vet from Persia runs a playful pet parlor.",
+        "Seventeen commits of pure whimsy."
+      ]
+    },
+    {
+      "id": "pevs",
+      "title": "ECC Scheduler",
+      "repo": "PEVS",
+      "district": "web",
+      "lang": "TypeScript",
+      "blurb": "A React scheduling calendar powered by live Teamup data through a Cloudflare Worker proxy.",
+      "demo": "https://rhicksrad.github.io/PEVS/",
+      "commits": 136,
+      "quotes": [
+        "Live Teamup data through a Cloudflare Worker proxy.",
+        "A React scheduling calendar for the ECC."
+      ]
+    },
+    {
+      "id": "food-roulette",
+      "title": "Food Roulette",
+      "repo": "Food-Roulette",
+      "district": "web",
+      "lang": "JavaScript",
+      "blurb": "Can't decide what's for dinner? Spin the wheel and let fate cook.",
+      "demo": "https://rhicksrad.github.io/Food-Roulette/",
+      "commits": 10,
+      "quotes": [
+        "Cannot decide on dinner? Spin the wheel.",
+        "Fate is a surprisingly good cook."
+      ]
+    },
+    {
+      "id": "envisirad",
+      "title": "Envisirad",
+      "repo": "envisirad",
+      "district": "web",
+      "lang": "HTML",
+      "blurb": "A site for radiology IT infrastructure services — Fortinet, Intelerad, and secure imaging practice.",
+      "demo": "https://rhicksrad.github.io/envisirad/",
+      "commits": 2,
+      "quotes": [
+        "Radiology IT: Fortinet, Intelerad, secure imaging.",
+        "The day job, in website form."
+      ]
+    },
+    {
+      "id": "nothanks",
+      "title": "No Thanks",
+      "repo": "NoThanks",
+      "district": "web",
+      "lang": "HTML",
+      "blurb": "A concise, well-designed explanation of why 'free website' cold calls get a polite no.",
+      "demo": "https://rhicksrad.github.io/NoThanks/",
+      "commits": 1,
+      "quotes": [
+        "Why free-website cold calls get a polite no.",
+        "All set, thanks."
+      ]
+    }
+  ]
+}

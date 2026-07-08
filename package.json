@@ -25,5 +25,8 @@
     "playwright": "^1.42.1",
     "typescript": "^5.4.2",
     "vite": "^5.1.5"
+  },
+  "allowScripts": {
+    "esbuild@0.21.5": true
   }
 }

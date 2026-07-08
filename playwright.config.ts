@@ -19,7 +19,9 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] }
+      // Use the full Chromium build (not the headless shell) so a single
+      // `npx playwright install chromium --no-shell` download covers local runs.
+      use: { ...devices['Desktop Chrome'], channel: 'chromium' }
     }
   ]
 });

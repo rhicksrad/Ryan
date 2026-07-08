@@ -1,184 +1,91 @@
-import fallbackUrl from './fallback/index.html?url';
-import { supports3D } from './polyfills/webglCheck';
-import { loadProfile } from './content';
-import { AssetLoader } from './utils/AssetLoader';
-import { AudioController } from './utils/Audio';
-import { createHUD } from './ui/HUD';
-import { createOverlay } from './ui/Overlay';
-import { createRouter, type RouteName, type RouterController } from './ui/Router';
-import { World } from './world/World';
-import { DebugUI } from './debug/DebugUI';
+import { data } from './data';
+import { CityWorld, ABOUT_ID } from './world/CityWorld';
+import { UI } from './ui';
 
-const THEME_KEY = 'ryan-theme';
-const root = document.documentElement;
-root.dataset.testReady = '0';
-
-if (!supports3D()) {
-  window.location.replace(fallbackUrl);
-} else {
-  bootstrap().catch((error) => {
-    console.error('Failed to bootstrap world', error);
-    root.dataset.testReady = '0';
-  });
+function webglAvailable(): boolean {
+  try {
+    const canvas = document.createElement('canvas');
+    return Boolean(canvas.getContext('webgl2') ?? canvas.getContext('webgl'));
+  } catch {
+    return false;
+  }
 }
 
-async function bootstrap(): Promise<void> {
-  const app = document.getElementById('app');
-  if (!app) {
-    throw new Error('#app container missing');
-  }
+function readHash(): { kind: 'project' | 'district' | null; id: string } {
+  const match = window.location.hash.match(/^#\/(p|d)\/(.+)$/);
+  if (!match) return { kind: null, id: '' };
+  return { kind: match[1] === 'p' ? 'project' : 'district', id: match[2] };
+}
 
-  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const profile = await loadProfile();
-  const assetLoader = new AssetLoader();
-  const audio = new AudioController();
+function writeHash(value: string): void {
+  history.replaceState(null, '', value ? `#/${value}` : window.location.pathname + window.location.search);
+}
 
-  const initialTheme = loadTheme();
-  applyTheme(initialTheme);
+function boot(): void {
+  const container = document.getElementById('scene')!;
+  let world: CityWorld | null = null;
 
-  const world = new World({
-    container: app,
-    assetLoader,
-    audio,
-    prefersReducedMotion
-  });
-
-  const debug = new DebugUI(world.getCamera());
-  debug.attach(app);
-  const debugLoop = () => {
-    debug.update();
-    requestAnimationFrame(debugLoop);
-  };
-  requestAnimationFrame(debugLoop);
-
-  let router: RouterController | null = null;
-
-  const navigate = (route: RouteName) => {
-    if (router) {
-      router.navigate(route);
-    } else {
-      window.location.hash = route;
-    }
-  };
-
-  const hud = createHUD({
-    container: app,
-    audioMuted: audio.isMuted(),
-    theme: initialTheme,
-    onNavigate: (route) => navigate(route),
-    onToggleTheme: (next) => {
-      applyTheme(next);
-      hud.setTheme(next);
+  const ui = new UI({
+    onSelectProject: (id) => selectProject(id),
+    onSelectDistrict: (id) => {
+      ui.hidePanel();
+      writeHash(`d/${id}`);
+      world?.setSelected(null);
+      world?.focusDistrict(id);
     },
-    onToggleAudio: (muted) => {
-      audio.setMuted(muted);
-      hud.setAudioMuted(muted);
-      if (!muted) {
-        audio.resume().catch(() => undefined);
+    onOverview: () => {
+      ui.hidePanel();
+      writeHash('');
+      world?.setSelected(null);
+      world?.focusOverview();
+    },
+    onClosePanel: () => {
+      ui.hidePanel();
+      writeHash('');
+      world?.setSelected(null);
+      world?.focusOverview();
+    }
+  });
+
+  function selectProject(id: string): void {
+    const project = data.projects.find((p) => p.id === id);
+    if (!project) return;
+    writeHash(`p/${id}`);
+    ui.showProjectPanel(project);
+    world?.setSelected(id);
+    world?.focusProject(id);
+  }
+
+  function selectAbout(): void {
+    ui.showAboutPanel();
+    world?.setSelected(null);
+    world?.focusAbout();
+  }
+
+  if (!webglAvailable()) {
+    ui.showWebglFallback();
+    document.documentElement.dataset.testReady = '1';
+    return;
+  }
+
+  world = new CityWorld(container, data, {
+    onHover: (project) => ui.showTooltip(project),
+    onSelect: (id) => {
+      if (id === ABOUT_ID) {
+        selectAbout();
+      } else if (id) {
+        selectProject(id);
       }
+    },
+    onReady: () => {
+      ui.hideLoader();
+      document.documentElement.dataset.testReady = '1';
+      const initial = readHash();
+      if (initial.kind === 'project') selectProject(initial.id);
+      else if (initial.kind === 'district') world?.focusDistrict(initial.id);
     }
   });
-
-  const overlay = createOverlay({
-    container: app,
-    profile,
-    onClose: () => navigate('#home'),
-    onResumeRequest: () => navigate('#resume')
-  });
-
-  router = createRouter({
-    onChange: (route) => handleRouteChange(route)
-  });
-
-  function handleRouteChange(route: RouteName): void {
-    world.setRoute(route);
-    overlay.setRoute(route);
-    hud.setActive(route);
-    if (route !== '#home') {
-      hud.hideHint();
-    }
-    if (route === '#resume') {
-      window.open('resume.html', '_blank', 'noopener');
-    }
-  }
-
-  if (router) {
-    world.setRoute(router.current, true);
-  }
-
-  world.onFirstFrame(() => {
-    root.dataset.testReady = '1';
-  });
-
-  world.onHotspotClick((hotspot) => {
-    navigate(hotspot.route as RouteName);
-  });
-
-  world.onHotspotHover((hotspot) => {
-    if (hotspot) {
-      audio.resume().catch(() => undefined);
-    }
-  });
-
-  const movementKeys: Record<string, RouteName> = {
-    Digit1: '#cooking',
-    Digit2: '#it',
-    Digit3: '#gardening',
-    Digit4: '#ai',
-    Digit5: '#music',
-    Digit6: '#gaming'
-  };
-
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'h' || event.key === 'H') {
-      router.navigate('#home');
-    }
-    const targetRoute = movementKeys[event.code];
-    if (targetRoute) {
-      router.navigate(targetRoute);
-    }
-    if (event.key === 'Escape') {
-      router.navigate('#home');
-    }
-  });
-
-  let hasInteracted = false;
-  const markInteraction = () => {
-    if (!hasInteracted) {
-      hasInteracted = true;
-      hud.hideHint();
-      audio.resume().catch(() => undefined);
-    }
-  };
-  window.addEventListener('pointerdown', markInteraction, { once: true });
-  window.addEventListener('keydown', markInteraction, { once: true });
-
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (event) => {
-    const stored = localStorage.getItem(THEME_KEY);
-    if (!stored) {
-      applyTheme(event.matches ? 'dark' : 'light');
-      hud.setTheme(event.matches ? 'dark' : 'light');
-    }
-  });
+  world.start();
 }
 
-function applyTheme(theme: 'light' | 'dark'): void {
-  root.dataset.theme = theme;
-  try {
-    localStorage.setItem(THEME_KEY, theme);
-  } catch (error) {
-    console.warn('Unable to persist theme', error);
-  }
-}
-
-function loadTheme(): 'light' | 'dark' {
-  try {
-    const stored = localStorage.getItem(THEME_KEY);
-    if (stored === 'light' || stored === 'dark') {
-      return stored;
-    }
-  } catch (error) {
-    console.warn('Unable to load theme preference', error);
-  }
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-}
+boot();

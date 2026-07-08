@@ -3,43 +3,66 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#101828" />
-    <title>Ryan 3D World</title>
-    <meta name="description" content="Ryan's interactive 3D island portfolio exploring cooking, IT, gardening, AI, and music passions." />
-    <link rel="canonical" href="https://example.com/ryan-3d-world" />
-    <meta property="og:title" content="Ryan 3D World" />
-    <meta property="og:description" content="Explore Ryan's interactive 3D island portfolio." />
+    <meta name="theme-color" content="#05070f" />
+    <title>Ryan Hicks — Project City</title>
+    <meta
+      name="description"
+      content="An explorable 3D city of Ryan Hicks' AI-built projects — browser games, data visualizations, music tools, and more. Every building is a real GitHub project."
+    />
+    <link rel="canonical" href="https://rhicksrad.github.io/Ryan/" />
+    <meta property="og:title" content="Ryan Hicks — Project City" />
+    <meta property="og:description" content="An explorable 3D city of AI-built projects. Every building is a real GitHub repo." />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://example.com/ryan-3d-world" />
-    <meta property="og:image" content="https://example.com/ryan-3d-world/og.png" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Ryan 3D World" />
-    <meta name="twitter:description" content="Explore Ryan's interactive 3D island portfolio." />
+    <meta property="og:url" content="https://rhicksrad.github.io/Ryan/" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Ryan Hicks — Project City" />
+    <meta name="twitter:description" content="An explorable 3D city of AI-built projects." />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="./css/styles.css" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
         "@type": "Person",
-        "name": "Ryan",
-        "url": "https://example.com/ryan-3d-world",
-        "sameAs": [
-          "https://github.com/ryan"
-        ],
-        "knowsAbout": ["Web Development", "Three.js", "Audio Engineering"]
-      }
-    </script>
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "WebSite",
-        "name": "Ryan 3D World",
-        "url": "https://example.com/ryan-3d-world"
+        "name": "Ryan Hicks",
+        "url": "https://rhicksrad.github.io/Ryan/",
+        "sameAs": ["https://github.com/rhicksrad"]
       }
     </script>
   </head>
   <body>
-    <div id="app" aria-live="polite"></div>
+    <div id="scene" aria-hidden="true"></div>
+
+    <header class="hud" data-test="hud">
+      <div class="brand">
+        <h1>PROJECT<span>CITY</span></h1>
+        <p>The AI-built worlds of Ryan Hicks</p>
+      </div>
+      <nav class="hud-actions">
+        <button id="btn-list" type="button">Project index</button>
+        <a href="https://github.com/rhicksrad" target="_blank" rel="noopener">GitHub ↗</a>
+      </nav>
+    </header>
+
+    <nav id="legend" aria-label="Districts"></nav>
+
+    <div id="hint">Drag to orbit · Scroll to zoom · Click a building · Talk to the locals</div>
+
+    <div id="tooltip" hidden></div>
+    <aside id="panel" hidden aria-live="polite"></aside>
+    <div id="list-overlay" hidden></div>
+
+    <div id="loader">
+      <div class="loader-title">PROJECT<span>CITY</span></div>
+      <div class="loader-bar"><div class="loader-fill"></div></div>
+    </div>
+
+    <noscript>
+      <div class="noscript">
+        This portfolio needs JavaScript. The projects live at
+        <a href="https://github.com/rhicksrad">github.com/rhicksrad</a>.
+      </div>
+    </noscript>
+
     <script type="module" src="./src/main.ts"></script>
   </body>
 </html>
