@@ -402,12 +402,12 @@
       "lang": "TypeScript",
       "blurb": "A playful pet-parlor web toy starring a vet from Persia.",
       "demo": "https://rhicksrad.github.io/bee/",
-      "commits": 17,
+      "commits": 30,
       "quotes": [
         "A vet from Persia runs a playful pet parlor.",
         "Seventeen commits of pure whimsy."
       ],
-      "pushedAt": "2026-06-09"
+      "pushedAt": "2026-07-10"
     },
     {
       "id": "pevs",
