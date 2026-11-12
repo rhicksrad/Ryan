@@ -474,7 +474,7 @@ export function createTerrain(plan: CityPlan): THREE.Group {
     new THREE.PlaneGeometry(9000, 9000),
     tint(
       weather(new THREE.MeshStandardMaterial({ map: far, roughness: 1, metalness: 0 }), { ...grain, blotch: 0.3, blotchSize: 70 }),
-      0x3a4a78,
+      0x4d5e94,
       0xffffff
     )
   );
@@ -499,7 +499,7 @@ export function createTerrain(plan: CityPlan): THREE.Group {
       },
       'meadow-edge'
     ),
-    0x3a4a78,
+    0x4d5e94,
     0xffffff
   );
   const sheet = new THREE.Mesh(new THREE.PlaneGeometry(TERRAIN_SPAN, TERRAIN_SPAN), material);
@@ -702,7 +702,7 @@ export function createBlocks(plan: CityPlan): THREE.Group {
   return group;
 }
 
-const ASPHALT = '#33353b';
+const ASPHALT = '#4b4c4f'; // aged, sun-greyed asphalt, not fresh blacktop
 
 /** Asphalt with tyre wear, a dashed center line, and faint edge lines; one tile per road width. */
 function asphaltTexture(lines: boolean): THREE.CanvasTexture {
@@ -1031,6 +1031,8 @@ export function createTrees(plan: CityPlan): THREE.Group {
 export function createOutskirts(plan: CityPlan): {
   group: THREE.Group;
   lamps: LampSpec[];
+  /** Far farm lights; opacity follows the night like the street lamps' glow. */
+  glow: { material: THREE.Material; base: number };
   update: (t: number) => void;
 } {
   const group = new THREE.Group();
@@ -1178,6 +1180,7 @@ export function createOutskirts(plan: CityPlan): {
   const barnRoof = new THREE.MeshStandardMaterial({ color: 0x4a4744, roughness: 0.8 });
   const farmWhite = new THREE.MeshStandardMaterial({ color: 0xe6e0d0, roughness: 0.9 });
   const siloMat = new THREE.MeshStandardMaterial({ color: 0xb9bcc0, roughness: 0.5, metalness: 0.4 });
+  const farmLamp = new THREE.MeshStandardMaterial({ color: 0x3a3428, emissive: 0xffc070, emissiveIntensity: 2.4, roughness: 0.5 });
   const roofGeo = (w: number, d: number, peak: number) => {
     const shape = new THREE.Shape();
     shape.moveTo(-w / 2, 0);
@@ -1210,6 +1213,8 @@ export function createOutskirts(plan: CityPlan): {
     add(new THREE.CylinderGeometry(1.5, 1.5, 7, 12), siloMat, 5.2, 3.5, -2.5);
     add(new THREE.SphereGeometry(1.5, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), siloMat, 5.2, 7, -2.5);
     add(BOX_GEO, farmWhite, -8, 1.6, 4, 4.4, 3.2, 5);
+    add(BOX_GEO, farmLamp, -8, 1.7, 6.52, 0.8, 0.9, 0.06);
+    add(BOX_GEO, farmLamp, 0, 3.4, 4.52, 0.5, 0.5, 0.06);
     add(houseRoofGeo, barnRoof, -8, 3.2, 4);
     group.add(farm);
   }
@@ -1251,9 +1256,48 @@ export function createOutskirts(plan: CityPlan): {
     group.add(shore);
   }
 
+  // --- Far lights: farmhouse windows and yard lamps scattered to the horizon, so
+  // the night countryside is lived in and not one dark slab. ---
+  const farCount = 320;
+  const farPositions = new Float32Array(farCount * 3);
+  const farColors = new Float32Array(farCount * 3);
+  const warm = new THREE.Color();
+  for (let i = 0; i < farCount; i += 1) {
+    const angle = rand() * Math.PI * 2;
+    const radius = inner + 50 + Math.pow(rand(), 1.6) * 1900;
+    // Lights keep company: most sit near another one.
+    const jitter = i % 3 === 0 ? 0 : 14;
+    farPositions.set(
+      [
+        centerX + Math.cos(angle) * radius + (rand() - 0.5) * jitter,
+        1.4 + rand() * 1.2,
+        centerZ + Math.sin(angle) * radius + (rand() - 0.5) * jitter
+      ],
+      i * 3
+    );
+    warm.setHSL(0.08 + rand() * 0.05, 0.85, 0.5 + rand() * 0.25);
+    farColors.set([warm.r, warm.g, warm.b], i * 3);
+  }
+  const farGeo = new THREE.BufferGeometry();
+  farGeo.setAttribute('position', new THREE.BufferAttribute(farPositions, 3));
+  farGeo.setAttribute('color', new THREE.BufferAttribute(farColors, 3));
+  const farMat = new THREE.PointsMaterial({
+    size: 2.6,
+    sizeAttenuation: false,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+  });
+  const farLights = new THREE.Points(farGeo, farMat);
+  farLights.frustumCulled = false;
+  group.add(farLights);
+
   return {
     group,
     lamps,
+    glow: { material: farMat as THREE.Material, base: 0.9 },
     update: (t: number) => setWindTime(t)
   };
 }

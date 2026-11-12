@@ -13,7 +13,7 @@ import { rngFor } from './rng';
  */
 
 export const BLOCK = 23; // block edge length
-export const ROAD = 7; // road width
+export const ROAD = 6; // road width
 export const PITCH = BLOCK + ROAD; // block center spacing
 export const RIVER_EXTRA = 12; // extra gap where the river runs
 export const RIVER_WIDTH = PITCH + RIVER_EXTRA - BLOCK; // open water span

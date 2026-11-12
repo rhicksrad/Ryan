@@ -44,7 +44,7 @@ const NIGHT = {
   ranges: new THREE.Color('#1c1f30'),
   bloom: 0.6,
   bloomThreshold: 0.9,
-  fog: 0.5, // fog density × overview distance, so haze scales with the town
+  fog: 0.36, // fog density × overview distance, so haze scales with the town
   ambient: new THREE.Color(0x5a6aa0),
   ambientIntensity: 0.55,
   hemiSky: new THREE.Color(0x5066a8),
@@ -431,7 +431,7 @@ export class CityWorld {
 
     const lampField = createLampField([...this.plan.lamps, ...outskirts.lamps]);
     this.lampBulbMaterial = lampField.bulbMaterial;
-    this.lampGlowMaterials = lampField.glowMaterials;
+    this.lampGlowMaterials = [...lampField.glowMaterials, outskirts.glow];
     this.city.add(lampField.group);
 
     this.city.add(createSigns(this.plan));
@@ -840,7 +840,7 @@ export class CityWorld {
     for (const { mat, base, dim } of this.nightWindows) mat.emissiveIntensity = base * (1 - dim * k);
     for (const { mat, base } of this.headlights) mat.emissiveIntensity = base * (1 - 0.7 * k);
     // Name plates are lit by the day; after dark they dim like any unlit sign.
-    for (const box of this.labelBoxes) box.label.material.color.setScalar(0.62 + 0.38 * k);
+    for (const box of this.labelBoxes) box.label.material.color.setScalar(0.5 + 0.5 * k);
   }
 
   focusAbout(): void {
