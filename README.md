@@ -1,6 +1,6 @@
 # Project City
 
-An explorable 3D town where every building is a real project from
+An explorable 3D town where every named building is a real project from
 [github.com/rhicksrad](https://github.com/rhicksrad). Built with Three.js, Vite, and
 TypeScript; deployed to GitHub Pages.
 

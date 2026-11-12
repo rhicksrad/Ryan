@@ -33,6 +33,6 @@ if (snippet) {
   if (result !== undefined) console.log(JSON.stringify(result));
   await page.waitForTimeout(1500);
 }
-await page.screenshot({ path: out });
+await page.screenshot(out.endsWith('.jpg') ? { path: out, type: 'jpeg', quality: 86 } : { path: out });
 if (errors.length) console.log('ERRORS', errors.slice(0, 5));
 await browser.close();

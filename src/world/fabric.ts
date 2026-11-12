@@ -113,6 +113,22 @@ export function createFabric(plan: CityPlan): { group: THREE.Group; windowMateri
     }
   };
 
+  // Parked cars: a body, a cabin, and a dark slab underneath standing in for a contact shadow.
+  const paints = [0x8a2f3c, 0x2f4c8a, 0x3c6b4a, 0x6b7078, 0xc9c6bd, 0x23262c, 0x8a7a2f, 0xa9b4c0].map((c) =>
+    mat(c, { roughness: 0.45, metalness: 0.4 })
+  );
+  const cabin = mat(0x1a2030, { roughness: 0.3, metalness: 0.5 });
+  const under = mat(0x08090c, { roughness: 1 });
+  for (const car of plan.parked) {
+    const g = new THREE.Group();
+    g.position.set(car.x, 0.05, car.z);
+    g.rotation.y = (car.along ? 0 : Math.PI / 2) + (rand() < 0.5 ? Math.PI : 0);
+    block(g, under, 1.62, 0.03, 0.84, 0.05, 0.0, 0.03).userData.noCast = true;
+    block(g, paints[Math.floor(rand() * paints.length)], 1.5, 0.4, 0.7, 0, 0.32, 0);
+    block(g, cabin, 0.75, 0.3, 0.62, -0.1, 0.62, 0);
+    group.add(g);
+  }
+
   for (const f of plan.fillers) {
     const g = new THREE.Group();
     g.position.set(f.x, 0.19, f.z);

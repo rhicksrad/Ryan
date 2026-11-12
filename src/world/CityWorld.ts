@@ -49,7 +49,7 @@ const NIGHT = {
   hemiIntensity: 1.5,
   sun: new THREE.Color(0xa8b8ff),
   sunIntensity: 1.5,
-  waterDeep: new THREE.Color(0x172f5c),
+  waterDeep: new THREE.Color(0x1b3a6e),
   glint: 0.9,
   exposure: 1.15
 };
@@ -69,7 +69,7 @@ const DAY = {
   hemiIntensity: 0.55,
   sun: new THREE.Color(0xffe0b0),
   sunIntensity: 3.6,
-  waterDeep: new THREE.Color(0x1b6388),
+  waterDeep: new THREE.Color(0x20566e),
   glint: 1.8,
   exposure: 1.0
 };
@@ -661,12 +661,11 @@ export class CityWorld {
   focusDistrict(id: string): void {
     const center = this.districtCenters.get(id);
     if (!center) return;
-    const outward = center.clone().setY(0);
-    if (outward.lengthSq() < 1) outward.set(0, 0, 1);
-    outward.normalize();
-    const toTarget = center.clone().setY(3);
-    const back = this.camera.aspect < 1 ? 78 : 54;
-    const toPos = center.clone().add(outward.multiplyScalar(back)).setY(back * 0.8);
+    // Same sunlit south-west approach as everything else, so the lit faces and front doors show.
+    const outward = new THREE.Vector3(Math.sin(OVERVIEW_BEARING), 0, Math.cos(OVERVIEW_BEARING));
+    const toTarget = center.clone().setY(4);
+    const back = this.camera.aspect < 1 ? 96 : 70;
+    const toPos = center.clone().add(outward.multiplyScalar(back)).setY(back * 0.5);
     this.atOverview = false;
     this.startTween(toPos, toTarget);
   }

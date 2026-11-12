@@ -765,6 +765,13 @@ export function createRiver(plan: CityPlan): {
     const deck = new THREE.Mesh(new THREE.BoxGeometry(span, 0.5, ROAD + 1.8), deckMat);
     deck.position.set(riverX, 0.28, bridge.z);
     group.add(deck);
+    // The road carries on across the deck.
+    const lane = new THREE.Mesh(roadStrip(ROAD, span), roadMaterial());
+    lane.rotation.x = -Math.PI / 2;
+    lane.rotation.z = Math.PI / 2;
+    lane.position.set(riverX, 0.535, bridge.z);
+    lane.userData.noCast = true;
+    group.add(lane);
     for (const px of [-RIVER_WIDTH / 4.4, RIVER_WIDTH / 4.4]) {
       const pier = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.7, ROAD + 2.6), deckMat);
       pier.position.set(riverX + px, -0.05, bridge.z);

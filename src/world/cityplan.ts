@@ -75,6 +75,8 @@ export interface CityPlan {
   placements: Placement[];
   /** The unnamed town around the projects. */
   fillers: Filler[];
+  /** Cars parked at the kerb. `along` is true when the car points down the x axis. */
+  parked: { x: number; z: number; along: boolean }[];
   blocks: PlanBlock[];
   /** Grass patches: house lawns and unbuilt lots. */
   lawns: Lot[];
@@ -342,6 +344,20 @@ export function buildCityPlan(data: WorldData): CityPlan {
     }
   }
 
+  // --- Parked cars: kerbs fill up downtown and thin out in the neighbourhoods. ---
+  const parked: CityPlan['parked'] = [];
+  for (const b of blocks) {
+    if (b.kind === 'plaza') continue;
+    const kerb = BLOCK / 2 + 0.62;
+    for (const t of [-6, -2.2, 2.2, 6]) {
+      for (const side of [-1, 1]) {
+        const busy = b.paved ? 0.5 : b.kind === 'park' ? 0.3 : 0.14;
+        if (rand() < busy) parked.push({ x: b.x + t + (rand() - 0.5) * 0.8, z: b.z + side * kerb, along: true });
+        if (rand() < busy) parked.push({ x: b.x + side * kerb, z: b.z + t + (rand() - 0.5) * 0.8, along: false });
+      }
+    }
+  }
+
   // --- The unnamed town. Downtown towers get neighbours at their back corners. ---
   for (const b of towerBlocks) {
     for (const side of [-1, 1]) {
@@ -447,6 +463,7 @@ export function buildCityPlan(data: WorldData): CityPlan {
   return {
     placements,
     fillers,
+    parked: parked.filter((c) => Math.abs(c.x - riverX) > RIVER_WIDTH / 2 + 4),
     blocks,
     lawns,
     roads,
