@@ -235,10 +235,10 @@ elif gh api -X PATCH "repos/$REPO/actions/variables/CI_RUNNER" -f name=CI_RUNNER
   if [ "${E2E:-}" = 1 ]; then
     case ",$LABELS," in
       *,e2e,*)
-        gh api -X PATCH "repos/$REPO/actions/variables/CI_RUNNER_E2E" -f name=CI_RUNNER_E2E -f value=local >/dev/null 2>&1 \
-          || gh api -X POST "repos/$REPO/actions/variables" -f name=CI_RUNNER_E2E -f value=local >/dev/null 2>&1 \
-          || echo "WARNING: could not set CI_RUNNER_E2E"
-        echo "CI_RUNNER_E2E=local: browser jobs run on the PCs too." ;;
+        gh api -X PATCH "repos/$REPO/actions/variables/CI_E2E_RUNNER" -f name=CI_E2E_RUNNER -f value=local >/dev/null 2>&1 \
+          || gh api -X POST "repos/$REPO/actions/variables" -f name=CI_E2E_RUNNER -f value=local >/dev/null 2>&1 \
+          || echo "WARNING: could not set CI_E2E_RUNNER"
+        echo "CI_E2E_RUNNER=local: browser jobs run on the PCs too." ;;
       *) echo "E2E=1 ignored: this PC cannot run Chromium." ;;
     esac
   else

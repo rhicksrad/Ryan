@@ -17,7 +17,7 @@ This is the short version for this repo.
 The two jobs that hold write tokens (`deploy`, `update-stats`) never run on a PC.
 
 **The switch** is the repo variable `CI_RUNNER`. `local` sends trusted events to
-the PCs. Browser tests have their own switch, `CI_RUNNER_E2E`, and only go to a
+the PCs. Browser tests have their own switch, `CI_E2E_RUNNER`, and only go to a
 runner that also carries the `e2e` label. They render the 3D town in software,
 and the first runner (an Intel laptop under WSL) needed 13 minutes and timed
 out, against 5 on GitHub. So `e2e` stays on GitHub until a fast PC opts in:
