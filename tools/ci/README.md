@@ -16,7 +16,9 @@ This is the short version for this repo.
 
 The two jobs that hold write tokens (`deploy`, `update-stats`) never run on a PC.
 
-**The switch** is the repo variable `CI_RUNNER`. `local` sends trusted events to
+**The switch** is the repo variable `CI_RUNNER`. Browser jobs also need
+`CI_RUNNER_E2E=local`, which the setup script sets once a PC with Chromium's
+libraries is registered; until then `e2e` stays on GitHub. `local` sends trusted events to
 the PCs. Delete it and everything runs on GitHub's machines, which are free for
 this public repo. Do that when the PCs are off: a job whose labels match no
 online runner queues for up to a day without failing.

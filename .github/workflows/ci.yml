@@ -7,7 +7,8 @@ name: CI
 # the event is trusted (a branch in this repo, a push, or a manual run). Pull
 # requests from forks always run on GitHub's machines. Delete CI_RUNNER to send
 # everything back to GitHub, for example when the PCs are off: a job whose
-# labels match no online runner queues silently instead of failing.
+# labels match no online runner queues silently instead of failing. Browser jobs
+# have their own switch, CI_RUNNER_E2E, set only once a PC can run Chromium.
 # See tools/ci/README.md.
 
 on:
@@ -65,7 +66,7 @@ jobs:
   e2e:
     name: e2e
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
-    runs-on: ${{ vars.CI_RUNNER == 'local'
+    runs-on: ${{ vars.CI_RUNNER == 'local' && vars.CI_RUNNER_E2E == 'local'
       && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
       && fromJSON('["self-hosted","web-trusted","playwright"]')
       || 'ubuntu-latest' }}

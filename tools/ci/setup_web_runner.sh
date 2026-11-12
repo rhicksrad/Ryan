@@ -227,6 +227,14 @@ if [ "${NO_SWITCH:-}" = 1 ]; then
 elif gh api -X PATCH "repos/$REPO/actions/variables/CI_RUNNER" -f name=CI_RUNNER -f value=local >/dev/null 2>&1 \
   || gh api -X POST "repos/$REPO/actions/variables" -f name=CI_RUNNER -f value=local >/dev/null 2>&1; then
   echo "CI_RUNNER=local: CI for $REPO now runs on the PCs."
+  case ",$LABELS," in
+    *,playwright,*)
+      gh api -X PATCH "repos/$REPO/actions/variables/CI_RUNNER_E2E" -f name=CI_RUNNER_E2E -f value=local >/dev/null 2>&1 \
+        || gh api -X POST "repos/$REPO/actions/variables" -f name=CI_RUNNER_E2E -f value=local >/dev/null 2>&1 \
+        || echo "WARNING: could not set CI_RUNNER_E2E"
+      echo "CI_RUNNER_E2E=local: browser jobs run on the PCs too." ;;
+    *) echo "This PC cannot run Chromium, so browser jobs stay where they are." ;;
+  esac
   echo "To fall back to GitHub's machines: gh api -X DELETE repos/$REPO/actions/variables/CI_RUNNER"
 else
   echo "WARNING: could not set the CI_RUNNER variable. Set it to 'local' at:"
