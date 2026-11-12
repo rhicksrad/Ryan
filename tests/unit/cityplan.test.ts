@@ -64,10 +64,44 @@ describe.each([
   });
 
   it('wastes little land', () => {
-    const parks = plan.blocks.filter((b) => b.kind === 'park').length;
+    // The project grid, not counting the ring of neighbourhood blocks around it.
+    const grid = plan.blocks.filter((b) => b.kind !== 'fabric');
+    const parks = grid.filter((b) => b.kind === 'park').length;
     expect(parks).toBeGreaterThanOrEqual(1);
     // The smallest grid is 4×3, so a hamlet is mostly park; past that, land is tight.
-    if (plan.blocks.length > 12) expect(parks).toBeLessThanOrEqual(Math.max(4, plan.blocks.length * 0.25));
+    if (grid.length > 12) expect(parks).toBeLessThanOrEqual(Math.max(4, grid.length * 0.25));
+  });
+
+  it('rings the project grid with neighbourhood blocks that hold no projects', () => {
+    const ring = plan.blocks.filter((b) => b.kind === 'fabric');
+    expect(ring.length).toBeGreaterThan(0);
+    for (const { lot } of plan.placements) {
+      const home = ring.find((b) => Math.abs(b.x - lot.x) < BLOCK / 2 && Math.abs(b.z - lot.z) < BLOCK / 2);
+      expect(home).toBeUndefined();
+    }
+    const { core, bounds } = plan;
+    expect(core.minX).toBeGreaterThan(bounds.minX);
+    expect(core.maxX).toBeLessThan(bounds.maxX);
+    expect(core.minZ).toBeGreaterThan(bounds.minZ);
+    expect(core.maxZ).toBeLessThan(bounds.maxZ);
+  });
+
+  it('keeps unnamed buildings off project lots, off the river, and inside town', () => {
+    const { minX, maxX, minZ, maxZ } = plan.bounds;
+    for (const f of plan.fillers) {
+      const half = Math.max(f.w, f.d) / 2;
+      expect(f.x - half).toBeGreaterThan(minX);
+      expect(f.x + half).toBeLessThan(maxX);
+      expect(f.z - half).toBeGreaterThan(minZ);
+      expect(f.z + half).toBeLessThan(maxZ);
+      expect(Math.abs(f.x - plan.riverX) - half).toBeGreaterThan(0);
+      for (const { lot, project } of plan.placements) {
+        // A tower's podium is about 10.6 wide; everything else stays within its quarter lot.
+        const reach = tierOf(project.commits) === 4 ? 5.3 : 3.6;
+        const gap = Math.max(Math.abs(f.x - lot.x) - f.w / 2, Math.abs(f.z - lot.z) - f.d / 2);
+        expect(gap).toBeGreaterThanOrEqual(reach);
+      }
+    }
   });
 
   it('ranks towers so neighbours can differ', () => {

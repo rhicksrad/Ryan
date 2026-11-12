@@ -285,10 +285,11 @@ function buildShack(group: THREE.Group, rand: () => number): number {
 // ---------------------------------------------------------------------------
 
 function buildHouse(group: THREE.Group, rand: () => number): number {
-  const sidings = [0xb7b0a0, 0x9fb0c4, 0xc4a99f, 0x9ec0a8, 0xcabf9a];
+  const sidings = [0xd8cfbb, 0xa9bdd0, 0xd3b3a4, 0xa9c9b0, 0xd9cc9c, 0xc7b8d0, 0xe3dccb, 0x9fb7b4];
   const siding = mat(sidings[Math.floor(rand() * sidings.length)]);
-  const trimWhite = mat(0xecebe4);
-  const roofMat = mat(0x53342c, { flatShading: true });
+  const trimWhite = mat(0xf1efe6);
+  const roofs = [0x6a4338, 0x4c5560, 0x7a4f3a, 0x3f5148, 0x5a4a50];
+  const roofMat = mat(roofs[Math.floor(rand() * roofs.length)]);
   const doorColors = [0x8a3b32, 0x2f5a44, 0x334a7a, 0x5a3c66];
 
   const w = 3.6 + rand() * 0.6;
@@ -381,11 +382,13 @@ function buildHouse(group: THREE.Group, rand: () => number): number {
 // ---------------------------------------------------------------------------
 
 function buildLargeHouse(group: THREE.Group, rand: () => number): number {
-  const sidings = [0xc9c0ac, 0xb0bcd0, 0xd0b6ac, 0xb8ccb6];
+  const sidings = [0xd6ccb4, 0xb6c4d8, 0xdcc0b2, 0xc0d4be, 0xe4dcc8, 0xcfc1a0];
   const siding = mat(sidings[Math.floor(rand() * sidings.length)]);
-  const brick = mat(0x9a6a54);
-  const trimWhite = mat(0xf0efe8);
-  const roofMat = mat(0x45322c, { flatShading: true });
+  const bricks = [0xa06a52, 0x8c5a48, 0xb07c5e, 0x8a7468];
+  const brick = mat(bricks[Math.floor(rand() * bricks.length)]);
+  const trimWhite = mat(0xf3f1e8);
+  const roofs = [0x4f3a34, 0x444c58, 0x5c4638, 0x3c4a44];
+  const roofMat = mat(roofs[Math.floor(rand() * roofs.length)]);
 
   const w = 5.4 + rand() * 0.8;
   const d = 4.2 + rand() * 0.6;

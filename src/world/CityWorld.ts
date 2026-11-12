@@ -141,7 +141,15 @@ export class CityWorld {
   private lampBulbMaterial!: THREE.MeshStandardMaterial;
   private lampGlowMaterials: { material: THREE.Material; base: number }[] = [];
   private nightWindows: { mat: THREE.MeshStandardMaterial; base: number; dim: number }[] = [];
-  private labelBoxes: { id: string; label: THREE.Sprite; priority: number; halfW: number; halfH: number }[] = [];
+  private labelBoxes: {
+    id: string;
+    label: THREE.Sprite;
+    priority: number;
+    halfW: number;
+    halfH: number;
+    baseW: number;
+    baseH: number;
+  }[] = [];
   private overviewPos = new THREE.Vector3(0, 72, 134);
   private atOverview = true;
   private frame = 0;
@@ -209,7 +217,7 @@ export class CityWorld {
     });
 
     this.selectionRing = new THREE.Mesh(
-      new THREE.RingGeometry(1, 1.14, 48),
+      new THREE.RingGeometry(1, 1.045, 64),
       new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false })
     );
     this.selectionRing.rotation.x = -Math.PI / 2;
@@ -297,9 +305,10 @@ export class CityWorld {
     // edges) from a low three-quarter angle, so the skyline stands against the
     // sky. Walk the camera back until every corner of that box is on screen.
     const { core, center } = this.plan;
+    // A tall screen looks down the town's long axis from the west instead.
     const portrait = this.camera.aspect < 1;
-    const bearing = portrait ? OVERVIEW_BEARING * 2.1 : OVERVIEW_BEARING;
-    const pitch = THREE.MathUtils.degToRad(portrait ? 26 : 17);
+    const bearing = portrait ? THREE.MathUtils.degToRad(-78) : OVERVIEW_BEARING;
+    const pitch = THREE.MathUtils.degToRad(portrait ? 24 : 17);
     const dir = new THREE.Vector3(Math.sin(bearing) * Math.cos(pitch), Math.sin(pitch), Math.cos(bearing) * Math.cos(pitch));
     const target = OVERVIEW_TARGET.clone().setX((core.minX + core.maxX) / 2 - center.x).setZ((core.minZ + core.maxZ) / 2 - center.z);
     OVERVIEW_TARGET.copy(target);
@@ -316,7 +325,7 @@ export class CityWorld {
       probe.updateMatrixWorld(true);
       return corners.every((corner) => {
         const ndc = corner.clone().project(probe);
-        return Math.abs(ndc.x) < (portrait ? 1.0 : 0.97) && ndc.y < 0.62 && ndc.y > (portrait ? -0.62 : -0.86);
+        return Math.abs(ndc.x) < (portrait ? 0.9 : 0.97) && ndc.y < (portrait ? 0.7 : 0.62) && ndc.y > (portrait ? -0.7 : -0.86);
       });
     };
     let lo = 40;
@@ -350,7 +359,7 @@ export class CityWorld {
     this.sunLight.shadow.camera.top = reach;
     this.sunLight.shadow.camera.bottom = -reach;
     this.sunLight.shadow.bias = -0.0005;
-    this.sunLight.shadow.normalBias = 0.05;
+    this.sunLight.shadow.normalBias = 0.16;
     this.sunLight.shadow.radius = 2.2;
     this.scene.add(this.sunLight);
     this.scene.add(this.sunLight.target);
@@ -438,7 +447,9 @@ export class CityWorld {
         label: handle.label,
         priority: placement.project.commits,
         halfW: labelScale.x / 2,
-        halfH: labelScale.y / 2
+        halfH: labelScale.y / 2,
+        baseW: labelScale.x,
+        baseH: labelScale.y
       });
 
       const entry = centroids.get(placement.district.id) ?? { sum: new THREE.Vector3(), n: 0 };
@@ -474,6 +485,17 @@ export class CityWorld {
 
     bakeStatic(this.city);
     this.enableShadows();
+    this.sizeLabels();
+  }
+
+  /** Name plates are sized against the view height; on a narrow screen that is too wide, so shrink them. */
+  private sizeLabels(): void {
+    const k = THREE.MathUtils.clamp(this.camera.aspect / 1.15, 0.52, 1);
+    for (const box of this.labelBoxes) {
+      box.label.scale.set(box.baseW * k, box.baseH * k, 1);
+      box.halfW = (box.baseW * k) / 2;
+      box.halfH = (box.baseH * k) / 2;
+    }
   }
 
   /** Solid opaque meshes cast + receive; thin/transparent decals only receive. */
@@ -611,13 +633,18 @@ export class CityWorld {
     const handle = this.buildings.get(id);
     if (!handle) return;
     const pos = handle.group.position.clone().add(this.city.position);
-    const outward = pos.clone().setY(0);
-    if (outward.lengthSq() < 1) outward.set(0, 0, 1);
-    outward.normalize();
+    // Always approach from the sunlit south-west: that is the side the front
+    // door and the posters face, and the side the opening view comes from.
+    const bearing = OVERVIEW_BEARING * (handle.landmark ? 1 : 0.6);
+    const outward = new THREE.Vector3(Math.sin(bearing), 0, Math.cos(bearing));
+    if (!handle.landmark && Math.abs(handle.group.rotation.y) > 1) outward.z *= -1; // houses that face north
     // Nudge the framing right so the building sits left of the info panel.
     const right = new THREE.Vector3(outward.z, 0, -outward.x);
     const portrait = this.camera.aspect < 1;
-    const dist = (12 + handle.footprint * 2 + handle.height * 0.75) * (portrait ? 1.35 : 1);
+    // Small buildings are viewed from closer and steeper, over their neighbours' roofs.
+    const dist =
+      (handle.landmark ? 14 + handle.footprint * 2 + handle.height * 0.95 : 8 + handle.footprint * 1.5 + handle.height) *
+      (portrait ? 1.35 : 1);
     // Desktop: the panel sits on the right, so slide the building left.
     // Phone: the panel is a bottom sheet, so lift the building into the top half.
     const toTarget = new THREE.Vector3(pos.x, handle.height * 0.45, pos.z);
@@ -626,7 +653,7 @@ export class CityWorld {
     const toPos = new THREE.Vector3(pos.x, 0, pos.z)
       .add(right.clone().multiplyScalar(portrait ? 0 : dist * 0.2))
       .add(outward.multiplyScalar(dist))
-      .setY(Math.max(handle.height * 0.7 + 6, 9));
+      .setY(handle.landmark ? handle.height * 0.62 + 8 : dist * 0.8);
     this.atOverview = false;
     this.startTween(toPos, toTarget);
   }
@@ -740,6 +767,7 @@ export class CityWorld {
     this.renderer.setSize(clientWidth, clientHeight);
     this.composer.setSize(clientWidth, clientHeight);
     this.sizePasses();
+    this.sizeLabels();
     this.fitOverview();
     (this.scene.fog as THREE.FogExp2).density =
       THREE.MathUtils.lerp(NIGHT.fog, DAY.fog, this.dayMix) / this.overviewDistance();

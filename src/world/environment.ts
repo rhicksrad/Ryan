@@ -248,8 +248,8 @@ function terrainTexture(plan: CityPlan): THREE.CanvasTexture {
       const radius = Math.hypot(cx, cz);
       const inTown = Math.abs(cx) < halfX + 28 && Math.abs(cz) < halfZ + 22;
       const onRing = Math.abs(radius - ring) < HW_WIDTH / 2 + 24;
-      const onRiver = Math.abs(cx - riverX) < RIVER_WIDTH / 2 + 30;
-      const onHighway = (Math.abs(cz - streetZ) < 26 || Math.abs(cx - avenueX) < 31) && radius < ring + 20;
+      const onRiver = Math.abs(cx - riverX) < RIVER_WIDTH / 2 + 24;
+      const onHighway = (Math.abs(cz - streetZ) < 22 || Math.abs(cx - avenueX) < 26) && radius < ring + 20;
       if (inTown || onRing || onRiver || onHighway || radius > span) continue;
       const w = cellW - 3 - rand() * 4;
       const d = cellD - 3 - rand() * 4;
@@ -1044,9 +1044,9 @@ export function createOutskirts(plan: CityPlan): {
 
   // --- Ponds out among the fields (kept clear of the ring). ---
   for (const [px, pz, r] of [
-    [centerX - 120, centerZ + 70, 20],
-    [centerX + 108, centerZ - 96, 17],
-    [centerX - 60, centerZ - 150, 13]
+    [centerX - halfX - 62, centerZ + halfZ * 0.7, 15],
+    [centerX + halfX * 0.55, centerZ - halfZ - 44, 17],
+    [centerX - halfX * 0.4, centerZ - halfZ - 70, 13]
   ] as const) {
     const pond = new THREE.Mesh(new THREE.CircleGeometry(r, 28), waterMaterial());
     pond.rotation.x = -Math.PI / 2;
