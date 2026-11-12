@@ -50,7 +50,10 @@ with a title, blurb, and district drafted from its README. Repos listed under
 - **Drag** to orbit, **scroll or pinch** to zoom, **click or tap** a building to visit
 - **Esc** closes the panel and returns to the overview
 - **Tour** flies through the twelve biggest projects
-- **Directory** lists every project (also the fallback when WebGL is unavailable)
+- **Directory** lists every project; type to filter it, Enter flies to the first match
+  (it is also the fallback when WebGL is unavailable)
+- **Keyboard**: Left and Right step through projects from the biggest down, **T** tour,
+  **N** night and day, **D** directory, **H** whole town
 - District chips fly the camera to each district; the city-limit sign opens the about panel
 - Deep links: `#/p/<project-id>` and `#/d/<district-id>`
 

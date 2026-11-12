@@ -94,3 +94,41 @@ test('day/night, the tour, and the about sign all respond', async ({ page }) => 
   await expect(page.locator('#panel h2')).toHaveText(raw.profile.name);
   await expect(page.locator('#panel')).toContainText(`${projects.length} projects`);
 });
+
+test('the directory filters as you type, and the keyboard drives the town', async ({ page }) => {
+  await ready(page);
+  const bySize = [...projects].sort((a, b) => b.commits - a.commits);
+
+  // Type to narrow the directory; Enter flies to the first match.
+  await page.locator('#btn-list').click();
+  const filter = page.locator('.list-filter');
+  const wanted = bySize[3];
+  await filter.fill(wanted.title);
+  const visible = page.locator('.list-row:visible');
+  await expect(visible.first()).toContainText(wanted.title);
+  expect(await visible.count()).toBeLessThan(projects.length);
+  await filter.press('Enter');
+  await expect(page.locator('#list-overlay')).toBeHidden();
+  await expect(page.locator('#panel h2')).toHaveText(wanted.title);
+
+  // Nothing matching is said plainly, and clearing the box brings every row back.
+  await page.locator('#btn-list').click();
+  await filter.fill('zzzz no such project');
+  await expect(page.locator('.list-empty')).toBeVisible();
+  await filter.fill('');
+  await expect(page.locator('.list-row:visible')).toHaveCount(projects.length);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#panel')).toBeHidden();
+
+  // Arrow keys step through projects from the biggest down; N flips night and day.
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('#panel h2')).toHaveText(bySize[0].title);
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('#panel h2')).toHaveText(bySize[1].title);
+  await page.keyboard.press('ArrowLeft');
+  await expect(page.locator('#panel h2')).toHaveText(bySize[0].title);
+  const wasDay = await page.evaluate(() => document.body.classList.contains('is-day'));
+  await page.keyboard.press('n');
+  await expect.poll(() => page.evaluate(() => document.body.classList.contains('is-day'))).toBe(!wasDay);
+});

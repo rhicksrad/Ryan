@@ -53,6 +53,8 @@ export function createFabric(plan: CityPlan): { group: THREE.Group; windowMateri
   const baseMat = mat(0x3d4148, { roughness: 0.7 });
   const shopGlass = new THREE.MeshStandardMaterial({ color: 0x2a3644, emissive: 0xffd49a, emissiveIntensity: 0.55, roughness: 0.3, metalness: 0.4 });
   const houseGlass = new THREE.MeshStandardMaterial({ color: 0x3a4854, emissive: 0xffc77a, emissiveIntensity: 0.7, roughness: 0.4 });
+  const doorMat = mat(0x3a2f2a, { roughness: 0.7 });
+  const porchMat = mat(0xe9e5da, { roughness: 0.9 });
   const awnings = [0x8f3b34, 0x2f5d4a, 0x2f4668, 0xb08a3a, 0x6a3d5a, 0xd8d2c0].map((c) => mat(c, { roughness: 0.85 }));
   const wallMats = HOUSE_WALLS.map((c) => mat(c, { roughness: 0.9 }));
   const roofMats = HOUSE_ROOFS.map((c) => mat(c, { roughness: 0.9 }));
@@ -96,6 +98,20 @@ export function createFabric(plan: CityPlan): { group: THREE.Group; windowMateri
       }
     };
     parapet();
+    // Masonry depth: a belt course over the shopfront and another part-way up,
+    // pilasters at the corners, and a recessed doorway under a lintel.
+    const trim = trimMat(s.trim);
+    block(g, trim, f.w + 0.2, 0.16, f.d + 0.2, 0, groundH + 0.02, 0);
+    if (lower > s.floor * 5) block(g, trim, f.w + 0.12, 0.1, f.d + 0.12, 0, groundH + Math.round(lower / s.floor / 2) * s.floor, 0);
+    if (f.kind === 'walkup') {
+      for (const sx of [-1, 1]) {
+        for (const sz of [-1, 1]) block(g, trim, 0.34, lower, 0.34, sx * (f.w / 2 - 0.1), groundH + lower / 2, sz * (f.d / 2 - 0.1));
+      }
+    }
+    for (const side of [-1, 1]) {
+      block(g, doorMat, 0.8, groundH * 0.72, 0.1, f.w * 0.3, groundH * 0.36, side * (f.d / 2 + 0.11));
+      block(g, trim, 1.06, 0.12, 0.2, f.w * 0.3, groundH * 0.76, side * (f.d / 2 + 0.12));
+    }
     if (stepped) {
       w = f.w - 2 * s.bay;
       d = f.d - 2 * s.bay;
@@ -130,6 +146,12 @@ export function createFabric(plan: CityPlan): { group: THREE.Group; windowMateri
       g.add(roof);
     }
     block(g, mat(0x7a5a4a, { roughness: 0.9 }), 0.45, 1, 0.45, f.w * 0.26, f.h + peak * 0.7, -f.d * 0.15);
+    // A stoop under a small porch roof, white trim under the eaves, and a foundation course.
+    block(g, mat(0x8d877c, { roughness: 0.95 }), f.w + 0.16, 0.24, f.d + 0.16, 0, 0.12, 0);
+    block(g, porchMat, f.w + 0.36, 0.1, f.d + 0.36, 0, f.h - 0.02, 0);
+    block(g, porchMat, 1.5, 0.08, 0.8, 0, 1.42, f.d / 2 + 0.4);
+    for (const px of [-0.66, 0.66]) block(g, porchMat, 0.09, 1.2, 0.09, px, 0.8, f.d / 2 + 0.72);
+    block(g, mat(0x9a948a, { roughness: 0.95 }), 1.3, 0.16, 0.7, 0, 0.16, f.d / 2 + 0.4);
     // Door and windows on the street side, one window on each flank.
     block(g, mat(0x4f4238, { roughness: 0.8 }), 0.6, 1.2, 0.06, 0, 0.6, f.d / 2 + 0.02);
     for (let storey = 0; storey < Math.round(f.h / 2.4); storey += 1) {
