@@ -23,6 +23,12 @@ frame rate and look at screenshots instead of assuming.
   MSAA on the half-float target (minus a third, so it is off and FXAA is on),
   full-resolution bloom, a shadow map that redraws. Triangle count is not the
   bottleneck; filled pixels are.
+- Cold start budget: the town on screen about 2 s after navigation on this PC with
+  an empty shader cache, and no freeze much over 1 s. Measure with
+  `node scripts/load-audit.mjs <preview url>`. Two things keep it there: shaders
+  are compiled with `compileAsync` against the composer's HDR target (compile for
+  the screen and every program is rebuilt on the first draw), and `weather()`
+  takes its settings as uniforms so weathered materials share programs.
 - Avoid the generic "AI look": no glass blur, gradient text, pill buttons, neon
   glow, emoji icons, or card grids. The interface is road signage: Overpass type,
   solid enamel plates, road-paint yellow for the one primary action, sentence case,

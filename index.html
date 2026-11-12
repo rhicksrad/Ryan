@@ -37,13 +37,14 @@
     <div id="scene" aria-hidden="true"></div>
 
     <header class="hud" data-test="hud">
-      <button class="brand" id="btn-about" type="button" title="About this town">
+      <button class="brand" id="btn-about" type="button" title="About this town" aria-describedby="brand-stats">
         <h1>Project City</h1>
         <p id="brand-stats">Ryan Hicks, builder</p>
       </button>
       <nav class="hud-actions" aria-label="Site">
         <button id="btn-daynight" type="button" aria-label="Toggle day and night"></button>
-        <button id="btn-tour" type="button" aria-pressed="false" title="Fly through the biggest projects (T)"></button>
+        <button id="btn-tour" type="button" aria-pressed="false" aria-label="Tour the biggest projects" title="Fly through the biggest projects (T)"></button>
+        <button id="btn-build" type="button" aria-label="Watch the town get built" title="Watch the town go up in the order the repos were created (B)"></button>
         <button id="btn-list" type="button" title="List every project (D)">Directory</button>
         <a href="https://github.com/rhicksrad" target="_blank" rel="noopener">GitHub</a>
       </nav>
@@ -55,14 +56,14 @@
 
     <div id="tooltip" hidden></div>
     <aside id="panel" hidden aria-live="polite" tabindex="-1"></aside>
-    <div id="list-overlay" hidden></div>
+    <div id="list-overlay" role="dialog" aria-modal="true" aria-label="Directory of projects" hidden></div>
 
-    <div id="loader">
+    <div id="loader" role="status" aria-label="Building the town">
       <div class="brand">
         <h1>Project City</h1>
         <p>City limit</p>
       </div>
-      <div class="loader-note">Pouring concrete</div>
+      <div class="loader-note" id="loader-note">Surveying the lots</div>
     </div>
 
     <noscript>

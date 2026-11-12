@@ -14,6 +14,7 @@ const ICONS = {
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
   moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/>',
   play: '<path d="M7 4.5v15l12-7.5z"/>',
+  history: '<path d="M4.5 12a7.5 7.5 0 1 0 2.4-5.5"/><path d="M4.5 4.5v4.5H9"/><path d="M12 8v4.2l2.8 1.8"/>',
   stop: '<rect x="6" y="6" width="12" height="12" rx="1"/>',
   out: '<path d="M8 16 17 7M9 7h8v8"/>',
   close: '<path d="M6 6l12 12M18 6 6 18"/>'
@@ -221,6 +222,10 @@ export class UI {
 
   toggleList(open: boolean): void {
     this.listOverlay.hidden = !open;
+    // A modal directory: while it is open, Tab stays inside it and the town behind is inert.
+    for (const selector of ['.hud', '#legend', '#panel', '#scene']) {
+      document.querySelector<HTMLElement>(selector)?.toggleAttribute('inert', open);
+    }
     if (!this.listFilter) return;
     if (this.listFilter.value) {
       this.listFilter.value = '';

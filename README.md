@@ -59,6 +59,7 @@ with a title, blurb, and district drafted from its README. Repos listed under
   (it is also the fallback when WebGL is unavailable)
 - **Keyboard**: Left and Right step through projects from the biggest down, **T** tour,
   **N** night and day, **D** directory, **H** whole town, **B** watch it get built
+- **Replay** plays the town going up in the order the repos were created
 - District chips fly the camera to each district; the city-limit sign opens the about panel
 - Deep links: `#/p/<project-id>` and `#/d/<district-id>`
 
@@ -79,6 +80,10 @@ integrated graphics, because:
 - Bloom runs at a quarter of the pixels.
 - Trees, lamps, and crosswalks are instanced; the countryside is one painted texture.
 - If the frame rate still sags, the renderer steps its resolution down.
+
+A cold visit transfers about 770 KB in 18 requests. Shaders compile off the main
+thread behind the blueprint loader, so the town is on screen about two seconds
+after navigation even with an empty shader cache (`node scripts/load-audit.mjs`).
 
 ## Design
 

@@ -85,6 +85,10 @@ function boot(): void {
   });
 
   // --- The town going up, in the order the repos were created. ---
+  const buildButton = document.getElementById('btn-build') as HTMLButtonElement;
+  buildButton.innerHTML = `${icon('history')}<span class="label-wide">Replay</span>`;
+  buildButton.addEventListener('click', () => watchGrowth());
+  const brand = document.getElementById('btn-about')!;
   const stats = document.getElementById('brand-stats')!;
   let restingStats = '';
   function watchGrowth(): void {
@@ -95,6 +99,7 @@ function boot(): void {
     world.setSelected(null);
     world.focusOverview();
     restingStats ||= stats.textContent ?? '';
+    brand.classList.add('is-replaying');
     world.playGrowth(
       15000,
       (date, built) => {
@@ -103,6 +108,7 @@ function boot(): void {
       },
       () => {
         stats.textContent = restingStats;
+        brand.classList.remove('is-replaying');
       }
     );
   }
@@ -207,6 +213,9 @@ function boot(): void {
     }
   });
   performance.mark('city-build-end');
+  // Honest stages: the lots are laid out; what is left is the GPU compiling shaders.
+  const note = document.getElementById('loader-note');
+  if (note) note.textContent = 'Pouring concrete';
   world.setDaytime(startAsDay, true);
   renderDayButton(startAsDay);
   world.start();

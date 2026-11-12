@@ -27,7 +27,7 @@ test('the town renders with its sign, controls, and no errors', async ({ page },
   // Nothing may spill past the viewport, on a phone least of all.
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(0);
-  for (const id of ['btn-about', 'btn-daynight', 'btn-tour', 'btn-list']) {
+  for (const id of ['btn-about', 'btn-daynight', 'btn-tour', 'btn-build', 'btn-list']) {
     const box = await page.locator(`#${id}`).boundingBox();
     expect(box, id).not.toBeNull();
     expect(box!.x).toBeGreaterThanOrEqual(0);
@@ -101,6 +101,9 @@ test('the directory filters as you type, and the keyboard drives the town', asyn
 
   // Type to narrow the directory; Enter flies to the first match.
   await page.locator('#btn-list').click();
+  // It is a modal dialog: the town behind it cannot be tabbed into or clicked.
+  await expect(page.locator('#list-overlay')).toHaveAttribute('role', 'dialog');
+  await expect(page.locator('.hud')).toHaveAttribute('inert', '');
   const filter = page.locator('.list-filter');
   const wanted = bySize[3];
   await filter.fill(wanted.title);
@@ -161,6 +164,10 @@ test('the directory filters as you type, and the keyboard drives the town', asyn
   await page.keyboard.press('b');
   await expect(stats).toHaveText(/^[A-Z][a-z]{2} \d{4} · \d+ of \d+ projects built$/, { timeout: 10_000 });
   await expect(stats).toHaveText(resting!, { timeout: 40_000 });
+  await expect(page.locator('.hud')).not.toHaveAttribute('inert', '');
+  // The Replay button beside Tour does the same.
+  await page.locator('#btn-build').click();
+  await expect(stats).toHaveText(/projects built$/, { timeout: 10_000 });
 
   // Arrow keys step through projects from the biggest down; N flips night and day.
   await page.keyboard.press('ArrowRight');
