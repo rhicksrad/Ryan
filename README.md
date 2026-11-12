@@ -56,9 +56,12 @@ with a title, blurb, and district drafted from its README. Repos listed under
 
 ## Rendering and performance
 
-A low afternoon sun with long shadows, a sky dome with horizon haze, image-based
-lighting from that same sky, a shared water shader, and HDR bloom through a
-half-float `EffectComposer`. It holds 60 frames a second at 1440 x 900 on Intel
+A low afternoon sun with long shadows under a painted sky: two panoramas from
+PERSIAN STRIKE (one of the projects in the town) wrap the dome by day and by
+night, dissolve into haze at the horizon, and are mirrored in the towers' glass.
+Flat colors are weathered in world space by one shared noise tile
+(`src/world/surface.ts`): grain, broad patches, darker wall bases, roof courses.
+There is a shared water shader and HDR bloom through a half-float `EffectComposer`. It holds 60 frames a second at 1440 x 900 on Intel
 integrated graphics, because:
 
 - Static geometry is merged at load (`src/world/bake.ts`): about 300 draw calls.

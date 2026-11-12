@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mulberry32 } from './rng';
 import { signTexture, vacancyTexture } from './textures';
 import { emblemUrl } from '../art';
+import { noiseTexture, weather } from './surface';
 import skyDayUrl from '../assets/sky/sky-day.webp?url';
 import skyNightUrl from '../assets/sky/sky-night.webp?url';
 import { BLOCK, ROAD, RIVER_WIDTH, type CityPlan } from './cityplan';
@@ -76,7 +77,10 @@ const SKY_VERTEX = `
  * the scene; it meets the terrain through a band of haze in the fog color,
  * and the stars and moon are drawn crisp on top rather than painted in.
  */
-export function createSkyDome(): { mesh: THREE.Mesh; material: THREE.ShaderMaterial } {
+export function createSkyDome(onPainted?: (day: THREE.Texture, night: THREE.Texture) => void): {
+  mesh: THREE.Mesh;
+  material: THREE.ShaderMaterial;
+} {
   const loader = new THREE.TextureLoader();
   const material = new THREE.ShaderMaterial({
     side: THREE.BackSide,
@@ -175,13 +179,51 @@ export function createSkyDome(): { mesh: THREE.Mesh; material: THREE.ShaderMater
     texture.minFilter = THREE.LinearFilter; // no mips: the wrap seam would show as a line
     texture.generateMipmaps = false;
     material.uniforms[name].value = texture;
-    if (material.uniforms.dayMap.value && material.uniforms.nightMap.value) material.uniforms.loaded.value = 1;
+    if (material.uniforms.dayMap.value && material.uniforms.nightMap.value) {
+      material.uniforms.loaded.value = 1;
+      onPainted?.(material.uniforms.dayMap.value, material.uniforms.nightMap.value);
+    }
   };
   loader.load(skyDayUrl, finish('dayMap'));
   loader.load(skyNightUrl, finish('nightMap'));
   const mesh = new THREE.Mesh(new THREE.SphereGeometry(1500, 48, 24), material);
   mesh.renderOrder = -1;
   return { mesh, material };
+}
+
+/**
+ * The painted sky as a reflection source for glass. Only the towers' curtain
+ * walls use it, as their own environment map: mirrors should show the clouds,
+ * but the painting must not become fill light for the whole town.
+ */
+export function createPaintedEnvScene(painting: THREE.Texture, energy: number, ground: THREE.ColorRepresentation): THREE.Scene {
+  const scene = new THREE.Scene();
+  const material = new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    uniforms: {
+      map: { value: painting },
+      energy: { value: energy },
+      groundColor: { value: new THREE.Color(ground) },
+      sunAzimuth: { value: Math.atan2(SUN_DIR.x, SUN_DIR.z) }
+    },
+    vertexShader: SKY_VERTEX,
+    fragmentShader: `
+      uniform sampler2D map;
+      uniform float energy;
+      uniform vec3 groundColor;
+      uniform float sunAzimuth;
+      varying vec3 vDir;
+      void main() {
+        vec3 dir = normalize(vDir);
+        float elev = degrees(asin(clamp(dir.y, -1.0, 1.0)));
+        vec2 uv = vec2(fract((sunAzimuth - atan(dir.x, dir.z)) / 6.2831853 + 0.72), 1.0 - clamp((90.0 - elev * 1.6) / 100.0, 0.002, 0.998));
+        vec3 col = texture2D(map, uv).rgb * energy;
+        gl_FragColor = vec4(mix(col, groundColor, smoothstep(0.03, -0.2, dir.y)), 1.0);
+      }
+    `
+  });
+  scene.add(new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16), material));
+  return scene;
 }
 
 /**
@@ -339,7 +381,13 @@ function terrainTexture(plan: CityPlan): THREE.CanvasTexture {
 /** The land beneath and beyond the city. */
 export function createTerrain(plan: CityPlan): THREE.Mesh {
   const material = tint(
-    new THREE.MeshStandardMaterial({ map: terrainTexture(plan), roughness: 1, metalness: 0 }),
+    // The painted sheet carries the fields; fine grain keeps it from going soft close to the camera.
+    weather(new THREE.MeshStandardMaterial({ map: terrainTexture(plan), roughness: 1, metalness: 0 }), {
+      blotch: 0.2,
+      blotchSize: 9,
+      grain: 0.22,
+      grainSize: 1.3
+    }),
     0x3a4a78,
     0xffffff
   );
@@ -469,8 +517,17 @@ export function createBlocks(plan: CityPlan): THREE.Group {
     0x4a5580,
     0xffffff
   );
-  const plazaMat = tint(new THREE.MeshStandardMaterial({ map: plazaTexture(), roughness: 0.85 }), 0x5b6694, 0xffffff);
-  const grassMat = tint(new THREE.MeshStandardMaterial({ map: grassTexture(), roughness: 1 }), 0x3a5878, 0xffffff);
+  const plazaMat = tint(
+    weather(new THREE.MeshStandardMaterial({ map: plazaTexture(), roughness: 0.85 }), { blotch: 0.12, blotchSize: 14, grain: 0.06 }),
+    0x5b6694,
+    0xffffff
+  );
+  const grassMat = tint(
+    weather(new THREE.MeshStandardMaterial({ map: grassTexture(), roughness: 1 }), { blotch: 0.22, blotchSize: 11, grain: 0.14, grainSize: 1.1 }),
+    0x3a5878,
+    0xffffff
+  );
+  for (const paved of [sidewalkMat, lotMat]) weather(paved, { blotch: 0.14, blotchSize: 17, grain: 0.05 });
   const pathMat = tint(new THREE.MeshStandardMaterial({ roughness: 0.95 }), 0x5a5f7c, 0xd9cdb0);
   const fountainMat = tint(new THREE.MeshStandardMaterial({ roughness: 0.6 }), 0x5a648c, 0xe4e0d6);
 
@@ -598,8 +655,9 @@ function roadStrip(width: number, length: number): THREE.PlaneGeometry {
 
 let sharedRoadMat: THREE.MeshStandardMaterial | null = null;
 function roadMaterial(): THREE.MeshStandardMaterial {
+  // Patched and sun-bleached in places, like any road that has been dug up and relaid.
   sharedRoadMat ??= tint(
-    new THREE.MeshStandardMaterial({ map: asphaltTexture(true), roughness: 0.93 }),
+    weather(new THREE.MeshStandardMaterial({ map: asphaltTexture(true), roughness: 0.93 }), { blotch: 0.3, blotchSize: 21, grain: 0.1, grainSize: 3 }),
     ASPHALT_NIGHT,
     ASPHALT_DAY
   );
@@ -653,44 +711,6 @@ const waterUniforms = {
   uSunDir: { value: SUN_DIR.clone() },
   uGlint: { value: 1.6 }
 };
-
-/** Tileable two-channel noise built from whole-period cosines. */
-function noiseTexture(): THREE.DataTexture {
-  const size = 128;
-  const rand = mulberry32(777);
-  const waves = Array.from({ length: 2 }, () =>
-    Array.from({ length: 14 }, () => ({
-      fx: Math.round((rand() - 0.5) * 14),
-      fy: Math.round((rand() - 0.5) * 14),
-      phase: rand() * Math.PI * 2,
-      amp: 0.4 + rand() * 0.6
-    }))
-  );
-  const data = new Uint8Array(size * size * 4);
-  for (let y = 0; y < size; y += 1) {
-    for (let x = 0; x < size; x += 1) {
-      const i = (y * size + x) * 4;
-      waves.forEach((set, channel) => {
-        let v = 0;
-        let total = 0;
-        for (const w of set) {
-          v += Math.cos(((x * w.fx + y * w.fy) / size) * Math.PI * 2 + w.phase) * w.amp;
-          total += w.amp;
-        }
-        data[i + channel] = Math.round((v / total) * 127 * 2.2 + 128);
-      });
-      data[i + 2] = 128;
-      data[i + 3] = 255;
-    }
-  }
-  const texture = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
-  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-  texture.magFilter = THREE.LinearFilter;
-  texture.minFilter = THREE.LinearMipmapLinearFilter;
-  texture.generateMipmaps = true;
-  texture.needsUpdate = true;
-  return texture;
-}
 
 let sharedWater: THREE.ShaderMaterial | null = null;
 function waterMaterial(): THREE.ShaderMaterial {
@@ -1073,9 +1093,36 @@ export function createOutskirts(plan: CityPlan): {
   }
 
   // --- Hills: a near range of green downs and a far, taller range that fades into the haze. ---
-  const hillNear = tint(new THREE.MeshStandardMaterial({ roughness: 1 }), 0x2c3a5c, 0x5f8a4c);
-  const hillFar = tint(new THREE.MeshStandardMaterial({ roughness: 1 }), 0x28324f, 0x567a70);
-  const hillGeo = new THREE.IcosahedronGeometry(1, 2);
+  // Woods and pasture in broad patches, so a hill is not one smooth green lump.
+  const hillNear = tint(
+    weather(new THREE.MeshStandardMaterial({ roughness: 1 }), { blotch: 0.55, blotchSize: 60, grain: 0.3, grainSize: 9 }),
+    0x2c3a5c,
+    0x58804a
+  );
+  const hillFar = tint(
+    weather(new THREE.MeshStandardMaterial({ roughness: 1 }), { blotch: 0.45, blotchSize: 130, grain: 0.22, grainSize: 22 }),
+    0x28324f,
+    0x4f7268
+  );
+  // A few ridged shapes shared by every hill: folded noise pushes the sphere into spurs and saddles.
+  const hillGeos = [0, 1, 2, 3].map((seed) => {
+    const geo = new THREE.IcosahedronGeometry(1, 3);
+    const pos = geo.getAttribute('position') as THREE.BufferAttribute;
+    for (let i = 0; i < pos.count; i += 1) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      const z = pos.getZ(i);
+      const a = Math.atan2(z, x);
+      const ridge =
+        (1 - Math.abs(Math.sin(a * 3 + seed * 1.7))) * 0.22 +
+        (1 - Math.abs(Math.sin(a * 7 + seed * 2.9 + y * 2))) * 0.1 +
+        Math.sin(a * 2 + seed) * 0.12;
+      const k = 1 + ridge * Math.max(y, 0) * 1.6 + Math.sin(a * 5 + seed * 3.1) * 0.06;
+      pos.setXYZ(i, x * (1 + Math.sin(a * 4 + seed) * 0.08), y * k, z * (1 + Math.cos(a * 3 + seed * 2) * 0.08));
+    }
+    geo.computeVertexNormals();
+    return geo;
+  });
   const ranges: [number, number, number, number, THREE.Material][] = [
     [22, REACH + 30, 46, 0.24, hillNear],
     [30, REACH + 260, 120, 0.2, hillFar]
@@ -1085,7 +1132,7 @@ export function createOutskirts(plan: CityPlan): {
       const angle = (i / count) * Math.PI * 2 + rand() * 0.3;
       const radius = at + rand() * 70;
       const r = size * (0.6 + rand() * 0.8);
-      const hill = new THREE.Mesh(hillGeo, material);
+      const hill = new THREE.Mesh(hillGeos[i % hillGeos.length], material);
       hill.scale.set(r * (1.3 + rand() * 1.2), r * (lift + rand() * 0.14), r);
       hill.position.set(centerX + Math.cos(angle) * radius, -3, centerZ + Math.sin(angle) * radius);
       hill.rotation.y = angle + Math.PI / 2 + (rand() - 0.5) * 0.6;

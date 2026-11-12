@@ -18,7 +18,7 @@ for (const mode of modes.split(',')) {
     await page.evaluate((code) => new Function('world', code)(window.__cityDebug?.world), snippet);
     await page.waitForTimeout(1000);
   }
-  const result = await page.evaluate(
+  const measure = () => page.evaluate(
     () =>
       new Promise((resolve) => {
         const times = [];
@@ -46,6 +46,14 @@ for (const mode of modes.split(',')) {
         requestAnimationFrame(tick);
       })
   );
+  // A window that opens behind another is throttled to about one frame a second
+  // by the browser. That is not a measurement, so bring it forward and go again.
+  let result = await measure();
+  for (let attempt = 0; attempt < 2 && result.fps < 5; attempt += 1) {
+    await page.bringToFront();
+    await page.waitForTimeout(1500);
+    result = await measure();
+  }
   console.log(mode, JSON.stringify(result));
   await context.close();
 }

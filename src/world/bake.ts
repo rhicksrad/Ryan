@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { weather } from './surface';
 
 /**
  * Static batching. The city is modelled the readable way — thousands of little
@@ -40,8 +41,8 @@ function isPlain(material: THREE.Material): material is THREE.MeshStandardMateri
 
 const plainMaterials = new Map<string, THREE.MeshStandardMaterial>();
 
-function plainMaterial(bucket: Bucket): THREE.MeshStandardMaterial {
-  const key = `${bucket.flatShading}|${bucket.rough}|${bucket.metal}`;
+function plainMaterial(bucket: Bucket, weathered: boolean): THREE.MeshStandardMaterial {
+  const key = `${bucket.flatShading}|${bucket.rough}|${bucket.metal}|${weathered}`;
   const cached = plainMaterials.get(key);
   if (cached) return cached;
   const material = new THREE.MeshStandardMaterial({
@@ -50,7 +51,7 @@ function plainMaterial(bucket: Bucket): THREE.MeshStandardMaterial {
     roughness: bucket.rough ? 0.85 : 0.4,
     metalness: bucket.metal ? 0.5 : 0.05
   });
-  material.onBeforeCompile = (shader) => {
+  const glow = (shader: THREE.WebGLProgramParametersWithUniforms) => {
     shader.uniforms.uGlow = bakedGlow;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec3 glow;\nvarying vec3 vGlow;')
@@ -62,7 +63,13 @@ function plainMaterial(bucket: Bucket): THREE.MeshStandardMaterial {
         '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vGlow * uGlow;'
       );
   };
-  material.customProgramCacheKey = () => 'baked-glow';
+  if (weathered) {
+    // The town's flat colors get world-space grain, weathering, darker wall bases, and roof courses.
+    weather(material, { blotch: 0.16, blotchSize: 26, grain: 0.1, grainSize: 2.4, ground: 0.24, roofs: true }, glow, 'baked-glow');
+  } else {
+    material.onBeforeCompile = glow;
+    material.customProgramCacheKey = () => 'baked-glow';
+  }
   plainMaterials.set(key, material);
   return material;
 }
@@ -100,7 +107,8 @@ function fill(geo: THREE.BufferGeometry, name: string, color: THREE.Color): void
   geo.setAttribute(name, new THREE.BufferAttribute(data, 3));
 }
 
-export function bakeStatic(root: THREE.Object3D): void {
+/** `weathered` is for things that stay put; world-space grain would crawl across anything that moves. */
+export function bakeStatic(root: THREE.Object3D, weathered = false): void {
   root.updateMatrixWorld(true);
   const toRoot = root.matrixWorld.clone().invert();
 
@@ -167,7 +175,7 @@ export function bakeStatic(root: THREE.Object3D): void {
     const merged = mergeGeometries(bucket.geometries, false);
     bucket.geometries.forEach((g) => g.dispose());
     if (!merged) continue;
-    const mesh = new THREE.Mesh(merged, plainMaterial(bucket));
+    const mesh = new THREE.Mesh(merged, plainMaterial(bucket, weathered));
     mesh.userData.noCast = bucket.noCast;
     mesh.userData.keep = true;
     root.add(mesh);

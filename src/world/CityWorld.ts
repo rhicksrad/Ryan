@@ -21,6 +21,7 @@ import {
   createSky,
   createSkyDome,
   createSkyEnvScene,
+  createPaintedEnvScene,
   setWaterLook,
   applyTints,
   SUN_DIR
@@ -118,6 +119,8 @@ export class CityWorld {
   private people: Person[] = [];
   private traffic: Traffic | null = null;
   private pickMeshes: THREE.Mesh[] = [];
+  /** Every building as a box in world space, for finding a clear line of sight. */
+  private obstacles: { id: string; x: number; z: number; hw: number; hd: number; h: number }[] = [];
   private clockTick: () => void = () => {};
   private clockMinute = -1;
   private riverUpdate: (t: number) => void = () => {};
@@ -136,6 +139,10 @@ export class CityWorld {
   private composer!: EffectComposer;
   private envDay!: THREE.Texture;
   private envNight!: THREE.Texture;
+  /** The painted sky, prefiltered for the towers' glass to mirror. */
+  private glassDay: THREE.Texture | null = null;
+  private glassNight: THREE.Texture | null = null;
+  private glass: THREE.MeshStandardMaterial[] = [];
   private shadowRefresh = 30;
   private fxaaPass!: ShaderPass;
   private sizeScratch = new THREE.Vector2();
@@ -310,7 +317,7 @@ export class CityWorld {
     // A tall screen looks down the town's long axis from the west instead.
     const portrait = this.camera.aspect < 1;
     const bearing = portrait ? THREE.MathUtils.degToRad(-78) : OVERVIEW_BEARING;
-    const pitch = THREE.MathUtils.degToRad(portrait ? 22 : 13.5);
+    const pitch = THREE.MathUtils.degToRad(portrait ? 15 : 13.5);
     const dir = new THREE.Vector3(Math.sin(bearing) * Math.cos(pitch), Math.sin(pitch), Math.cos(bearing) * Math.cos(pitch));
     const target = OVERVIEW_TARGET.clone().setX((core.minX + core.maxX) / 2 - center.x).setZ((core.minZ + core.maxZ) / 2 - center.z);
     OVERVIEW_TARGET.copy(target);
@@ -327,7 +334,7 @@ export class CityWorld {
       probe.updateMatrixWorld(true);
       return corners.every((corner) => {
         const ndc = corner.clone().project(probe);
-        return Math.abs(ndc.x) < (portrait ? 0.9 : 0.97) && ndc.y < (portrait ? 0.4 : 0.3) && ndc.y > (portrait ? -0.86 : -0.92);
+        return Math.abs(ndc.x) < (portrait ? 0.9 : 0.97) && ndc.y < (portrait ? 0.28 : 0.3) && ndc.y > (portrait ? -0.86 : -0.92);
       });
     };
     let lo = 40;
@@ -366,7 +373,13 @@ export class CityWorld {
     this.scene.add(this.sunLight);
     this.scene.add(this.sunLight.target);
 
-    const skyDome = createSkyDome();
+    const skyDome = createSkyDome((day, night) => {
+      const pmrem = new THREE.PMREMGenerator(this.renderer);
+      this.glassDay = pmrem.fromScene(createPaintedEnvScene(day, 1.0, '#5a5648'), 0.01).texture;
+      this.glassNight = pmrem.fromScene(createPaintedEnvScene(night, 0.9, '#0c0d14'), 0.01).texture;
+      pmrem.dispose();
+      this.applyAtmosphere();
+    });
     skyDome.mesh.userData.skipShadow = true;
     this.scene.add(skyDome.mesh);
     this.skyDomeMaterial = skyDome.material;
@@ -381,6 +394,17 @@ export class CityWorld {
     this.riverUpdate = river.update;
     const fabric = createFabric(this.plan);
     this.city.add(fabric.group);
+    for (const f of this.plan.fillers) {
+      const turned = Math.abs(Math.sin(f.rotationY)) > 0.5;
+      this.obstacles.push({
+        id: '',
+        x: f.x - this.plan.center.x,
+        z: f.z - this.plan.center.z,
+        hw: (turned ? f.d : f.w) / 2,
+        hd: (turned ? f.w : f.d) / 2,
+        h: f.h + 1.5
+      });
+    }
     for (const mat of fabric.windowMaterials) {
       this.nightWindows.push({ mat, base: mat.emissiveIntensity, dim: 0.97 });
     }
@@ -420,6 +444,7 @@ export class CityWorld {
       this.city.add(handle.group);
       this.buildings.set(placement.project.id, handle);
       this.pickMeshes.push(...handle.pickMeshes);
+      this.glass.push(...handle.glass);
 
       // Track window-style emissives so the day can switch them off.
       const seen = new Set<THREE.Material>();
@@ -438,6 +463,14 @@ export class CityWorld {
             this.nightWindows.push({ mat, base: mat.emissiveIntensity, dim: (mat.userData.dayDim as number) ?? 0.78 });
           }
         }
+      });
+      this.obstacles.push({
+        id: placement.project.id,
+        x: placement.lot.x - this.plan.center.x,
+        z: placement.lot.z - this.plan.center.z,
+        hw: handle.footprint / 2,
+        hd: handle.footprint / 2,
+        h: handle.height
       });
       const labelScale = handle.label.scale;
       this.labelBoxes.push({
@@ -478,10 +511,18 @@ export class CityWorld {
     spire.group.position.set(this.plan.plaza.x, 0.15, this.plan.plaza.z);
     this.city.add(spire.group);
     this.clockTick = spire.tick;
+    this.obstacles.push({
+      id: ABOUT_ID,
+      x: this.plan.plaza.x - this.plan.center.x,
+      z: this.plan.plaza.z - this.plan.center.z,
+      hw: 4.5,
+      hd: 4.5,
+      h: 30
+    });
     this.nightWindows.push({ mat: spire.faceMaterial, base: 1.1, dim: 0.75 });
     this.pickMeshes.push(...spire.pickMeshes);
 
-    bakeStatic(this.city);
+    bakeStatic(this.city, true);
     this.enableShadows();
     this.sizeLabels();
   }
@@ -627,31 +668,60 @@ export class CityWorld {
     }
   }
 
+  /** How much of the sight line from `eye` to `aim` passes through other buildings. */
+  private blocked(eye: THREE.Vector3, aim: THREE.Vector3, selfId: string): number {
+    let hits = 0;
+    const point = new THREE.Vector3();
+    for (let i = 0; i < 18; i += 1) {
+      point.lerpVectors(eye, aim, 0.06 + (i / 18) * 0.86);
+      for (const o of this.obstacles) {
+        if (o.id === selfId || point.y > o.h) continue;
+        if (Math.abs(point.x - o.x) < o.hw && Math.abs(point.z - o.z) < o.hd) {
+          hits += 1;
+          break;
+        }
+      }
+    }
+    return hits;
+  }
+
   focusProject(id: string): void {
     const handle = this.buildings.get(id);
     if (!handle) return;
     const pos = handle.group.position.clone().add(this.city.position);
-    // Always approach from the sunlit south-west: that is the side the front
-    // door and the posters face, and the side the opening view comes from.
-    const bearing = OVERVIEW_BEARING * (handle.landmark ? 1 : 0.6);
-    const outward = new THREE.Vector3(Math.sin(bearing), 0, Math.cos(bearing));
-    if (!handle.landmark && Math.abs(handle.group.rotation.y) > 1) outward.z *= -1; // houses that face north
-    // Nudge the framing right so the building sits left of the info panel.
-    const right = new THREE.Vector3(outward.z, 0, -outward.x);
     const portrait = this.camera.aspect < 1;
+    const facesNorth = !handle.landmark && Math.abs(handle.group.rotation.y) > 1;
     // Small buildings are viewed from closer and steeper, over their neighbours' roofs.
     const dist =
-      (handle.landmark ? 14 + handle.footprint * 2 + handle.height * 0.95 : 8 + handle.footprint * 1.5 + handle.height) *
+      (handle.landmark ? 12 + handle.footprint * 2 + handle.height * 0.8 : 8 + handle.footprint * 1.5 + handle.height) *
       (portrait ? 1.35 : 1);
-    // Desktop: the panel sits on the right, so slide the building left.
+    const aim = new THREE.Vector3(pos.x, handle.height * (handle.landmark ? 0.4 : 0.45), pos.z);
+
+    // Approach from the sunlit side the posters and front doors face. Of a few
+    // bearings on that side, take the one with the clearest line of sight, so
+    // the chosen building is the hero and no neighbour stands in front of it.
+    const bearings = handle.landmark ? [-33, -55, -12, -78, 14] : [-20, -45, 10, -70, 35];
+    let best: { outward: THREE.Vector3; eye: THREE.Vector3; score: number } | null = null;
+    for (const degrees of bearings) {
+      const bearing = THREE.MathUtils.degToRad(degrees);
+      const outward = new THREE.Vector3(Math.sin(bearing), 0, Math.cos(bearing) * (facesNorth ? -1 : 1));
+      const eye = aim.clone().addScaledVector(outward, dist);
+      eye.y = handle.landmark ? aim.y + dist * 0.42 : dist * 0.8;
+      const score = this.blocked(eye, aim, id) + this.blocked(eye, aim.clone().setY(4), id) * 0.5;
+      if (!best || score < best.score - 0.4) best = { outward, eye, score };
+    }
+    const { outward, eye } = best!;
+
+    // Desktop: the panel sits on the right, so slide the building left of it.
     // Phone: the panel is a bottom sheet, so lift the building into the top half.
-    const toTarget = new THREE.Vector3(pos.x, handle.height * 0.45, pos.z);
+    const right = new THREE.Vector3(outward.z, 0, -outward.x);
+    const toTarget = aim.clone();
+    const toPos = eye.clone();
     if (portrait) toTarget.y -= dist * 0.22;
-    else toTarget.add(right.clone().multiplyScalar(dist * 0.2));
-    const toPos = new THREE.Vector3(pos.x, 0, pos.z)
-      .add(right.clone().multiplyScalar(portrait ? 0 : dist * 0.2))
-      .add(outward.multiplyScalar(dist))
-      .setY(handle.landmark ? handle.height * 0.62 + 8 : dist * 0.8);
+    else {
+      toTarget.addScaledVector(right, dist * 0.17);
+      toPos.addScaledVector(right, dist * 0.17);
+    }
     this.atOverview = false;
     this.startTween(toPos, toTarget);
   }
@@ -699,6 +769,14 @@ export class CityWorld {
     this.skyDomeMaterial.uniforms.sunColor.value.lerpColors(NIGHT.skySun, DAY.skySun, k);
     this.skyDomeMaterial.uniforms.day.value = k;
     this.scene.environment = k > 0.5 ? this.envDay : this.envNight;
+    const mirror = k > 0.5 ? this.glassDay : this.glassNight;
+    for (const mat of this.glass) {
+      if (mat.envMap !== mirror) {
+        mat.envMap = mirror;
+        mat.needsUpdate = true;
+      }
+      mat.envMapIntensity = mirror ? THREE.MathUtils.lerp(0.9, 1.15, k) : 1;
+    }
     this.renderer.toneMappingExposure = THREE.MathUtils.lerp(NIGHT.exposure, DAY.exposure, k);
 
     // Bloom blooms hard at night (neon), gentle by day.
@@ -773,20 +851,38 @@ export class CityWorld {
   }
 
   /**
-   * Labels fade in as the camera approaches, then yield to one another: the
-   * selected or hovered project always shows, and bigger projects win ties, so
-   * names never pile up into an unreadable stack.
+   * Name plates fade in as the camera approaches, then yield to one another and
+   * to the interface: the selected or hovered project always shows, bigger
+   * projects win ties, nothing sits under the masthead, the buttons, or the
+   * panel, and a plate that would run off the side of the screen slides back in.
    */
   private layoutLabels(): void {
-    const shown: { x: number; y: number; halfW: number; halfH: number }[] = [];
     const aspect = this.camera.aspect;
+    const tan = Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2);
+    // Interface plates, as NDC boxes the labels must keep clear of.
+    const view = this.renderer.domElement.getBoundingClientRect();
+    const shown: { x: number; y: number; halfW: number; halfH: number; ui?: boolean }[] = [];
+    for (const selector of ['.hud .brand', '.hud-actions', '#legend', '#panel', '#hint:not(.hint-hidden)']) {
+      const el = document.querySelector<HTMLElement>(selector);
+      if (!el || el.hidden) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) continue;
+      shown.push({
+        x: ((r.left + r.right) / 2 - view.left) / view.width * 2 - 1,
+        y: 1 - ((r.top + r.bottom) / 2 - view.top) / view.height * 2,
+        halfW: r.width / view.width + 0.012,
+        halfH: r.height / view.height + 0.016,
+        ui: true
+      });
+    }
+
     const candidates = this.labelBoxes
       .map((box) => {
         const handle = this.buildings.get(box.id)!;
         const world = box.label.getWorldPosition(new THREE.Vector3());
         const distance = this.camera.position.distanceTo(world);
         // Towers are named from the opening view; smaller buildings as you come closer.
-        const reach = handle.landmark ? Math.max(this.overviewDistance() * 1.25 / LABEL_FAR, 1) : 1;
+        const reach = handle.landmark ? Math.max((this.overviewDistance() * 1.25) / LABEL_FAR, 1) : 1;
         const near = 1 - THREE.MathUtils.clamp((distance - LABEL_NEAR * reach) / ((LABEL_FAR - LABEL_NEAR) * reach), 0, 1);
         const forced = box.id === this.hoveredId || box.id === this.selectedId;
         const ndc = world.project(this.camera);
@@ -795,18 +891,31 @@ export class CityWorld {
       .sort((a, b) => Number(b.forced) - Number(a.forced) || b.box.priority - a.box.priority);
 
     for (const { box, near, forced, ndc } of candidates) {
-      let target = forced ? 1 : Math.min(1, near * 3);
+      // A plate is either up or down: a half-faded sign reads as a glitch.
+      let target = forced || near > 0.04 ? 1 : 0;
       if (ndc.z > 1) target = 0;
       // Sprite scale is in view-height units; convert to NDC half-extents.
-      const halfW = (box.halfW * 2) / aspect / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2));
-      const halfH = (box.halfH * 2) / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2));
+      const halfW = box.halfW / aspect / tan;
+      const halfH = box.halfH / tan;
+      let slide = 0;
       if (target > 0.02) {
+        // Slide a plate that pokes past a side edge back on screen, as far as its own half width.
+        const limit = 0.985 - halfW;
+        if (ndc.x > limit) slide = ndc.x - limit;
+        else if (ndc.x < -limit) slide = ndc.x + limit;
+        const x = ndc.x - slide;
+        const y = ndc.y + halfH; // the plate stands on its anchor
+        const offScreen = Math.abs(slide) > halfW * 0.92 || y + halfH > 0.985 || ndc.y < -0.985;
         const clash = shown.some(
-          (s) => Math.abs(s.x - ndc.x) < s.halfW + halfW + 0.01 && Math.abs(s.y - ndc.y) < s.halfH + halfH + 0.012
+          (s) =>
+            Math.abs(s.x - x) < s.halfW + halfW + 0.01 &&
+            Math.abs(s.y - y) < s.halfH + halfH + 0.012 &&
+            (s.ui || !forced)
         );
-        if (clash && !forced) target = 0;
-        else shown.push({ x: ndc.x, y: ndc.y, halfW, halfH });
+        if (offScreen || clash) target = 0;
+        else shown.push({ x, y, halfW, halfH });
       }
+      box.label.center.x = 0.5 + slide / (2 * halfW);
       box.label.userData.target = target;
     }
   }
@@ -871,9 +980,10 @@ export class CityWorld {
         for (const handle of this.buildings.values()) {
           handle.billboards.forEach((mat, i) => {
             // Lettered boards flicker like LED panels; printed posters are steadily floodlit.
-            if (mat.userData.poster) mat.color.setScalar(0.4 + 0.6 * this.dayMix);
+            // Printed posters are floodlit at night: bright enough to be the street's own light.
+            if (mat.userData.poster) mat.color.setScalar(0.25 + 0.75 * this.dayMix);
             mat.emissiveIntensity = mat.userData.poster
-              ? 0.3 - 0.05 * this.dayMix
+              ? 0.85 - 0.6 * this.dayMix
               : (1.15 + Math.sin(t * 2.2 + i * 1.7) * 0.18) * (1 - 0.3 * this.dayMix);
           });
           if (handle.craneJib) {
