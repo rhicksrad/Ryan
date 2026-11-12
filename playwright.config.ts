@@ -8,6 +8,9 @@ const launchOptions = {
   executablePath: process.env.PW_CHROMIUM || undefined
 };
 
+// CI on a shared PC picks a free port; everywhere else the preview default is fine.
+const port = Number(process.env.E2E_PORT) || 4173;
+
 export default defineConfig({
   testDir: './tests/e2e',
   timeout: 120 * 1000,
@@ -16,15 +19,15 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['github'], ['list']] : 'list',
   use: {
-    baseURL: 'http://127.0.0.1:4173',
+    baseURL: `http://127.0.0.1:${port}`,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     launchOptions
   },
   // Test the production bundle, the same files that get deployed.
   webServer: {
-    command: 'npm run preview -- --port 4173 --strictPort',
-    port: 4173,
+    command: `npm run preview -- --port ${port} --strictPort`,
+    port,
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000
   },
