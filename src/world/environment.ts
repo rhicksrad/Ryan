@@ -156,7 +156,7 @@ export function createSkyDome(onPainted?: (day: THREE.Texture, night: THREE.Text
         float flank = 0.5 - 0.5 * rise * side / (1.0 + abs(rise));
         vec3 m = mix(rock * vec3(0.52, 0.58, 0.7), rock * vec3(1.18, 1.08, 0.94), flank);
         // Every range sinks into the ground haze at its foot, so no hard line marks where the land ends.
-        float footHaze = (1.0 - smoothstep(0.0, 1.6, elev)) * 0.9;
+        float footHaze = (1.0 - smoothstep(0.0, 1.0, elev)) * 0.85;
         return mix(col, mix(m, haze, clamp(hazing + depth * 0.28 + footHaze, 0.0, 1.0)), cover);
       }
 
@@ -214,9 +214,9 @@ export function createSkyDome(onPainted?: (day: THREE.Texture, night: THREE.Text
         col = mix(col, bottomColor, fog);
         // Three ranges of hills, far to near, standing in the same haze as the painting.
         if (elev < 8.5 && elev > -0.5) {
-          col = rangeOver(col, azimuth, elev, vec4(1.5, 7.4, 5.0, 0.0), 0.7, rangeColor, bottomColor);
-          col = rangeOver(col, azimuth, elev, vec4(0.8, 4.8, 9.0, 7.0), 0.48, rangeColor, bottomColor);
-          col = rangeOver(col, azimuth, elev, vec4(0.2, 2.6, 15.0, 3.0), 0.24, rangeColor * vec3(0.86, 0.98, 0.8), bottomColor);
+          col = rangeOver(col, azimuth, elev, vec4(1.2, 7.4, 5.0, 0.0), 0.62, rangeColor, bottomColor);
+          col = rangeOver(col, azimuth, elev, vec4(0.5, 4.8, 9.0, 7.0), 0.4, rangeColor, bottomColor);
+          col = rangeOver(col, azimuth, elev, vec4(0.0, 2.6, 15.0, 3.0), 0.16, rangeColor * vec3(0.8, 0.96, 0.74), bottomColor);
         }
         gl_FragColor = vec4(col, 1.0);
       }
@@ -235,7 +235,7 @@ export function createSkyDome(onPainted?: (day: THREE.Texture, night: THREE.Text
   };
   loader.load(skyDayUrl, finish('dayMap'));
   loader.load(skyNightUrl, finish('nightMap'));
-  const mesh = new THREE.Mesh(new THREE.SphereGeometry(1500, 48, 24), material);
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(4200, 48, 24), material);
   // Drawn after everything solid, so the depth test skips every sky pixel the
   // town already covers. The sky shader is the most expensive per pixel here.
   mesh.renderOrder = 50;
@@ -374,7 +374,8 @@ function terrainTexture(plan: CityPlan): THREE.CanvasTexture {
   const sin = Math.sin(skew);
   const cellW = 52;
   const cellD = 38;
-  const span = reach + 60;
+  // Fields run to the edge of the sheet, where the tiled far patchwork takes over.
+  const span = Math.max(reach + 60, TERRAIN_SPAN / 2 - 10);
   const riverX = plan.riverX - plan.center.x;
   const streetZ = plan.mainStreetZ - plan.center.z;
   const avenueX = plan.mainAvenueX - plan.center.x;
@@ -430,30 +431,85 @@ function terrainTexture(plan: CityPlan): THREE.CanvasTexture {
 }
 
 /** The land beneath and beyond the city. */
-export function createTerrain(plan: CityPlan): THREE.Mesh {
+export function createTerrain(plan: CityPlan): THREE.Group {
+  const group = new THREE.Group();
+  // Plain meadow far beyond the painted sheet, so the land runs on to the
+  // horizon and fades into the haze by distance instead of ending at a line.
+  const meadow = new THREE.Color(0x75974f);
+  const grain = { blotch: 0.2, blotchSize: 9, grain: 0.22, grainSize: 1.3 };
+  // It carries a loose, tiled patchwork of fields and copses: too far away to
+  // read as a repeat, but enough that the distance is farmland and not a lawn.
+  const far = tileTexture(
+    512,
+    (ctx, rand) => {
+      ctx.fillStyle = '#75974f';
+      ctx.fillRect(0, 0, 512, 512);
+      const inks = ['#c6b36a', '#93b45c', '#58893f', '#8f7150', '#b8a660', '#74a85c', '#a9bd6e', '#6f9a4c', '#7fa052'];
+      for (let gy = 0; gy < 8; gy += 1) {
+        for (let gx = 0; gx < 8; gx += 1) {
+          if (rand() < 0.35) continue;
+          ctx.globalAlpha = 0.5 + rand() * 0.35;
+          ctx.fillStyle = inks[Math.floor(rand() * inks.length)];
+          const w = 40 + rand() * 20;
+          const h = 34 + rand() * 24;
+          ctx.fillRect(gx * 64 + 3, gy * 64 + 3, Math.min(w, 58), Math.min(h, 58));
+        }
+      }
+      // Copses and hedgerow trees as dark flecks.
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = '#35602f';
+      for (let i = 0; i < 90; i += 1) {
+        const r = 2 + rand() * 7;
+        ctx.beginPath();
+        ctx.ellipse(rand() * 512, rand() * 512, r * 1.5, r, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    },
+    515
+  );
+  far.repeat.set(9000 / 460, 9000 / 460);
+  far.rotation = 0.21;
+  const outer = new THREE.Mesh(
+    new THREE.PlaneGeometry(9000, 9000),
+    tint(
+      weather(new THREE.MeshStandardMaterial({ map: far, roughness: 1, metalness: 0 }), { ...grain, blotch: 0.3, blotchSize: 70 }),
+      0x3a4a78,
+      0xffffff
+    )
+  );
+  outer.position.y = -0.3;
+
   const material = tint(
     // The painted sheet carries the fields; fine grain keeps it from going soft close to the camera.
     weather(
       new THREE.MeshStandardMaterial({ map: terrainTexture(plan), roughness: 1, metalness: 0 }),
-      { blotch: 0.2, blotchSize: 9, grain: 0.22, grainSize: 1.3 },
-      // The land dissolves into the haze well before its edge, so it meets the
-      // painted ridgelines without a seam.
+      grain,
+      // Toward its edge the painting gives way to the plain meadow beneath, so no seam shows.
       (shader) => {
         shader.fragmentShader = shader.fragmentShader.replace(
-          '#include <fog_fragment>',
-          `#include <fog_fragment>
-           gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, smoothstep(690.0, 845.0, length(vSurfPos.xz)));`
+          '#include <color_fragment>',
+          `#include <color_fragment>
+           diffuseColor.rgb = mix(
+             diffuseColor.rgb,
+             diffuse * vec3(${meadow.r.toFixed(4)}, ${meadow.g.toFixed(4)}, ${meadow.b.toFixed(4)}),
+             smoothstep(560.0, 840.0, length(vSurfPos.xz))
+           );`
         );
       },
-      'far-haze'
+      'meadow-edge'
     ),
     0x3a4a78,
     0xffffff
   );
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(TERRAIN_SPAN, TERRAIN_SPAN), material);
-  mesh.rotation.x = -Math.PI / 2;
-  mesh.position.y = -0.12;
-  return mesh;
+  const sheet = new THREE.Mesh(new THREE.PlaneGeometry(TERRAIN_SPAN, TERRAIN_SPAN), material);
+  sheet.position.y = -0.12;
+  for (const mesh of [outer, sheet]) {
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.userData.noCast = true; // flat ground: receive only
+    group.add(mesh);
+  }
+  return group;
 }
 
 /** A square canvas texture that tiles, painted by `paint`. */
@@ -776,7 +832,10 @@ const waterUniforms = {
   uHorizon: { value: new THREE.Color(0xe9dcc4) },
   uSunColor: { value: new THREE.Color(0xfff0d0) },
   uSunDir: { value: SUN_DIR.clone() },
-  uGlint: { value: 1.6 }
+  uGlint: { value: 1.6 },
+  /** How strongly the town's lights streak the water (0 by day), and the stretch of river they reach. */
+  uTownGlow: { value: 0 },
+  uTownSpan: { value: new THREE.Vector2(-100, 100) }
 };
 
 let sharedWater: THREE.ShaderMaterial | null = null;
@@ -810,6 +869,8 @@ function waterMaterial(): THREE.ShaderMaterial {
       uniform vec3 uSunColor;
       uniform vec3 uSunDir;
       uniform float uGlint;
+      uniform float uTownGlow;
+      uniform vec2 uTownSpan;
       varying vec3 vWorld;
       #include <common>
       #include <fog_pars_fragment>
@@ -829,6 +890,11 @@ function waterMaterial(): THREE.ShaderMaterial {
         col += sky * max(slope.x + slope.y, 0.0) * 0.9;
         col *= 1.0 + (a.x + b.y) * 0.22;
         col += uSunColor * pow(max(dot(r, uSunDir), 0.0), 220.0) * uGlint;
+        // Lit windows and street lamps along the quays, smeared into long wavering streaks.
+        float inTown = smoothstep(uTownSpan.x - 20.0, uTownSpan.x + 10.0, p.y) * (1.0 - smoothstep(uTownSpan.y - 10.0, uTownSpan.y + 20.0, p.y));
+        float streak = texture2D(uNoise, vec2(p.x * 0.31 + slope.x * 2.0, p.y * 0.012 + uTime * 0.004)).g;
+        float shimmer = texture2D(uNoise, vec2(p.x * 0.05, p.y * 0.21 - uTime * 0.03)).r;
+        col += vec3(1.0, 0.76, 0.46) * smoothstep(0.52, 0.86, streak) * (0.45 + shimmer) * inTown * uTownGlow;
         gl_FragColor = vec4(col, 1.0);
         #include <fog_fragment>
       }
@@ -844,6 +910,12 @@ export function setWaterLook(deep: THREE.Color, zenith: THREE.Color, horizon: TH
   waterUniforms.uHorizon.value.copy(horizon);
   waterUniforms.uSunColor.value.copy(sun);
   waterUniforms.uGlint.value = glint;
+}
+
+/** Light from the town on the river: `amount` is 0 by day; the span is the town's extent along the river in world z. */
+export function setTownGlow(amount: number, minZ: number, maxZ: number): void {
+  waterUniforms.uTownGlow.value = amount;
+  waterUniforms.uTownSpan.value.set(minZ, maxZ);
 }
 
 /** The river: rippling water, stone quays through town, reedy banks beyond, and bridges where roads cross. */
@@ -1358,8 +1430,9 @@ export function createLampField(specs: LampSpec[]): LampField {
   poolGeo.rotateX(-Math.PI / 2);
   const poolMat = new THREE.MeshBasicMaterial({
     map: radialTexture([
-      [0, 'rgba(255, 205, 135, 0.55)'],
-      [0.45, 'rgba(255, 190, 110, 0.2)'],
+      [0, 'rgba(255, 214, 160, 0.5)'],
+      [0.3, 'rgba(255, 200, 135, 0.24)'],
+      [0.65, 'rgba(255, 190, 120, 0.07)'],
       [1, 'rgba(255, 190, 110, 0)']
     ]),
     transparent: true,
@@ -1387,9 +1460,10 @@ export function createLampField(specs: LampSpec[]): LampField {
     dummy.scale.set(1, 1, 1);
     dummy.updateMatrix();
     bulbs.setMatrixAt(i, dummy.matrix);
-    const reach = height * 0.8;
+    // Pools of light differ a little lamp to lamp, like bulbs of different ages.
+    const reach = height * (0.72 + ((i * 37) % 11) / 30);
     dummy.position.set(spec.x, 0.24, spec.z);
-    dummy.scale.set(reach, 1, reach);
+    dummy.scale.set(reach, 1, reach * (0.85 + ((i * 53) % 7) / 28));
     dummy.updateMatrix();
     pools.setMatrixAt(i, dummy.matrix);
     haloPositions.set([spec.x, height - 0.1, spec.z], i * 3);
@@ -1418,7 +1492,7 @@ export function createLampField(specs: LampSpec[]): LampField {
     group,
     bulbMaterial,
     glowMaterials: [
-      { material: poolMat, base: 0.6 },
+      { material: poolMat, base: 0.36 },
       { material: haloMat, base: 0.85 }
     ]
   };

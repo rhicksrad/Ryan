@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import type { CityPlan, Filler } from './cityplan';
+import { BLOCK, type CityPlan, type Filler } from './cityplan';
+import { tierOf } from '../data';
 import { mulberry32 } from './rng';
 import { facadeTextures, type Facade } from './textures';
 import { block, facadeBox, facadeMaterial, gableRoof, mat } from './buildings';
@@ -155,6 +156,62 @@ export function createFabric(plan: CityPlan): { group: THREE.Group; windowMateri
     block(g, paints[Math.floor(rand() * paints.length)], 1.5, 0.4, 0.7, 0, 0.32, 0);
     block(g, cabin, 0.75, 0.3, 0.62, -0.1, 0.62, 0);
     group.add(g);
+  }
+
+  // --- Street furniture: what people actually use a downtown sidewalk for. ---
+  const timber = mat(0x7a5a3c, { roughness: 0.9 });
+  const iron = mat(0x2c3038, { roughness: 0.6, metalness: 0.4 });
+  const stoneTub = mat(0xc9c2b2, { roughness: 0.9 });
+  const planting = mat(0x47763f, { roughness: 1 });
+  const cloth = [0xb5483c, 0x2f6a52, 0x2f4f7a, 0xd0a03a, 0xe9e2cf, 0x8a4470].map((c) => mat(c, { roughness: 0.85 }));
+  const umbrellaGeo = new THREE.ConeGeometry(0.95, 0.4, 8);
+  const tableGeo = new THREE.CylinderGeometry(0.34, 0.34, 0.05, 10);
+  const add = (geo: THREE.BufferGeometry, material: THREE.Material, x: number, y: number, z: number) => {
+    const mesh = new THREE.Mesh(geo, material);
+    mesh.position.set(x, y, z);
+    group.add(mesh);
+    return mesh;
+  };
+  /** A cafe table under a canvas umbrella. */
+  const cafe = (x: number, z: number) => {
+    add(umbrellaGeo, cloth[Math.floor(rand() * cloth.length)], x, 1.62, z).rotation.y = rand();
+    block(group, iron, 0.05, 1.3, 0.05, x, 0.82, z);
+    add(tableGeo, stoneTub, x, 0.72, z);
+  };
+  /** A slatted bench facing `angle`. */
+  const bench = (x: number, z: number, angle: number) => {
+    const g = new THREE.Group();
+    g.position.set(x, 0.19, z);
+    g.rotation.y = angle;
+    block(g, timber, 1.5, 0.08, 0.42, 0, 0.42, 0);
+    block(g, timber, 1.5, 0.4, 0.07, 0, 0.68, -0.2);
+    for (const s of [-0.6, 0.6]) block(g, iron, 0.07, 0.42, 0.4, s, 0.21, 0);
+    group.add(g);
+  };
+  /** A stone tub of clipped planting. */
+  const planter = (x: number, z: number, size = 1.5) => {
+    block(group, stoneTub, size, 0.5, size, x, 0.44, z);
+    block(group, planting, size - 0.24, 0.5, size - 0.24, x, 0.86, z);
+  };
+
+  // The plaza: benches round the monument, planters at the corners, cafes along two sides.
+  for (let i = 0; i < 8; i += 1) {
+    const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
+    bench(plan.plaza.x + Math.sin(a) * 7.6, plan.plaza.z + Math.cos(a) * 7.6, a + Math.PI);
+  }
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) planter(plan.plaza.x + sx * 9, plan.plaza.z + sz * 9, 1.8);
+    for (const t of [-4.6, -1.6, 1.6, 4.6]) cafe(plan.plaza.x + sx * 9.3, plan.plaza.z + t);
+  }
+  // Tower forecourts: tables out front, a bench and planters by the door.
+  for (const { project, lot } of plan.placements) {
+    if (tierOf(project.commits) !== 4) continue;
+    const front = lot.z + BLOCK / 2 - 2.5;
+    for (const t of [-7.6, -5.4, 5.4, 7.6]) if (rand() < 0.8) cafe(lot.x + t, front + (rand() - 0.5) * 0.6);
+    planter(lot.x - 3.1, front + 0.3);
+    planter(lot.x + 3.1, front + 0.3);
+    bench(lot.x - 8.6, lot.z + 2, Math.PI / 2);
+    bench(lot.x + 8.6, lot.z + 2, -Math.PI / 2);
   }
 
   for (const f of plan.fillers) {
