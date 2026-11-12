@@ -17,7 +17,8 @@
 #      repo variable CI_RUNNER=local, which sends CI to the PCs.
 #
 # Options (environment): RUNNER_USER, RUNNER_NAME, RUNNER_VERSION, EXTRA_LABELS,
-# NO_PLAYWRIGHT=1, NO_SWITCH=1 (register only, leave CI on GitHub), FORCE=1.
+# NO_PLAYWRIGHT=1, NO_SWITCH=1 (register only, leave CI on GitHub), E2E=1 (also
+# move browser tests to the PCs; fast machines only), FORCE=1.
 set -euo pipefail
 
 REPO=${1:-rhicksrad/Ryan}
@@ -88,6 +89,7 @@ fi
 if command -v uv >/dev/null && python3 -c 'import sys; sys.exit(sys.version_info < (3, 11))' 2>/dev/null; then
   LABELS="$LABELS,python"
 fi
+case ",$LABELS," in *,playwright,*) [ "${E2E:-}" != 1 ] || LABELS="$LABELS,e2e" ;; esac
 [ -z "${EXTRA_LABELS:-}" ] || LABELS="$LABELS,$EXTRA_LABELS"
 
 say "Installing runner $RUNNER_NAME ($LABELS)"
@@ -227,15 +229,21 @@ if [ "${NO_SWITCH:-}" = 1 ]; then
 elif gh api -X PATCH "repos/$REPO/actions/variables/CI_RUNNER" -f name=CI_RUNNER -f value=local >/dev/null 2>&1 \
   || gh api -X POST "repos/$REPO/actions/variables" -f name=CI_RUNNER -f value=local >/dev/null 2>&1; then
   echo "CI_RUNNER=local: CI for $REPO now runs on the PCs."
-  case ",$LABELS," in
-    *,playwright,*)
-      gh api -X PATCH "repos/$REPO/actions/variables/CI_RUNNER_E2E" -f name=CI_RUNNER_E2E -f value=local >/dev/null 2>&1 \
-        || gh api -X POST "repos/$REPO/actions/variables" -f name=CI_RUNNER_E2E -f value=local >/dev/null 2>&1 \
-        || echo "WARNING: could not set CI_RUNNER_E2E"
-      echo "CI_RUNNER_E2E=local: browser jobs run on the PCs too." ;;
-    *) echo "This PC cannot run Chromium, so browser jobs stay where they are." ;;
-  esac
-  echo "To fall back to GitHub's machines: gh api -X DELETE repos/$REPO/actions/variables/CI_RUNNER"
+  # Browser tests render the 3D town in software and need a fast PC. The first
+  # runner (an Intel laptop under WSL) took 13 minutes and timed out, so this
+  # switch is opt-in: E2E=1 on a PC with cores to spare, such as Scroob.
+  if [ "${E2E:-}" = 1 ]; then
+    case ",$LABELS," in
+      *,e2e,*)
+        gh api -X PATCH "repos/$REPO/actions/variables/CI_E2E_RUNNER" -f name=CI_E2E_RUNNER -f value=local >/dev/null 2>&1 \
+          || gh api -X POST "repos/$REPO/actions/variables" -f name=CI_E2E_RUNNER -f value=local >/dev/null 2>&1 \
+          || echo "WARNING: could not set CI_E2E_RUNNER"
+        echo "CI_E2E_RUNNER=local: browser jobs run on the PCs too." ;;
+      *) echo "E2E=1 ignored: this PC cannot run Chromium." ;;
+    esac
+  else
+    echo "Browser jobs stay on GitHub's machines (pass E2E=1 on a fast PC to move them)."
+  fi
 else
   echo "WARNING: could not set the CI_RUNNER variable. Set it to 'local' at:"
   echo "  https://github.com/$REPO/settings/variables/actions"

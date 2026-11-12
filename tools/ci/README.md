@@ -9,17 +9,21 @@ This is the short version for this repo.
 | Job | Workflow | Runs on | When |
 | --- | --- | --- | --- |
 | `gate`: install, typecheck, unit tests, build, size budget | `ci.yml` | PC (`web-trusted`) | every pull request push |
-| `e2e`: Playwright on desktop and phone | `ci.yml` | PC (`web-trusted`, `playwright`) | every pull request push |
+| `e2e`: Playwright on desktop and phone | `ci.yml` | GitHub, or a fast PC (`web-trusted`, `playwright`, `e2e`) | every pull request push |
 | `build` | `pages.yml` | PC (`web-trusted`) | push to `main` |
 | `deploy` | `pages.yml` | GitHub | push to `main` |
 | `update-stats` | `update-stats.yml` | GitHub | Mondays 09:00 UTC |
 
 The two jobs that hold write tokens (`deploy`, `update-stats`) never run on a PC.
 
-**The switch** is the repo variable `CI_RUNNER`. Browser jobs also need
-`CI_RUNNER_E2E=local`, which the setup script sets once a PC with Chromium's
-libraries is registered; until then `e2e` stays on GitHub. `local` sends trusted events to
-the PCs. Delete it and everything runs on GitHub's machines, which are free for
+**The switch** is the repo variable `CI_RUNNER`. `local` sends trusted events to
+the PCs. Browser tests have their own switch, `CI_E2E_RUNNER`, and only go to a
+runner that also carries the `e2e` label. They render the 3D town in software,
+and the first runner (an Intel laptop under WSL) needed 13 minutes and timed
+out, against 5 on GitHub. So `e2e` stays on GitHub until a fast PC opts in:
+run the setup script there with `E2E=1`, which adds the label and sets the
+switch.
+Delete it and everything runs on GitHub's machines, which are free for
 this public repo. Do that when the PCs are off: a job whose labels match no
 online runner queues for up to a day without failing.
 

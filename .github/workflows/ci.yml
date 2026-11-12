@@ -8,7 +8,7 @@ name: CI
 # requests from forks always run on GitHub's machines. Delete CI_RUNNER to send
 # everything back to GitHub, for example when the PCs are off: a job whose
 # labels match no online runner queues silently instead of failing. Browser jobs
-# have their own switch, CI_RUNNER_E2E, set only once a PC can run Chromium.
+# have their own switch, CI_E2E_RUNNER, set only once a PC can run Chromium.
 # See tools/ci/README.md.
 
 on:
@@ -66,9 +66,9 @@ jobs:
   e2e:
     name: e2e
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
-    runs-on: ${{ vars.CI_RUNNER == 'local' && vars.CI_RUNNER_E2E == 'local'
+    runs-on: ${{ vars.CI_RUNNER == 'local' && vars.CI_E2E_RUNNER == 'local'
       && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-      && fromJSON('["self-hosted","web-trusted","playwright"]')
+      && fromJSON('["self-hosted","web-trusted","playwright","e2e"]')
       || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
