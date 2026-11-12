@@ -344,9 +344,11 @@ export function vacancyTexture(): THREE.CanvasTexture {
  * reads over sky, glass, and grass alike.
  */
 export function labelSprite(text: string, accent: string): THREE.Sprite {
-  const k = 4; // supersample for crisp text
+  // Drawn close to the size it is shown at. A heavily supersampled canvas is
+  // averaged back down by the GPU, which turns thin black strokes grey.
+  const k = 2;
   const label = text.toUpperCase();
-  const font = `900 ${12.5 * k}px ${SIGN_FONT}`;
+  const font = `900 ${13.5 * k}px ${SIGN_FONT}`;
   const tracking = 0.25 * k;
   const measure = document.createElement('canvas').getContext('2d')!;
   measure.font = font;
@@ -396,7 +398,8 @@ export function labelSprite(text: string, accent: string): THREE.Sprite {
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 4;
+  texture.generateMipmaps = false;
+  texture.minFilter = THREE.LinearFilter;
 
   const material = new THREE.SpriteMaterial({
     map: texture,

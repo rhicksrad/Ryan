@@ -23,12 +23,13 @@ import {
   createSkyEnvScene,
   createPaintedEnvScene,
   setWaterLook,
+  setTownGlow,
   applyTints,
   SUN_DIR
 } from './environment';
 import { createFabric } from './fabric';
 import { createWalkers } from './walkers';
-import { buildCityPlan, type CityPlan } from './cityplan';
+import { buildCityPlan, PITCH, type CityPlan } from './cityplan';
 import { createPerson, updatePerson, citizenCount, type Person } from './people';
 import { createTraffic, type Traffic } from './cars';
 import { bubbleSprite } from './textures';
@@ -66,7 +67,7 @@ const DAY = {
   ranges: new THREE.Color('#62745a'),
   bloom: 0.16,
   bloomThreshold: 1.0,
-  fog: 0.17,
+  fog: 0.15,
   ambient: new THREE.Color(0xc4d2e8),
   ambientIntensity: 0.1,
   hemiSky: new THREE.Color(0xa9c6ff),
@@ -318,17 +319,21 @@ export class CityWorld {
     // Frame the project grid (the ring of neighbourhood blocks may run off the
     // edges) from a low three-quarter angle, so the skyline stands against the
     // sky. Walk the camera back until every corner of that box is on screen.
-    const { core, center } = this.plan;
-    // A tall screen looks down the town's long axis from the west instead.
+    const { core, center, plaza } = this.plan;
+    // A tall screen cannot hold the whole grid without shrinking it to a strip,
+    // so it frames downtown (the blocks round the plaza) and lets the rest run off.
     const portrait = this.camera.aspect < 1;
-    const bearing = portrait ? THREE.MathUtils.degToRad(-78) : OVERVIEW_BEARING;
-    const pitch = THREE.MathUtils.degToRad(portrait ? 15 : 13.5);
+    const bearing = OVERVIEW_BEARING;
+    const pitch = THREE.MathUtils.degToRad(portrait ? 10.5 : 13.5);
     const dir = new THREE.Vector3(Math.sin(bearing) * Math.cos(pitch), Math.sin(pitch), Math.cos(bearing) * Math.cos(pitch));
-    const target = OVERVIEW_TARGET.clone().setX((core.minX + core.maxX) / 2 - center.x).setZ((core.minZ + core.maxZ) / 2 - center.z);
+    const box = portrait
+      ? { minX: plaza.x - PITCH * 1.25, maxX: plaza.x + PITCH * 1.25, minZ: plaza.z - PITCH * 1.25, maxZ: plaza.z + PITCH * 1.25 }
+      : core;
+    const target = OVERVIEW_TARGET.clone().setX((box.minX + box.maxX) / 2 - center.x).setZ((box.minZ + box.maxZ) / 2 - center.z);
     OVERVIEW_TARGET.copy(target);
     const corners: THREE.Vector3[] = [];
-    for (const x of [core.minX - center.x, core.maxX - center.x]) {
-      for (const z of [core.minZ - center.z, core.maxZ - center.z]) {
+    for (const x of [box.minX - center.x, box.maxX - center.x]) {
+      for (const z of [box.minZ - center.z, box.maxZ - center.z]) {
         for (const y of [0, 30]) corners.push(new THREE.Vector3(x, y, z));
       }
     }
@@ -339,7 +344,7 @@ export class CityWorld {
       probe.updateMatrixWorld(true);
       return corners.every((corner) => {
         const ndc = corner.clone().project(probe);
-        return Math.abs(ndc.x) < (portrait ? 0.9 : 0.97) && ndc.y < (portrait ? 0.28 : 0.3) && ndc.y > (portrait ? -0.86 : -0.92);
+        return Math.abs(ndc.x) < (portrait ? 1.12 : 0.97) && ndc.y < (portrait ? 0.3 : 0.3) && ndc.y > (portrait ? -0.7 : -0.92);
       });
     };
     let lo = 40;
@@ -539,7 +544,7 @@ export class CityWorld {
 
   /** Name plates are sized against the view height; on a narrow screen that is too wide, so shrink them. */
   private sizeLabels(): void {
-    const k = THREE.MathUtils.clamp(this.camera.aspect / 1.15, 0.52, 1);
+    const k = THREE.MathUtils.clamp(this.camera.aspect / 1.15, 0.7, 1);
     for (const box of this.labelBoxes) {
       box.label.scale.set(box.baseW * k, box.baseH * k, 1);
       box.halfW = (box.baseW * k) / 2;
@@ -823,6 +828,8 @@ export class CityWorld {
       THREE.MathUtils.lerp(NIGHT.glint, DAY.glint, k)
     );
 
+    setTownGlow(0.5 * night, this.plan.core.minZ - this.plan.center.z, this.plan.core.maxZ - this.plan.center.z);
+
     this.lampBulbMaterial.emissiveIntensity = 3.4 * night + 0.1;
     for (const glow of this.lampGlowMaterials) {
       glow.material.opacity = glow.base * night;
@@ -905,7 +912,8 @@ export class CityWorld {
         const distance = this.camera.position.distanceTo(world);
         // Towers are named from the opening view; smaller buildings as you come closer.
         // From the opening view only the three biggest carry a plate, so the skyline stays the subject.
-        const far = handle.landmark ? (this.headliners.has(box.id) ? 1.25 : 0.7) : 0;
+        // A phone has no room for plates over the skyline; there they wait until you come closer.
+        const far = handle.landmark ? (this.headliners.has(box.id) && aspect >= 1 ? 1.25 : 0.7) : 0;
         const reach = far > 0 ? Math.max((this.overviewDistance() * far) / LABEL_FAR, 1) : 1;
         const near = 1 - THREE.MathUtils.clamp((distance - LABEL_NEAR * reach) / ((LABEL_FAR - LABEL_NEAR) * reach), 0, 1);
         const forced = box.id === this.hoveredId || box.id === this.selectedId;
