@@ -111,7 +111,6 @@ function boot(): void {
       selectProject(bySize[cursor].id);
       // Keyboard users land on the panel, so Tab goes straight to its links.
       document.getElementById('panel')!.focus({ preventScroll: true });
-      e.preventDefault();
     } else if (key === 't') tourButton.click();
     else if (key === 'n') document.getElementById('btn-daynight')!.click();
     else if (key === 'd') document.getElementById('btn-list')!.click();
@@ -121,7 +120,10 @@ function boot(): void {
       writeHash('');
       world?.setSelected(null);
       world?.focusOverview();
-    }
+    } else return;
+    // Every handled key is consumed. Without this, D opened the directory and
+    // then typed a "d" into its filter box, which had just taken focus.
+    e.preventDefault();
   });
 
   document.getElementById('btn-about')!.addEventListener('click', () => {

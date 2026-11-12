@@ -95,7 +95,7 @@ test('day/night, the tour, and the about sign all respond', async ({ page }) => 
   await expect(page.locator('#panel')).toContainText(`${projects.length} projects`);
 });
 
-test('the directory filters as you type, and the keyboard drives the town', async ({ page }) => {
+test('the directory filters as you type, and the keyboard drives the town', async ({ page }, testInfo) => {
   await ready(page);
   const bySize = [...projects].sort((a, b) => b.commits - a.commits);
 
@@ -119,6 +119,38 @@ test('the directory filters as you type, and the keyboard drives the town', asyn
   await expect(page.locator('.list-row:visible')).toHaveCount(projects.length);
   await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
+  await expect(page.locator('#panel')).toBeHidden();
+
+  // D opens the directory without typing a "d" into the filter, and what is typed next filters.
+  await page.keyboard.press('d');
+  await expect(page.locator('#list-overlay')).toBeVisible();
+  await expect(filter).toHaveValue('');
+  if (testInfo.project.name === 'desktop') {
+    await expect(filter).toBeFocused();
+    await page.keyboard.type(wanted.title.slice(0, 6));
+    await expect(filter).toHaveValue(wanted.title.slice(0, 6));
+    await expect(page.locator('.list-row:visible').first()).toContainText(wanted.title);
+    // Letters typed into the filter are text, not shortcuts.
+    await page.keyboard.type('t');
+    await expect(page.locator('#list-overlay')).toBeVisible();
+    await expect(page.locator('#btn-tour')).toHaveAttribute('aria-pressed', 'false');
+  }
+  // Escape closes it and hands focus back to the button that opened it.
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#list-overlay')).toBeHidden();
+  if (testInfo.project.name === 'desktop') await expect(page.locator('#btn-list')).toBeFocused();
+
+  // Shortcuts still work with focus resting on the panel: H goes home, T starts and stops the tour.
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('#panel')).toBeFocused();
+  await page.keyboard.press('h');
+  await expect(page.locator('#panel')).toBeHidden();
+  await page.keyboard.press('t');
+  await expect(page.locator('#btn-tour')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#list-filter, .list-filter')).toHaveValue('');
+  await page.keyboard.press('t');
+  await expect(page.locator('#btn-tour')).toHaveAttribute('aria-pressed', 'false');
+  await page.keyboard.press('h');
   await expect(page.locator('#panel')).toBeHidden();
 
   // Arrow keys step through projects from the biggest down; N flips night and day.

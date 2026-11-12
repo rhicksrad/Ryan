@@ -175,6 +175,8 @@ export class UI {
     });
     filter.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter') return;
+      // Consumed, or the same Enter would press whichever button focus lands on next.
+      e.preventDefault();
       rows.find((entry) => !entry.row.hidden)?.row.click();
     });
 
@@ -217,8 +219,13 @@ export class UI {
     }
     // With a keyboard to hand, start typing straight away; on a touch screen do not summon the keyboard.
     if (open && window.matchMedia('(pointer: fine)').matches) this.listFilter.focus();
-    // Closed, it must let go of the keyboard, or it would swallow the town's shortcuts.
-    if (!open) this.listFilter.blur();
+    // Closed, it must let go of the keyboard, or it would swallow the town's
+    // shortcuts. Focus goes back to the button that opened it, unless picking a
+    // project has already moved things on.
+    if (!open && this.listOverlay.contains(document.activeElement)) {
+      (document.activeElement as HTMLElement).blur();
+      document.getElementById('btn-list')?.focus({ preventScroll: true });
+    }
   }
 
   isListOpen(): boolean {
