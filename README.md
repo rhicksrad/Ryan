@@ -14,8 +14,8 @@ the number of projects, and any block without a project becomes a park. Every
 building with a name plate is a real project. The quiet stone and brick buildings
 around them, and the ring of neighbourhood blocks at the edge, are the ordinary
 town that grew up around the projects: no sign, no label, not clickable. Beyond
-that are farm fields, woods, a ring road, and hills fading into the haze. Traffic
-runs, residents walk, the town hall clock keeps your local time, and the whole
+that are farm fields, woods, a ring road, and painted ranges of hills fading into
+the haze. Traffic runs, a couple of hundred pedestrians walk their blocks, the town hall clock keeps your local time, and the whole
 place works by day or by night.
 
 - **Arcade District**: playable browser games

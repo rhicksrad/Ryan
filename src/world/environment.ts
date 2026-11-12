@@ -24,6 +24,7 @@ function tint<T extends THREE.MeshStandardMaterial>(material: T, night: number, 
 
 export function applyTints(dayMix: number): void {
   for (const t of tints) t.color.lerpColors(t.night, t.day, dayMix);
+  for (const mat of [sharedRoadMat, ...streetGlow]) if (mat) mat.emissiveIntensity = 0.048 * (1 - dayMix);
 }
 
 // Shared wind clock; trees read it in their vertex shaders. Updated each frame.
@@ -97,7 +98,8 @@ export function createSkyDome(onPainted?: (day: THREE.Texture, night: THREE.Text
       sunDir: { value: SUN_DIR.clone() },
       sunAzimuth: { value: Math.atan2(SUN_DIR.x, SUN_DIR.z) },
       dayEnergy: { value: 1.25 },
-      nightEnergy: { value: 2.4 }
+      nightEnergy: { value: 2.4 },
+      rangeColor: { value: new THREE.Color(0x60705a) }
     },
     vertexShader: SKY_VERTEX,
     fragmentShader: `
@@ -112,10 +114,50 @@ export function createSkyDome(onPainted?: (day: THREE.Texture, night: THREE.Text
       uniform float sunAzimuth;
       uniform float dayEnergy;
       uniform float nightEnergy;
+      uniform vec3 rangeColor;
       varying vec3 vDir;
 
       float hash(vec2 p) {
         return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+      }
+
+      // A ridge line's crest (degrees) at an azimuth: whole-number sine waves round
+      // the circle, each folded into a ridge, under a broad envelope that lets
+      // ranges rise and fall away. x foot, y highest crest, z ridges round the circle, w seed.
+      float crest(float azimuth, vec4 spec) {
+        float h = 0.0;
+        float norm = 0.0;
+        float amp = 1.0;
+        float freq = spec.z;
+        for (int i = 0; i < 5; i++) {
+          float phase = spec.w * 2.39 + float(i) * 4.17;
+          float wave = sin(azimuth * floor(freq) + phase);
+          h += mix(wave * 0.5 + 0.5, 1.0 - abs(wave), 0.55) * amp;
+          norm += amp;
+          amp *= 0.52;
+          freq *= 1.93;
+        }
+        h /= norm;
+        float envelope = 0.5 + 0.5 * sin(azimuth * floor(spec.z * 0.35 + 1.0) + spec.w * 1.7);
+        return spec.x + (spec.y - spec.x) * smoothstep(0.15, 0.95, h) * mix(0.5, 1.0, envelope);
+      }
+
+      // One range over the sky, painted the way the games paint theirs: each
+      // massif lit on its sunward flank and cool on the other, haze thickening
+      // toward its foot, and more haze the farther back the range stands.
+      vec3 rangeOver(vec3 col, float azimuth, float elev, vec4 spec, float hazing, vec3 rock, vec3 haze) {
+        float top = crest(azimuth, spec);
+        float edge = max(fwidth(elev), 0.003);
+        float cover = 1.0 - smoothstep(top - edge, top + edge, elev);
+        if (cover <= 0.0) return col;
+        float depth = clamp(max(top - elev, 0.0) / max(top + 0.5, 0.1), 0.0, 1.0);
+        float side = sign(sin(sunAzimuth - azimuth));
+        float rise = (crest(azimuth + 0.05, spec) - crest(azimuth - 0.05, spec)) * 0.3;
+        float flank = 0.5 - 0.5 * rise * side / (1.0 + abs(rise));
+        vec3 m = mix(rock * vec3(0.52, 0.58, 0.7), rock * vec3(1.18, 1.08, 0.94), flank);
+        // Every range sinks into the ground haze at its foot, so no hard line marks where the land ends.
+        float footHaze = (1.0 - smoothstep(0.0, 1.6, elev)) * 0.9;
+        return mix(col, mix(m, haze, clamp(hazing + depth * 0.28 + footHaze, 0.0, 1.0)), cover);
       }
 
       // Stars on a grid of directions: each cell holds at most one, cool or warm.
@@ -169,7 +211,14 @@ export function createSkyDome(onPainted?: (day: THREE.Texture, night: THREE.Text
         // The horizon band dissolves into the haze; below it the sky is haze.
         float band = mix(0.05, 0.085, day);
         float fog = 0.9 * (1.0 - smoothstep(0.0, band, dir.y)) + 0.1 * (1.0 - smoothstep(-0.05, 0.0, dir.y));
-        gl_FragColor = vec4(mix(col, bottomColor, fog), 1.0);
+        col = mix(col, bottomColor, fog);
+        // Three ranges of hills, far to near, standing in the same haze as the painting.
+        if (elev < 8.5 && elev > -0.5) {
+          col = rangeOver(col, azimuth, elev, vec4(1.5, 7.4, 5.0, 0.0), 0.7, rangeColor, bottomColor);
+          col = rangeOver(col, azimuth, elev, vec4(0.8, 4.8, 9.0, 7.0), 0.48, rangeColor, bottomColor);
+          col = rangeOver(col, azimuth, elev, vec4(0.2, 2.6, 15.0, 3.0), 0.24, rangeColor * vec3(0.86, 0.98, 0.8), bottomColor);
+        }
+        gl_FragColor = vec4(col, 1.0);
       }
     `
   });
@@ -187,7 +236,9 @@ export function createSkyDome(onPainted?: (day: THREE.Texture, night: THREE.Text
   loader.load(skyDayUrl, finish('dayMap'));
   loader.load(skyNightUrl, finish('nightMap'));
   const mesh = new THREE.Mesh(new THREE.SphereGeometry(1500, 48, 24), material);
-  mesh.renderOrder = -1;
+  // Drawn after everything solid, so the depth test skips every sky pixel the
+  // town already covers. The sky shader is the most expensive per pixel here.
+  mesh.renderOrder = 50;
   return { mesh, material };
 }
 
@@ -382,12 +433,20 @@ function terrainTexture(plan: CityPlan): THREE.CanvasTexture {
 export function createTerrain(plan: CityPlan): THREE.Mesh {
   const material = tint(
     // The painted sheet carries the fields; fine grain keeps it from going soft close to the camera.
-    weather(new THREE.MeshStandardMaterial({ map: terrainTexture(plan), roughness: 1, metalness: 0 }), {
-      blotch: 0.2,
-      blotchSize: 9,
-      grain: 0.22,
-      grainSize: 1.3
-    }),
+    weather(
+      new THREE.MeshStandardMaterial({ map: terrainTexture(plan), roughness: 1, metalness: 0 }),
+      { blotch: 0.2, blotchSize: 9, grain: 0.22, grainSize: 1.3 },
+      // The land dissolves into the haze well before its edge, so it meets the
+      // painted ridgelines without a seam.
+      (shader) => {
+        shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <fog_fragment>',
+          `#include <fog_fragment>
+           gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, smoothstep(690.0, 845.0, length(vSurfPos.xz)));`
+        );
+      },
+      'far-haze'
+    ),
     0x3a4a78,
     0xffffff
   );
@@ -654,10 +713,17 @@ function roadStrip(width: number, length: number): THREE.PlaneGeometry {
 }
 
 let sharedRoadMat: THREE.MeshStandardMaterial | null = null;
+/** Other paving that takes the same faint lamp spill as the roads at night. */
+const streetGlow: THREE.MeshStandardMaterial[] = [];
 function roadMaterial(): THREE.MeshStandardMaterial {
   // Patched and sun-bleached in places, like any road that has been dug up and relaid.
   sharedRoadMat ??= tint(
-    weather(new THREE.MeshStandardMaterial({ map: asphaltTexture(true), roughness: 0.93 }), { blotch: 0.3, blotchSize: 21, grain: 0.1, grainSize: 3 }),
+    weather(
+      // The warm emissive is the spill of the street lamps: off by day, faint at night,
+      // so the street grid reads as lit ribbons rather than disappearing.
+      new THREE.MeshStandardMaterial({ map: asphaltTexture(true), roughness: 0.93, emissive: 0xffb469, emissiveIntensity: 0 }),
+      { blotch: 0.3, blotchSize: 21, grain: 0.1, grainSize: 3 }
+    ),
     ASPHALT_NIGHT,
     ASPHALT_DAY
   );
@@ -678,10 +744,11 @@ export function createRoads(plan: CityPlan): THREE.Group {
   }
 
   const crossMat = tint(
-    new THREE.MeshStandardMaterial({ map: intersectionTexture(), roughness: 0.93 }),
+    new THREE.MeshStandardMaterial({ map: intersectionTexture(), roughness: 0.93, emissive: 0xffb469, emissiveIntensity: 0 }),
     ASPHALT_NIGHT,
     ASPHALT_DAY
   );
+  streetGlow.push(crossMat);
   const crossGeo = new THREE.PlaneGeometry(ROAD, ROAD);
   crossGeo.rotateX(-Math.PI / 2);
   const crossings = new THREE.InstancedMesh(crossGeo, crossMat, plan.intersections.length);
@@ -1092,55 +1159,6 @@ export function createOutskirts(plan: CityPlan): {
     lamps.push({ x: centerX + Math.cos(a) * r, z: centerZ + Math.sin(a) * r, height: 5.5 });
   }
 
-  // --- Hills: a near range of green downs and a far, taller range that fades into the haze. ---
-  // Woods and pasture in broad patches, so a hill is not one smooth green lump.
-  const hillNear = tint(
-    weather(new THREE.MeshStandardMaterial({ roughness: 1 }), { blotch: 0.55, blotchSize: 60, grain: 0.3, grainSize: 9 }),
-    0x2c3a5c,
-    0x58804a
-  );
-  const hillFar = tint(
-    weather(new THREE.MeshStandardMaterial({ roughness: 1 }), { blotch: 0.45, blotchSize: 130, grain: 0.22, grainSize: 22 }),
-    0x28324f,
-    0x4f7268
-  );
-  // A few ridged shapes shared by every hill: folded noise pushes the sphere into spurs and saddles.
-  const hillGeos = [0, 1, 2, 3].map((seed) => {
-    const geo = new THREE.IcosahedronGeometry(1, 3);
-    const pos = geo.getAttribute('position') as THREE.BufferAttribute;
-    for (let i = 0; i < pos.count; i += 1) {
-      const x = pos.getX(i);
-      const y = pos.getY(i);
-      const z = pos.getZ(i);
-      const a = Math.atan2(z, x);
-      const ridge =
-        (1 - Math.abs(Math.sin(a * 3 + seed * 1.7))) * 0.22 +
-        (1 - Math.abs(Math.sin(a * 7 + seed * 2.9 + y * 2))) * 0.1 +
-        Math.sin(a * 2 + seed) * 0.12;
-      const k = 1 + ridge * Math.max(y, 0) * 1.6 + Math.sin(a * 5 + seed * 3.1) * 0.06;
-      pos.setXYZ(i, x * (1 + Math.sin(a * 4 + seed) * 0.08), y * k, z * (1 + Math.cos(a * 3 + seed * 2) * 0.08));
-    }
-    geo.computeVertexNormals();
-    return geo;
-  });
-  const ranges: [number, number, number, number, THREE.Material][] = [
-    [22, REACH + 30, 46, 0.24, hillNear],
-    [30, REACH + 260, 120, 0.2, hillFar]
-  ];
-  for (const [count, at, size, lift, material] of ranges) {
-    for (let i = 0; i < count; i += 1) {
-      const angle = (i / count) * Math.PI * 2 + rand() * 0.3;
-      const radius = at + rand() * 70;
-      const r = size * (0.6 + rand() * 0.8);
-      const hill = new THREE.Mesh(hillGeos[i % hillGeos.length], material);
-      hill.scale.set(r * (1.3 + rand() * 1.2), r * (lift + rand() * 0.14), r);
-      hill.position.set(centerX + Math.cos(angle) * radius, -3, centerZ + Math.sin(angle) * radius);
-      hill.rotation.y = angle + Math.PI / 2 + (rand() - 0.5) * 0.6;
-      hill.userData.noCast = true;
-      group.add(hill);
-    }
-  }
-
   // --- Ponds out among the fields (kept clear of the ring). ---
   for (const [px, pz, r] of [
     [centerX - halfX - 62, centerZ + halfZ * 0.7, 15],
@@ -1526,7 +1544,7 @@ export function createSpire(): {
   const stoneDark = new THREE.MeshStandardMaterial({ color: 0xb3a88f, roughness: 0.9 });
   const copper = new THREE.MeshStandardMaterial({ color: 0x5f9a88, roughness: 0.55, metalness: 0.35 });
   const gold = new THREE.MeshStandardMaterial({ color: 0xd9b24a, roughness: 0.35, metalness: 0.8, emissive: 0x6a4a10, emissiveIntensity: 0.5 });
-  const slit = new THREE.MeshStandardMaterial({ color: 0x2b3440, emissive: 0xffc97a, emissiveIntensity: 0.9, roughness: 0.4 });
+  const slit = new THREE.MeshStandardMaterial({ color: 0x1c232c, emissive: 0xffc97a, emissiveIntensity: 0.55, roughness: 0.3, metalness: 0.4 });
   const box = (m: THREE.Material, w: number, h: number, d: number, x: number, y: number, z: number) => {
     const mesh = new THREE.Mesh(BOX_GEO, m);
     mesh.scale.set(w, h, d);
@@ -1564,6 +1582,18 @@ export function createSpire(): {
       box(slit, 0.08, 1.5, 0.5, s * 1.62, 8 + i * 3.1, 0);
     }
   }
+  // Corner pilasters and belt courses, so the shaft is masonry and not a plain post.
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) box(stoneDark, 0.5, shaftH, 0.5, sx * 1.6, 5.4 + shaftH / 2, sz * 1.6);
+  }
+  for (const y of [9.2, 13, 16.8]) box(stoneDark, 3.5, 0.22, 3.5, 0, y, 0);
+  // A balustrade round the hall roof and a flag over the door.
+  for (const s of [-1, 1]) {
+    box(stone, 8.3, 0.5, 0.18, 0, 5.65, s * 4.1);
+    box(stone, 0.18, 0.5, 8.3, s * 4.1, 5.65, 0);
+  }
+  box(stoneDark, 0.08, 3.4, 0.08, 3.4, 7.1, 4);
+  box(new THREE.MeshStandardMaterial({ color: 0x0b5a3c, roughness: 0.8 }), 1.5, 0.9, 0.04, 4.2, 8.3, 4);
   const belfryY = 5.4 + shaftH;
   box(stoneDark, 3.9, 0.4, 3.9, 0, belfryY + 0.2, 0);
   box(stone, 3.6, 3.6, 3.6, 0, belfryY + 2.2, 0);

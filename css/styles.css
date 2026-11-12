@@ -261,13 +261,15 @@ svg.icon {
   bottom: 66px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--paper);
-  background: rgba(22, 24, 29, 0.86);
-  border-left: 4px solid var(--paint);
-  border-radius: 2px;
-  padding: 5px 10px 4px;
+  /* A supplementary plaque: the small white plate that hangs under a road sign. */
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--asphalt);
+  background: var(--paper);
+  border: 1.5px solid var(--asphalt);
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px var(--paper), 0 5px 14px rgba(0, 0, 0, 0.3);
+  padding: 4px 10px 3px;
   white-space: nowrap;
   z-index: 9;
   pointer-events: none;
