@@ -75,8 +75,16 @@ screenshots can be stale; `scripts/probe.mjs` is the reliable way to look.
 - `src/world/buildings.ts`: one builder per commit tier; towers have five crowns.
 - `src/world/fabric.ts`: the unnamed town, drawn from `plan.fillers` with a
   handful of shared materials.
-- `src/world/environment.ts`: sky, painted countryside, blocks, roads, water
-  shader, trees, town hall, lamps. `textures.ts`: facades, posters, signs, labels.
+- `src/world/surface.ts`: `weather(material, opts)` gives any standard material
+  world-space grain, patches, darker wall bases, and roof courses from one shared
+  noise tile. Use it instead of adding textures. Not for things that move.
+- `src/assets/sky/`: the painted sky strips (azimuth across, elevation +90 at the
+  top row to -10 at the bottom), taken from `Choppa2/assets/generated/sky`. Fog,
+  image-based lighting, and water colors in `CityWorld.ts` are sampled from them;
+  change the painting and those must follow. The painting never lights the town;
+  only tower glass mirrors it.
+- `src/world/environment.ts`: painted sky dome, painted countryside, blocks, roads,
+  water shader, trees, town hall, lamps. `textures.ts`: facades, posters, signs, labels.
 - `src/world/bake.ts`: merges static meshes into a few draw calls, including each
   material group of a multi-material mesh. Mark anything that moves with
   `userData.dynamic`; it is also kept out of the static shadow map.

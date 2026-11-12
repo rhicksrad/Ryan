@@ -4,6 +4,7 @@ import { tierOf, isUnderConstruction } from '../data';
 import { rngFor } from './rng';
 import { facadeTextures, houseWindowTexture, billboardTexture, labelSprite, type Facade } from './textures';
 import { posterUrl } from '../art';
+import { weather } from './surface';
 
 export interface BuildingHandle {
   project: Project;
@@ -24,6 +25,8 @@ export interface BuildingHandle {
   footprint: number;
   /** Skyscrapers are named even from the opening view. */
   landmark: boolean;
+  /** Curtain-wall glass, which mirrors the painted sky. */
+  glass: THREE.MeshStandardMaterial[];
 }
 
 const BOX = new THREE.BoxGeometry(1, 1, 1);
@@ -70,7 +73,8 @@ export function facadeMaterial(
     metalness: opts.metalness
   });
   material.userData.dayDim = 0.97; // office lights go off in the morning
-  return material;
+  // Streaks of weather down the wall and a darker base where it meets the street.
+  return weather(material, { blotch: 0.12, blotchSize: 19, grain: 0, ground: 0.22 });
 }
 
 // ---------------------------------------------------------------------------
@@ -302,9 +306,19 @@ function buildHouse(group: THREE.Group, rand: () => number): number {
 
   // Gable roof with overhang.
   const peak = 1.5 + rand() * 0.3;
-  const roof = gableRoof(w + 0.6, d + 0.6, peak, roofMat);
+  // Three roof plans, so a street of houses is not one model repeated: gable end
+  // to the street, ridge along the street, or ridge along the street with a dormer.
+  const plan = Math.floor(rand() * 3);
+  const roof = plan === 0 ? gableRoof(w + 0.6, d + 0.6, peak, roofMat) : gableRoof(d + 0.6, w + 0.6, peak, roofMat);
+  if (plan !== 0) roof.rotation.y = Math.PI / 2;
   roof.position.y = h + 0.2;
   group.add(roof);
+  if (plan === 2) {
+    const dormer = gableRoof(1.5, d * 0.5 + 0.5, 0.9, roofMat);
+    dormer.position.set(-w * 0.18, h + 0.45, d * 0.25);
+    group.add(dormer);
+    block(group, trimWhite, 1.1, 0.7, 0.08, -w * 0.18, h + 0.6, d * 0.5 + 0.22);
+  }
   // fascia trim under the eaves
   block(group, trimWhite, w + 0.6, 0.12, d + 0.6, 0, h + 0.22, 0);
 
@@ -408,10 +422,14 @@ function buildLargeHouse(group: THREE.Group, rand: () => number): number {
   mainRoof.position.y = bodyTop;
   group.add(mainRoof);
   block(group, trimWhite, w + 0.7, 0.12, d + 0.7, 0, bodyTop + 0.02, 0);
-  const dormer = gableRoof(w * 0.42, d * 0.6, peak * 0.8, roofMat);
-  dormer.rotation.y = Math.PI / 2;
-  dormer.position.set(0, bodyTop, d * 0.28);
-  group.add(dormer);
+  // The front gable sits over the door, off to one side, or is doubled.
+  const gables = [[0], [-w * 0.24], [-w * 0.26, w * 0.26]][Math.floor(rand() * 3)];
+  for (const gx of gables) {
+    const dormer = gableRoof(w * (gables.length > 1 ? 0.3 : 0.42), d * 0.6, peak * (gables.length > 1 ? 0.62 : 0.8), roofMat);
+    dormer.rotation.y = Math.PI / 2;
+    dormer.position.set(gx, bodyTop, d * 0.28);
+    group.add(dormer);
+  }
 
   // Two chimneys.
   for (const cx of [-w * 0.35, w * 0.4]) {
@@ -618,7 +636,8 @@ function buildSkyscraper(
   district: District,
   rand: () => number,
   billboards: THREE.MeshStandardMaterial[],
-  variant: number
+  variant: number,
+  glassOut: THREE.MeshStandardMaterial[]
 ): { top: number; footprint: number } {
   const height = 20 + (Math.log10(project.commits) - 2.176) * 46 + rand() * 3;
   const footprint = 7.5 + rand() * 2;
@@ -630,7 +649,9 @@ function buildSkyscraper(
     { kind: 'curtain', glass: `#${glass.getHexString()}`, frame: TOWER_FRAME[archetype], accent: district.color, lit: 0.2 },
     rand
   );
-  const skin = facadeMaterial(facade, { roughness: 0.22, metalness: 0.3, glow: 1.25 });
+  // Mostly mirror: the wall shows the sky more than its own color, as real glass does.
+  const skin = facadeMaterial(facade, { roughness: 0.14, metalness: 0.72, glow: 1.25 });
+  glassOut.push(skin);
   const roof = mat(0x4b4f58, { roughness: 0.9 });
   const steel = mat(0x8d939c, { metalness: 0.6, roughness: 0.4 });
   const stone = mat(archetype % 2 ? 0xcbc5b6 : 0xd6d0c2, { roughness: 0.9 });
@@ -680,6 +701,23 @@ function buildSkyscraper(
       for (const sz of [-1, 1]) block(group, stone, 0.3, h, 0.3, x + sx * (w / 2), y + h / 2, z + sz * (d / 2));
     }
     block(group, cap, w + 0.4, 0.28, d + 0.4, x, y + h + 0.14, z);
+    // Depth on the wall: slim fins standing proud of the glass every second bay,
+    // and a ledge every eighth floor, so the tower catches light and shadow.
+    const fin = (span: number, place: (t: number, s: number) => [number, number, number, number]) => {
+      const bays = Math.max(1, Math.round(span / TOWER_BAY));
+      for (let i = 2; i < bays; i += 2) {
+        const t = (i / bays - 0.5) * span;
+        for (const s of [-1, 1]) {
+          const [fx, fz, fw, fd] = place(t, s);
+          block(group, steel, fw, h, fd, x + fx, y + h / 2, z + fz);
+        }
+      }
+    };
+    fin(w, (t, s) => [t, s * (d / 2 + 0.07), 0.09, 0.16]);
+    fin(d, (t, s) => [s * (w / 2 + 0.07), t, 0.16, 0.09]);
+    for (let ly = TOWER_FLOOR * 8; ly < h - TOWER_FLOOR * 3; ly += TOWER_FLOOR * 8) {
+      block(group, steel, w + 0.26, 0.14, d + 0.26, x, y + ly, z);
+    }
   };
   /** Cooling units and a bulkhead, so no roof is a blank lid. */
   const plant = (w: number, d: number, x: number, y: number, z: number) => {
@@ -926,6 +964,7 @@ export function createBuilding(project: Project, district: District, towerRank =
   const rand = rngFor(project.repo);
   const group = new THREE.Group();
   const billboards: THREE.MeshStandardMaterial[] = [];
+  const glass: THREE.MeshStandardMaterial[] = [];
   const tier = tierOf(project.commits);
 
   let top = 0;
@@ -943,7 +982,7 @@ export function createBuilding(project: Project, district: District, towerRank =
     top = buildCommercial(group, project, district, rand);
     footprint = 6.8;
   } else {
-    const result = buildSkyscraper(group, project, district, rand, billboards, towerRank);
+    const result = buildSkyscraper(group, project, district, rand, billboards, towerRank, glass);
     top = result.top;
     footprint = result.footprint;
   }
@@ -984,7 +1023,7 @@ export function createBuilding(project: Project, district: District, towerRank =
 
   // Floating name label.
   const label = labelSprite(project.title, district.color);
-  label.position.y = (craneJib ? top + 3.5 : top) + 1.6;
+  label.position.y = (craneJib ? top + 3.5 : top) + 0.9;
   group.add(label);
 
   group.rotation.y = rotationY;
@@ -1015,6 +1054,7 @@ export function createBuilding(project: Project, district: District, towerRank =
     craneBeacon,
     height: top,
     footprint,
-    landmark: tier === 4
+    landmark: tier === 4,
+    glass
   };
 }

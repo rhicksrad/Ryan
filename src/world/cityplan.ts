@@ -403,6 +403,18 @@ export function buildCityPlan(data: WorldData): CityPlan {
       }
       continue;
     }
+    // The four corners of the ring are left as woodlots, so the town's outline
+    // is a ragged cross that melts into the countryside, not a ruled rectangle.
+    if (outX !== 0 && outZ !== 0) {
+      for (let i = 0; i < 16; i += 1) {
+        trees.push({
+          x: b.x + (rand() - 0.5) * (BLOCK - 5),
+          z: b.z + (rand() - 0.5) * (BLOCK - 5),
+          kind: rand() < 0.45 ? 'pine' : 'round'
+        });
+      }
+      continue;
+    }
     // Houses face the streets on all four sides; fewer along the edge that looks out at the fields.
     const sites: [number, number, number][] = [
       [-5.3, -6.9, Math.PI],

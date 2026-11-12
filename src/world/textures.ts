@@ -321,36 +321,62 @@ export function vacancyTexture(): THREE.CanvasTexture {
   return texture;
 }
 
-/** Floating name tag: a small enamel plate with the district color down its edge. */
+/**
+ * A building's name plate, from the same sign family as the interface: a white
+ * plate with a black keyline, the district color in a tab down its left end,
+ * and the name in capitals. It stands on its anchor point and is opaque, so it
+ * reads over sky, glass, and grass alike.
+ */
 export function labelSprite(text: string, accent: string): THREE.Sprite {
   const k = 4; // supersample for crisp text
-  const font = `700 ${13 * k}px ${SIGN_FONT}`;
+  const label = text.toUpperCase();
+  const font = `800 ${11.5 * k}px ${SIGN_FONT}`;
+  const tracking = 0.5 * k;
   const measure = document.createElement('canvas').getContext('2d')!;
   measure.font = font;
-  const textWidth = measure.measureText(text).width;
+  const textWidth = measure.measureText(label).width + tracking * (label.length - 1);
 
-  const bar = 5 * k;
-  const padX = 9 * k;
+  const tab = 9 * k;
+  const padX = 8 * k;
+  const edge = 2 * k; // outer paper margin around the keyline, as on a real plate
   const canvas = document.createElement('canvas');
-  canvas.width = Math.ceil(textWidth + padX * 2 + bar);
-  canvas.height = 24 * k;
+  canvas.width = Math.ceil(textWidth + padX * 2 + tab + edge * 2);
+  canvas.height = 25 * k;
   const ctx = canvas.getContext('2d')!;
+  const w = canvas.width;
+  const h = canvas.height;
 
-  ctx.fillStyle = '#16181d';
+  ctx.fillStyle = '#f4f1e6';
   ctx.beginPath();
-  ctx.roundRect(0, 0, canvas.width, canvas.height, 3 * k);
+  ctx.roundRect(0, 0, w, h, 4.5 * k);
   ctx.fill();
+  // District tab inside the keyline.
   ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(edge, edge, w - edge * 2, h - edge * 2, 3 * k);
   ctx.clip();
   ctx.fillStyle = accent;
-  ctx.fillRect(0, 0, bar, canvas.height);
+  ctx.fillRect(edge, edge, tab, h - edge * 2);
   ctx.restore();
+  ctx.strokeStyle = '#16181d';
+  ctx.lineWidth = 1.6 * k;
+  ctx.beginPath();
+  ctx.roundRect(edge, edge, w - edge * 2, h - edge * 2, 3 * k);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(edge + tab, edge);
+  ctx.lineTo(edge + tab, h - edge);
+  ctx.stroke();
 
   ctx.font = font;
-  ctx.fillStyle = '#f4f1e6';
+  ctx.fillStyle = '#16181d';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillText(text, bar + padX, canvas.height / 2 + k);
+  let x = edge + tab + padX;
+  for (const ch of label) {
+    ctx.fillText(ch, x, h / 2 + 1.2 * k);
+    x += ctx.measureText(ch).width + tracking;
+  }
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -367,8 +393,9 @@ export function labelSprite(text: string, accent: string): THREE.Sprite {
   });
   const sprite = new THREE.Sprite(material);
   sprite.renderOrder = 20;
+  sprite.center.set(0.5, 0);
   // Constant screen-size labels; scale is in view-height units with sizeAttenuation off.
-  const screenHeight = 0.027;
+  const screenHeight = 0.029;
   sprite.scale.set((canvas.width / canvas.height) * screenHeight, screenHeight, 1);
   return sprite;
 }
