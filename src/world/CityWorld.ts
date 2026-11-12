@@ -308,7 +308,7 @@ export class CityWorld {
     }
 
     if (!this.reducedMotion) {
-      this.growth = { start: performance.now() + 500, duration: 3400 };
+      this.growth = { start: Infinity, duration: 4600 };
       growClock.value = GROW_START - 0.02;
       this.tween = {
         fromPos: this.camera.position.clone(),
@@ -697,7 +697,9 @@ export class CityWorld {
       ringMat.color = new THREE.Color(
         this.data.districts.find((d) => d.id === handle.project.district)?.color ?? '#ffffff'
       );
-      ringMat.opacity = 0.8;
+      // The lot's own kerb lights up when selected. A ring that wide cut across
+      // the streets like a hoop, so it is kept for the town hall alone.
+      ringMat.opacity = 0;
     } else {
       ringMat.opacity = 0;
     }
@@ -956,11 +958,11 @@ export class CityWorld {
           Boolean(this.growth?.onTick) && growClock.value > at + GROW_RISE * 0.7 && growClock.value < at + GROW_RISE + 0.07;
         const forced = box.id === this.hoveredId || box.id === this.selectedId || justBuilt;
         const ndc = world.project(this.camera);
-        return { box, near, forced, ndc };
+        return { box, near, forced, ndc, justBuilt };
       })
       .sort((a, b) => Number(b.forced) - Number(a.forced) || b.box.priority - a.box.priority);
 
-    for (const { box, near, forced, ndc } of candidates) {
+    for (const { box, near, forced, ndc, justBuilt } of candidates) {
       // A plate is either up or down: a half-faded sign reads as a glitch.
       let target = forced || near > 0.04 ? 1 : 0;
       if (ndc.z > 1) target = 0;
@@ -986,6 +988,10 @@ export class CityWorld {
         if (offScreen || clash) target = 0;
         else shown.push({ x, y, halfW, halfH });
       }
+      // The plate of the building that has just topped out is road-paint yellow; the rest keep their day or night tone.
+      const tone = 0.5 + 0.5 * this.dayMix;
+      if (justBuilt) box.label.material.color.setRGB(1, 0.82, 0.2);
+      else box.label.material.color.setScalar(tone);
       box.label.center.x = 0.5 + slide / (2 * halfW);
       box.label.userData.target = target;
     }
@@ -1108,7 +1114,7 @@ export class CityWorld {
           if (mat.userData.poster) mat.color.setScalar(0.25 + 0.75 * this.dayMix);
           mat.emissiveIntensity = mat.userData.poster
             ? 0.85 - 0.6 * this.dayMix
-            : (1.15 + Math.sin(flicker * 2.2 + i * 1.7) * 0.18) * (1 - 0.3 * this.dayMix);
+            : (0.62 + Math.sin(flicker * 2.2 + i * 1.7) * 0.05) * (1 - 0.72 * this.dayMix);
         });
       }
 
@@ -1146,6 +1152,12 @@ export class CityWorld {
 
       if (firstFrame) {
         firstFrame = false;
+        // The opening is timed from now: the first frame is on screen and the
+        // loader is about to lift. Timed from any earlier, the slow first draw
+        // ate most of it and a new visitor arrived to a finished town.
+        const shown = performance.now();
+        if (this.tween) this.tween.start = shown + 300;
+        if (this.growth) this.growth.start = shown + 650;
         this.events.onReady();
       }
     };
@@ -1153,9 +1165,9 @@ export class CityWorld {
     // froze the page for seconds. Compile them off the main thread where the
     // browser allows it, so the loader keeps moving, and only then start drawing.
     const begin = () => {
-      // The opening is timed from the first frame, not from before the wait.
-      if (this.tween) this.tween.start = performance.now() + 250;
-      if (this.growth) this.growth.start = performance.now() + 500;
+      // Hold the opening until the first frame has been drawn (see the loop).
+      if (this.tween) this.tween.start = Infinity;
+      if (this.growth) this.growth.start = Infinity;
       this.renderer.setAnimationLoop(loop);
     };
     performance.mark('city-compile-start');

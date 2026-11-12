@@ -19,7 +19,7 @@ for (const mode of ['day', 'night']) {
     const page = await context.newPage();
     await page.goto(url + hash);
     await page.waitForFunction(() => document.documentElement.dataset.testReady === '1', null, { timeout: 120_000 });
-    await page.waitForTimeout(5500); // let the opening camera move settle
+    await page.waitForTimeout(7500); // let the opening (camera move and the town going up) finish
     await page.screenshot({ path: `${outDir}/${prefix}-${mode}-${name}.png` });
     await context.close();
   }

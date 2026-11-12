@@ -192,9 +192,9 @@ function shrub(group: THREE.Group, x: number, z: number, s: number, rand: () => 
 // ---------------------------------------------------------------------------
 
 function buildShack(group: THREE.Group, rand: () => number): number {
-  const plankTones = [0x5a4a33, 0x4a3d2b, 0x6b5940, 0x3f3526];
-  const plankMat = (i: number) =>
-    mat(plankTones[i % plankTones.length], { roughness: 1, flatShading: true, emissive: 0x140f08, emissiveIntensity: 0.4 });
+  // Sun-bleached boards, not creosote: a shack should read as weathered wood from above, not as a dark hole.
+  const plankTones = [0x9a8468, 0x86725a, 0xa89274, 0x7a6850];
+  const plankMat = (i: number) => mat(plankTones[i % plankTones.length], { roughness: 1, flatShading: true });
 
   const w = 2.6 + rand() * 0.6;
   const d = 2.2 + rand() * 0.5;
@@ -236,7 +236,7 @@ function buildShack(group: THREE.Group, rand: () => number): number {
   block(shell, mat(0x0a0806, { roughness: 1 }), w - 0.25, h - 0.2, d - 0.25, 0, h / 2, 0);
 
   // Two mismatched, sagging roof boards leaving a gap.
-  const roofMat = mat(0x2a2419, { roughness: 1, flatShading: true });
+  const roofMat = mat(0x6a5a48, { roughness: 1, flatShading: true });
   const r1 = block(shell, roofMat, w * 0.62, 0.12, d + 0.7, -w * 0.22, h + 0.15, 0);
   r1.rotation.z = 0.12;
   const r2 = block(shell, roofMat, w * 0.55, 0.12, d + 0.5, w * 0.28, h + 0.22, 0);

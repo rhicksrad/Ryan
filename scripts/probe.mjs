@@ -6,7 +6,7 @@ import { chromium } from 'playwright';
 import { readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 
-const [url, out, mode = 'day', size = 'desktop', snippetArg = '', settle = '5500'] = process.argv.slice(2);
+const [url, out, mode = 'day', size = 'desktop', snippetArg = '', settle = '7000'] = process.argv.slice(2);
 const viewport =
   size === 'desktop'
     ? { width: 1440, height: 900 }

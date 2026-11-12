@@ -7,6 +7,8 @@ export interface UIActions {
   onOverview: () => void;
   onClosePanel: () => void;
   onWatchGrowth: () => void;
+  /** Step to the next (+1) or previous (-1) project by size. */
+  onStep: (direction: 1 | -1) => void;
 }
 
 /** One icon family: 24px grid, 2px round stroke. */
@@ -302,6 +304,20 @@ export class UI {
     if (project.demo) buttons.append(link('btn btn-primary', 'Open it', project.demo));
     buttons.append(link(project.demo ? 'btn' : 'btn btn-primary', 'Read the source', repoUrl(project)));
     this.panel.append(buttons);
+
+    // Walk the town without going back to the map: neighbours by size, biggest first.
+    const bySize = [...data.projects].sort((a, b) => b.commits - a.commits);
+    const rank = bySize.findIndex((p) => p.id === project.id);
+    const step = el('div', 'panel-step');
+    const previous = el('button', 'panel-step-button', 'Previous');
+    const next = el('button', 'panel-step-button', 'Next');
+    previous.type = next.type = 'button';
+    previous.title = 'Previous project by size (Left arrow)';
+    next.title = 'Next project by size (Right arrow)';
+    previous.addEventListener('click', () => this.actions.onStep(-1));
+    next.addEventListener('click', () => this.actions.onStep(1));
+    step.append(previous, el('span', undefined, `${rank + 1} of ${bySize.length} by size`), next);
+    this.panel.append(step);
 
     this.panel.hidden = false;
     this.hint.classList.add('hint-hidden');

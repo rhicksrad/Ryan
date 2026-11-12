@@ -176,6 +176,12 @@ test('the directory filters as you type, and the keyboard drives the town', asyn
   await expect(page.locator('#panel h2')).toHaveText(bySize[1].title);
   await page.keyboard.press('ArrowLeft');
   await expect(page.locator('#panel h2')).toHaveText(bySize[0].title);
+  // The panel's own Previous and Next walk the same order and say where you are in it.
+  await page.locator('.panel-step-button', { hasText: 'Next' }).click();
+  await expect(page.locator('#panel h2')).toHaveText(bySize[1].title);
+  await expect(page.locator('.panel-step span')).toHaveText(`2 of ${projects.length} by size`);
+  await page.locator('.panel-step-button', { hasText: 'Previous' }).click();
+  await expect(page.locator('#panel h2')).toHaveText(bySize[0].title);
   const wasDay = await page.evaluate(() => document.body.classList.contains('is-day'));
   await page.keyboard.press('n');
   await expect.poll(() => page.evaluate(() => document.body.classList.contains('is-day'))).toBe(!wasDay);
