@@ -50,6 +50,8 @@ export function facadeTextures(style: FacadeStyle, rand: () => number): Facade {
   const accent = new THREE.Color(style.accent);
   const warm = new THREE.Color('#ffd9a0');
   const cool = new THREE.Color('#dfeaff');
+  const amber = new THREE.Color('#ffbf78');
+  const soft = new THREE.Color('#fff0d4');
   const hex = (c: THREE.Color) => `#${c.getHexString()}`;
 
   day.ctx.fillStyle = hex(frame);
@@ -74,7 +76,8 @@ export function facadeTextures(style: FacadeStyle, rand: () => number): Facade {
   for (let y = 0; y < FACADE_ROWS; y += 1) {
     // Offices light up by the floor: some storeys blaze, most are sparse.
     const floorMood = rand();
-    const floorLit = floorMood < 0.12 ? 0.85 : floorMood < 0.3 ? style.lit * 1.8 : style.lit * 0.7;
+    // Whole floors go dark, a few are working late, the rest are scattered.
+    const floorLit = floorMood < 0.24 ? 0 : floorMood < 0.34 ? 0.8 : floorMood < 0.5 ? style.lit * 1.8 : style.lit * 0.8;
     const floorTone = 0.93 + rand() * 0.14;
     for (let x = 0; x < FACADE_COLS; x += 1) {
       const px = x * cell + padX;
@@ -115,7 +118,8 @@ export function facadeTextures(style: FacadeStyle, rand: () => number): Facade {
         // split by its mullion, sometimes half hidden by a blind, and most rooms
         // are dim with only a few blazing.
         const pick = rand();
-        const base = (pick < 0.62 ? warm : pick < 0.86 ? cool : accent).clone();
+        // Mostly tungsten and warm white, some cold fluorescent, the odd screen in the district color.
+        const base = (pick < 0.4 ? warm : pick < 0.66 ? amber : pick < 0.8 ? soft : pick < 0.96 ? cool : accent).clone();
         const level = 0.22 + Math.pow(rand(), 2.2) * 0.78;
         const top = base.clone().multiplyScalar(level);
         const bottom = base.clone().multiplyScalar(level * (0.35 + rand() * 0.35));
@@ -342,8 +346,8 @@ export function vacancyTexture(): THREE.CanvasTexture {
 export function labelSprite(text: string, accent: string): THREE.Sprite {
   const k = 4; // supersample for crisp text
   const label = text.toUpperCase();
-  const font = `800 ${11.5 * k}px ${SIGN_FONT}`;
-  const tracking = 0.5 * k;
+  const font = `900 ${12.5 * k}px ${SIGN_FONT}`;
+  const tracking = 0.25 * k;
   const measure = document.createElement('canvas').getContext('2d')!;
   measure.font = font;
   const textWidth = measure.measureText(label).width + tracking * (label.length - 1);
@@ -358,7 +362,7 @@ export function labelSprite(text: string, accent: string): THREE.Sprite {
   const w = canvas.width;
   const h = canvas.height;
 
-  ctx.fillStyle = '#f4f1e6';
+  ctx.fillStyle = '#fbfaf4';
   ctx.beginPath();
   ctx.roundRect(0, 0, w, h, 4.5 * k);
   ctx.fill();
@@ -370,7 +374,7 @@ export function labelSprite(text: string, accent: string): THREE.Sprite {
   ctx.fillStyle = accent;
   ctx.fillRect(edge, edge, tab, h - edge * 2);
   ctx.restore();
-  ctx.strokeStyle = '#16181d';
+  ctx.strokeStyle = '#000000';
   ctx.lineWidth = 1.6 * k;
   ctx.beginPath();
   ctx.roundRect(edge, edge, w - edge * 2, h - edge * 2, 3 * k);
@@ -381,7 +385,7 @@ export function labelSprite(text: string, accent: string): THREE.Sprite {
   ctx.stroke();
 
   ctx.font = font;
-  ctx.fillStyle = '#16181d';
+  ctx.fillStyle = '#000000';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   let x = edge + tab + padX;
@@ -407,7 +411,7 @@ export function labelSprite(text: string, accent: string): THREE.Sprite {
   sprite.renderOrder = 20;
   sprite.center.set(0.5, 0);
   // Constant screen-size labels; scale is in view-height units with sizeAttenuation off.
-  const screenHeight = 0.029;
+  const screenHeight = 0.0235;
   sprite.scale.set((canvas.width / canvas.height) * screenHeight, screenHeight, 1);
   return sprite;
 }

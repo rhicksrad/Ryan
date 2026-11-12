@@ -27,6 +27,7 @@ import {
   SUN_DIR
 } from './environment';
 import { createFabric } from './fabric';
+import { createWalkers } from './walkers';
 import { buildCityPlan, type CityPlan } from './cityplan';
 import { createPerson, updatePerson, citizenCount, type Person } from './people';
 import { createTraffic, type Traffic } from './cars';
@@ -39,6 +40,7 @@ const NIGHT = {
   skyTop: new THREE.Color('#101a2e'),
   skyBottom: new THREE.Color('#3b3649'),
   skySun: new THREE.Color('#8fa4e0'),
+  ranges: new THREE.Color('#1c1f30'),
   bloom: 0.6,
   bloomThreshold: 0.9,
   fog: 0.5, // fog density × overview distance, so haze scales with the town
@@ -61,6 +63,7 @@ const DAY = {
   skyTop: new THREE.Color('#4f7db4'),
   skyBottom: new THREE.Color('#dcc7a6'),
   skySun: new THREE.Color('#ffe9c4'),
+  ranges: new THREE.Color('#62745a'),
   bloom: 0.16,
   bloomThreshold: 1.0,
   fog: 0.2,
@@ -120,7 +123,9 @@ export class CityWorld {
   private traffic: Traffic | null = null;
   private pickMeshes: THREE.Mesh[] = [];
   /** Every building as a box in world space, for finding a clear line of sight. */
+  private headliners = new Set<string>();
   private obstacles: { id: string; x: number; z: number; hw: number; hd: number; h: number }[] = [];
+  private walkersUpdate: (t: number) => void = () => {};
   private clockTick: () => void = () => {};
   private clockMinute = -1;
   private riverUpdate: (t: number) => void = () => {};
@@ -394,6 +399,9 @@ export class CityWorld {
     this.riverUpdate = river.update;
     const fabric = createFabric(this.plan);
     this.city.add(fabric.group);
+    const walkers = createWalkers(this.plan);
+    this.city.add(walkers.mesh);
+    this.walkersUpdate = walkers.update;
     for (const f of this.plan.fillers) {
       const turned = Math.abs(Math.sin(f.rotationY)) > 0.5;
       this.obstacles.push({
@@ -522,6 +530,9 @@ export class CityWorld {
     this.nightWindows.push({ mat: spire.faceMaterial, base: 1.1, dim: 0.75 });
     this.pickMeshes.push(...spire.pickMeshes);
 
+    this.headliners = new Set(
+      [...this.labelBoxes].sort((a, b) => b.priority - a.priority).slice(0, 3).map((box) => box.id)
+    );
     bakeStatic(this.city, true);
     this.enableShadows();
     this.sizeLabels();
@@ -673,7 +684,7 @@ export class CityWorld {
     let hits = 0;
     const point = new THREE.Vector3();
     for (let i = 0; i < 18; i += 1) {
-      point.lerpVectors(eye, aim, 0.06 + (i / 18) * 0.86);
+      point.lerpVectors(eye, aim, 0.02 + (i / 18) * 0.9);
       for (const o of this.obstacles) {
         if (o.id === selfId || point.y > o.h) continue;
         if (Math.abs(point.x - o.x) < o.hw && Math.abs(point.z - o.z) < o.hd) {
@@ -702,12 +713,21 @@ export class CityWorld {
     // the chosen building is the hero and no neighbour stands in front of it.
     const bearings = handle.landmark ? [-33, -55, -12, -78, 14] : [-20, -45, 10, -70, 35];
     let best: { outward: THREE.Vector3; eye: THREE.Vector3; score: number } | null = null;
-    for (const degrees of bearings) {
+    for (const [rank, degrees] of bearings.entries()) {
       const bearing = THREE.MathUtils.degToRad(degrees);
       const outward = new THREE.Vector3(Math.sin(bearing), 0, Math.cos(bearing) * (facesNorth ? -1 : 1));
       const eye = aim.clone().addScaledVector(outward, dist);
-      eye.y = handle.landmark ? aim.y + dist * 0.42 : dist * 0.8;
-      const score = this.blocked(eye, aim, id) + this.blocked(eye, aim.clone().setY(4), id) * 0.5;
+      eye.y = handle.landmark ? aim.y + dist * 0.6 : dist * 0.8;
+      // The sight line to the building, to its base, and to the space either
+      // side of it: the hero should have air, not a neighbour's wall beside it.
+      const across = new THREE.Vector3(outward.z, 0, -outward.x).multiplyScalar(handle.footprint * 1.6 + dist * 0.12);
+      // Earlier bearings show the posters best, so a later one has to earn its place.
+      const score =
+        rank * 0.7 +
+        this.blocked(eye, aim, id) +
+        this.blocked(eye, aim.clone().setY(4), id) * 0.6 +
+        this.blocked(eye, aim.clone().add(across), id) * 0.35 +
+        this.blocked(eye, aim.clone().sub(across), id) * 0.35;
       if (!best || score < best.score - 0.4) best = { outward, eye, score };
     }
     const { outward, eye } = best!;
@@ -768,6 +788,7 @@ export class CityWorld {
     fog.density = THREE.MathUtils.lerp(NIGHT.fog, DAY.fog, k) / this.overviewDistance();
     this.skyDomeMaterial.uniforms.sunColor.value.lerpColors(NIGHT.skySun, DAY.skySun, k);
     this.skyDomeMaterial.uniforms.day.value = k;
+    this.skyDomeMaterial.uniforms.rangeColor.value.lerpColors(NIGHT.ranges, DAY.ranges, k);
     this.scene.environment = k > 0.5 ? this.envDay : this.envNight;
     const mirror = k > 0.5 ? this.glassDay : this.glassNight;
     for (const mat of this.glass) {
@@ -884,7 +905,9 @@ export class CityWorld {
         const world = box.label.getWorldPosition(new THREE.Vector3());
         const distance = this.camera.position.distanceTo(world);
         // Towers are named from the opening view; smaller buildings as you come closer.
-        const reach = handle.landmark ? Math.max((this.overviewDistance() * 1.25) / LABEL_FAR, 1) : 1;
+        // From the opening view only the three biggest carry a plate, so the skyline stays the subject.
+        const far = handle.landmark ? (this.headliners.has(box.id) ? 1.25 : 0.7) : 0;
+        const reach = far > 0 ? Math.max((this.overviewDistance() * far) / LABEL_FAR, 1) : 1;
         const near = 1 - THREE.MathUtils.clamp((distance - LABEL_NEAR * reach) / ((LABEL_FAR - LABEL_NEAR) * reach), 0, 1);
         const forced = box.id === this.hoveredId || box.id === this.selectedId;
         const ndc = world.project(this.camera);
@@ -976,6 +999,7 @@ export class CityWorld {
         this.riverUpdate(t);
         this.outskirtsUpdate(t);
         this.traffic?.update(dt);
+        this.walkersUpdate(t);
         for (const person of this.people) {
           updatePerson(person, t, dt);
         }

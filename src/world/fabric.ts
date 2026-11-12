@@ -52,6 +52,7 @@ export function createFabric(plan: CityPlan): { group: THREE.Group; windowMateri
   const baseMat = mat(0x3d4148, { roughness: 0.7 });
   const shopGlass = new THREE.MeshStandardMaterial({ color: 0x2a3644, emissive: 0xffd49a, emissiveIntensity: 0.55, roughness: 0.3, metalness: 0.4 });
   const houseGlass = new THREE.MeshStandardMaterial({ color: 0x3a4854, emissive: 0xffc77a, emissiveIntensity: 0.7, roughness: 0.4 });
+  const awnings = [0x8f3b34, 0x2f5d4a, 0x2f4668, 0xb08a3a, 0x6a3d5a, 0xd8d2c0].map((c) => mat(c, { roughness: 0.85 }));
   const wallMats = HOUSE_WALLS.map((c) => mat(c, { roughness: 0.9 }));
   const roofMats = HOUSE_ROOFS.map((c) => mat(c, { roughness: 0.9 }));
   const trimMats = new Map<number, THREE.MeshStandardMaterial>();
@@ -68,6 +69,14 @@ export function createFabric(plan: CityPlan): { group: THREE.Group; windowMateri
     const upper = Math.max(s.floor * 2, f.h - groundH);
     // Shopfront base, slightly proud of the wall above.
     block(g, baseMat, f.w + 0.16, groundH, f.d + 0.16, 0, groundH / 2, 0);
+    // Walk-ups keep a shop on the ground floor under a canvas awning.
+    if (f.kind === 'walkup') {
+      const canvas = awnings[f.style % awnings.length];
+      for (const side of [-1, 1]) {
+        const awning = block(g, canvas, f.w * 0.82, 0.08, 0.95, 0, groundH * 0.9, side * (f.d / 2 + 0.52));
+        awning.rotation.x = side * 0.3;
+      }
+    }
     for (const side of [-1, 1]) {
       block(g, shopGlass, f.w * 0.78, groundH * 0.58, 0.06, 0, groundH * 0.5, side * (f.d / 2 + 0.1));
       block(g, shopGlass, 0.06, groundH * 0.58, f.d * 0.78, side * (f.w / 2 + 0.1), groundH * 0.5, 0);
