@@ -66,7 +66,7 @@ const DAY = {
   ranges: new THREE.Color('#62745a'),
   bloom: 0.16,
   bloomThreshold: 1.0,
-  fog: 0.2,
+  fog: 0.17,
   ambient: new THREE.Color(0xc4d2e8),
   ambientIntensity: 0.1,
   hemiSky: new THREE.Color(0xa9c6ff),
@@ -214,7 +214,7 @@ export class CityWorld {
       36,
       container.clientWidth / container.clientHeight,
       1,
-      2400
+      6000
     );
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
@@ -441,7 +441,6 @@ export class CityWorld {
     }));
 
     const terrain = createTerrain(this.plan);
-    terrain.userData.noCast = true; // flat ground: receive only
     this.scene.add(terrain);
 
     // Buildings and their citizens.
@@ -705,7 +704,7 @@ export class CityWorld {
     // Small buildings are viewed from closer and steeper, over their neighbours' roofs.
     const dist =
       (handle.landmark ? 12 + handle.footprint * 2 + handle.height * 0.8 : 8 + handle.footprint * 1.5 + handle.height) *
-      (portrait ? 1.35 : 1);
+      (portrait ? 1.9 : 1);
     const aim = new THREE.Vector3(pos.x, handle.height * (handle.landmark ? 0.4 : 0.45), pos.z);
 
     // Approach from the sunlit side the posters and front doors face. Of a few
@@ -737,7 +736,7 @@ export class CityWorld {
     const right = new THREE.Vector3(outward.z, 0, -outward.x);
     const toTarget = aim.clone();
     const toPos = eye.clone();
-    if (portrait) toTarget.y -= dist * 0.22;
+    if (portrait) toTarget.y -= dist * (handle.landmark ? 0.3 : 0.22);
     else {
       toTarget.addScaledVector(right, dist * 0.17);
       toPos.addScaledVector(right, dist * 0.17);

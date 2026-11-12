@@ -235,7 +235,7 @@ export function createSkyDome(onPainted?: (day: THREE.Texture, night: THREE.Text
   };
   loader.load(skyDayUrl, finish('dayMap'));
   loader.load(skyNightUrl, finish('nightMap'));
-  const mesh = new THREE.Mesh(new THREE.SphereGeometry(1500, 48, 24), material);
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(4200, 48, 24), material);
   // Drawn after everything solid, so the depth test skips every sky pixel the
   // town already covers. The sky shader is the most expensive per pixel here.
   mesh.renderOrder = 50;
@@ -374,7 +374,8 @@ function terrainTexture(plan: CityPlan): THREE.CanvasTexture {
   const sin = Math.sin(skew);
   const cellW = 52;
   const cellD = 38;
-  const span = reach + 60;
+  // Fields run to the edge of the sheet, where the tiled far patchwork takes over.
+  const span = Math.max(reach + 60, TERRAIN_SPAN / 2 - 10);
   const riverX = plan.riverX - plan.center.x;
   const streetZ = plan.mainStreetZ - plan.center.z;
   const avenueX = plan.mainAvenueX - plan.center.x;
@@ -430,30 +431,85 @@ function terrainTexture(plan: CityPlan): THREE.CanvasTexture {
 }
 
 /** The land beneath and beyond the city. */
-export function createTerrain(plan: CityPlan): THREE.Mesh {
+export function createTerrain(plan: CityPlan): THREE.Group {
+  const group = new THREE.Group();
+  // Plain meadow far beyond the painted sheet, so the land runs on to the
+  // horizon and fades into the haze by distance instead of ending at a line.
+  const meadow = new THREE.Color(0x75974f);
+  const grain = { blotch: 0.2, blotchSize: 9, grain: 0.22, grainSize: 1.3 };
+  // It carries a loose, tiled patchwork of fields and copses: too far away to
+  // read as a repeat, but enough that the distance is farmland and not a lawn.
+  const far = tileTexture(
+    512,
+    (ctx, rand) => {
+      ctx.fillStyle = '#75974f';
+      ctx.fillRect(0, 0, 512, 512);
+      const inks = ['#c6b36a', '#93b45c', '#58893f', '#8f7150', '#b8a660', '#74a85c', '#a9bd6e', '#6f9a4c', '#7fa052'];
+      for (let gy = 0; gy < 8; gy += 1) {
+        for (let gx = 0; gx < 8; gx += 1) {
+          if (rand() < 0.35) continue;
+          ctx.globalAlpha = 0.5 + rand() * 0.35;
+          ctx.fillStyle = inks[Math.floor(rand() * inks.length)];
+          const w = 40 + rand() * 20;
+          const h = 34 + rand() * 24;
+          ctx.fillRect(gx * 64 + 3, gy * 64 + 3, Math.min(w, 58), Math.min(h, 58));
+        }
+      }
+      // Copses and hedgerow trees as dark flecks.
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = '#35602f';
+      for (let i = 0; i < 90; i += 1) {
+        const r = 2 + rand() * 7;
+        ctx.beginPath();
+        ctx.ellipse(rand() * 512, rand() * 512, r * 1.5, r, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    },
+    515
+  );
+  far.repeat.set(9000 / 460, 9000 / 460);
+  far.rotation = 0.21;
+  const outer = new THREE.Mesh(
+    new THREE.PlaneGeometry(9000, 9000),
+    tint(
+      weather(new THREE.MeshStandardMaterial({ map: far, roughness: 1, metalness: 0 }), { ...grain, blotch: 0.3, blotchSize: 70 }),
+      0x3a4a78,
+      0xffffff
+    )
+  );
+  outer.position.y = -0.3;
+
   const material = tint(
     // The painted sheet carries the fields; fine grain keeps it from going soft close to the camera.
     weather(
       new THREE.MeshStandardMaterial({ map: terrainTexture(plan), roughness: 1, metalness: 0 }),
-      { blotch: 0.2, blotchSize: 9, grain: 0.22, grainSize: 1.3 },
-      // The land dissolves into the haze well before its edge, so it meets the
-      // painted ridgelines without a seam.
+      grain,
+      // Toward its edge the painting gives way to the plain meadow beneath, so no seam shows.
       (shader) => {
         shader.fragmentShader = shader.fragmentShader.replace(
-          '#include <fog_fragment>',
-          `#include <fog_fragment>
-           gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, smoothstep(690.0, 845.0, length(vSurfPos.xz)));`
+          '#include <color_fragment>',
+          `#include <color_fragment>
+           diffuseColor.rgb = mix(
+             diffuseColor.rgb,
+             diffuse * vec3(${meadow.r.toFixed(4)}, ${meadow.g.toFixed(4)}, ${meadow.b.toFixed(4)}),
+             smoothstep(560.0, 840.0, length(vSurfPos.xz))
+           );`
         );
       },
-      'far-haze'
+      'meadow-edge'
     ),
     0x3a4a78,
     0xffffff
   );
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(TERRAIN_SPAN, TERRAIN_SPAN), material);
-  mesh.rotation.x = -Math.PI / 2;
-  mesh.position.y = -0.12;
-  return mesh;
+  const sheet = new THREE.Mesh(new THREE.PlaneGeometry(TERRAIN_SPAN, TERRAIN_SPAN), material);
+  sheet.position.y = -0.12;
+  for (const mesh of [outer, sheet]) {
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.userData.noCast = true; // flat ground: receive only
+    group.add(mesh);
+  }
+  return group;
 }
 
 /** A square canvas texture that tiles, painted by `paint`. */
