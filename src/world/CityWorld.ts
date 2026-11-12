@@ -44,7 +44,7 @@ const NIGHT = {
   ranges: new THREE.Color('#1c1f30'),
   bloom: 0.6,
   bloomThreshold: 0.9,
-  fog: 0.5, // fog density × overview distance, so haze scales with the town
+  fog: 0.36, // fog density × overview distance, so haze scales with the town
   ambient: new THREE.Color(0x5a6aa0),
   ambientIntensity: 0.55,
   hemiSky: new THREE.Color(0x5066a8),
@@ -125,6 +125,8 @@ export class CityWorld {
   private pickMeshes: THREE.Mesh[] = [];
   /** Every building as a box in world space, for finding a clear line of sight. */
   private headliners = new Set<string>();
+  /** Seconds spent resting at the overview; drives a slow sway so the opening view is never a still. */
+  private idle = 0;
   private obstacles: { id: string; x: number; z: number; hw: number; hd: number; h: number }[] = [];
   private walkersUpdate: (t: number) => void = () => {};
   private clockTick: () => void = () => {};
@@ -429,7 +431,7 @@ export class CityWorld {
 
     const lampField = createLampField([...this.plan.lamps, ...outskirts.lamps]);
     this.lampBulbMaterial = lampField.bulbMaterial;
-    this.lampGlowMaterials = lampField.glowMaterials;
+    this.lampGlowMaterials = [...lampField.glowMaterials, outskirts.glow];
     this.city.add(lampField.group);
 
     this.city.add(createSigns(this.plan));
@@ -838,7 +840,7 @@ export class CityWorld {
     for (const { mat, base, dim } of this.nightWindows) mat.emissiveIntensity = base * (1 - dim * k);
     for (const { mat, base } of this.headlights) mat.emissiveIntensity = base * (1 - 0.7 * k);
     // Name plates are lit by the day; after dark they dim like any unlit sign.
-    for (const box of this.labelBoxes) box.label.material.color.setScalar(0.62 + 0.38 * k);
+    for (const box of this.labelBoxes) box.label.material.color.setScalar(0.5 + 0.5 * k);
   }
 
   focusAbout(): void {
@@ -988,6 +990,18 @@ export class CityWorld {
         if (progress >= 1) this.tween = null;
       }
 
+      // At rest on the overview the camera sways a few degrees either way, slowly:
+      // enough parallax to show this is a place, never enough to lose the sunlit side.
+      if (this.atOverview && !this.tween && !this.reducedMotion) {
+        this.idle += dt;
+        const offset = this.overviewPos.clone().sub(OVERVIEW_TARGET);
+        offset.applyAxisAngle(THREE.Object3D.DEFAULT_UP, Math.sin(this.idle * 0.16) * 0.12);
+        this.camera.position.copy(OVERVIEW_TARGET).add(offset);
+        this.controls.target.copy(OVERVIEW_TARGET);
+      } else if (!this.atOverview) {
+        this.idle = 0;
+      }
+
       // Ease the sky between night and day.
       if (this.dayMix !== this.dayTarget) {
         const step = this.reducedMotion ? 1 : dt * 0.7;
@@ -1011,14 +1025,6 @@ export class CityWorld {
           updatePerson(person, t, dt);
         }
         for (const handle of this.buildings.values()) {
-          handle.billboards.forEach((mat, i) => {
-            // Lettered boards flicker like LED panels; printed posters are steadily floodlit.
-            // Printed posters are floodlit at night: bright enough to be the street's own light.
-            if (mat.userData.poster) mat.color.setScalar(0.25 + 0.75 * this.dayMix);
-            mat.emissiveIntensity = mat.userData.poster
-              ? 0.85 - 0.6 * this.dayMix
-              : (1.15 + Math.sin(t * 2.2 + i * 1.7) * 0.18) * (1 - 0.3 * this.dayMix);
-          });
           if (handle.craneJib) {
             handle.craneJib.rotation.y = t * 0.16 + handle.height;
           }
@@ -1030,6 +1036,19 @@ export class CityWorld {
         if (ringMat.opacity > 0) {
           ringMat.opacity = 0.6 + Math.sin(t * 3) * 0.25;
         }
+      }
+
+      // Posters and boards are lit whether or not anything is allowed to move.
+      const flicker = this.reducedMotion ? 0 : t;
+      for (const handle of this.buildings.values()) {
+        handle.billboards.forEach((mat, i) => {
+          // Printed posters are floodlit at night: bright enough to be the street's own light.
+          // Lettered boards flicker like LED panels.
+          if (mat.userData.poster) mat.color.setScalar(0.25 + 0.75 * this.dayMix);
+          mat.emissiveIntensity = mat.userData.poster
+            ? 0.85 - 0.6 * this.dayMix
+            : (1.15 + Math.sin(flicker * 2.2 + i * 1.7) * 0.18) * (1 - 0.3 * this.dayMix);
+        });
       }
 
       // The town hall clock keeps the visitor's own time.

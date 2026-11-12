@@ -330,6 +330,10 @@ svg.icon {
   animation: panel-in 0.22s cubic-bezier(0.2, 0.8, 0.3, 1);
 }
 
+#panel:focus {
+  outline: none;
+}
+
 @keyframes panel-in {
   from {
     opacity: 0;
@@ -500,7 +504,7 @@ svg.icon {
 
 .list-header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
 }
@@ -511,12 +515,35 @@ svg.icon {
   font-weight: 800;
 }
 
-.list-header p {
-  margin: 0;
+.list-filter {
   flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 1px 10px 0;
+  border: 2px solid var(--asphalt);
+  border-radius: 5px;
+  background: var(--paper);
+  box-shadow: 0 0 0 2px var(--paper);
+  color: var(--asphalt);
+  font: 700 14px var(--sans);
+}
+
+.list-filter::placeholder {
+  color: #6c6f77;
+  font-weight: 600;
+}
+
+.list-empty {
+  margin: 26px 0 4px;
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 13px;
   color: var(--dim);
+}
+
+.list-row[hidden],
+.list-district[hidden],
+.list-empty[hidden] {
+  display: none;
 }
 
 .list-header .btn-close {
@@ -750,9 +777,6 @@ body.no-webgl #legend {
     padding: 16px 14px 18px;
   }
 
-  .list-header p {
-    display: none;
-  }
 
   .list-row {
     grid-template-columns: 1fr auto;

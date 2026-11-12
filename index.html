@@ -43,18 +43,18 @@
       </button>
       <nav class="hud-actions" aria-label="Site">
         <button id="btn-daynight" type="button" aria-label="Toggle day and night"></button>
-        <button id="btn-tour" type="button" aria-pressed="false" title="Fly through the biggest projects"></button>
-        <button id="btn-list" type="button">Directory</button>
+        <button id="btn-tour" type="button" aria-pressed="false" title="Fly through the biggest projects (T)"></button>
+        <button id="btn-list" type="button" title="List every project (D)">Directory</button>
         <a href="https://github.com/rhicksrad" target="_blank" rel="noopener">GitHub</a>
       </nav>
     </header>
 
     <nav id="legend" aria-label="Districts"></nav>
 
-    <div id="hint">Drag to look around. Click a building to visit it, or a resident to hear from them.</div>
+    <div id="hint">Drag to look around. Click a building to visit it, or a resident to hear from them. Arrow keys step through projects.</div>
 
     <div id="tooltip" hidden></div>
-    <aside id="panel" hidden aria-live="polite"></aside>
+    <aside id="panel" hidden aria-live="polite" tabindex="-1"></aside>
     <div id="list-overlay" hidden></div>
 
     <div id="loader">

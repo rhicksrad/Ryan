@@ -638,7 +638,7 @@ function buildSkyscraper(
   billboards: THREE.MeshStandardMaterial[],
   variant: number,
   glassOut: THREE.MeshStandardMaterial[]
-): { top: number; footprint: number } {
+): { top: number; footprint: number; roof: number } {
   const height = 20 + (Math.log10(project.commits) - 2.176) * 46 + rand() * 3;
   const footprint = 7.5 + rand() * 2;
   const archetype = ((variant % 5) + 5) % 5;
@@ -879,7 +879,7 @@ function buildSkyscraper(
     }
   }
 
-  return { top, footprint: podW };
+  return { top, footprint: podW, roof: topY };
 }
 // ---------------------------------------------------------------------------
 // Assembly.
@@ -968,6 +968,7 @@ export function createBuilding(project: Project, district: District, towerRank =
   const tier = tierOf(project.commits);
 
   let top = 0;
+  let roof = 0;
   let footprint = 4;
   if (tier === 0) {
     top = buildShack(group, rand);
@@ -984,6 +985,7 @@ export function createBuilding(project: Project, district: District, towerRank =
   } else {
     const result = buildSkyscraper(group, project, district, rand, billboards, towerRank, glass);
     top = result.top;
+    roof = result.roof;
     footprint = result.footprint;
   }
 
@@ -1023,7 +1025,13 @@ export function createBuilding(project: Project, district: District, towerRank =
 
   // Floating name label.
   const label = labelSprite(project.title, district.color);
-  label.position.y = (craneJib ? top + 3.5 : top) + 0.9;
+  if (tier === 4) {
+    // A tower's plate is a sign on a post bolted to its roof, not a tag floating over the mast.
+    label.position.y = roof + 1.5;
+    block(group, mat(0x2a2d33, { roughness: 0.6, metalness: 0.4 }), 0.16, 1.5, 0.16, 0, roof + 0.75, 0);
+  } else {
+    label.position.y = (craneJib ? top + 3.5 : top) + 0.9;
+  }
   group.add(label);
 
   group.rotation.y = rotationY;

@@ -85,6 +85,7 @@ export class UI {
   private legend = document.getElementById('legend')!;
   private listOverlay = document.getElementById('list-overlay')!;
   private hint = document.getElementById('hint')!;
+  private listFilter: HTMLInputElement | null = null;
   private pointerX = 0;
   private pointerY = 0;
 
@@ -144,12 +145,40 @@ export class UI {
   private buildListOverlay(): void {
     const sheet = el('div', 'list-sheet');
     const header = el('div', 'list-header');
+    const filter = el('input', 'list-filter');
+    filter.type = 'search';
+    filter.placeholder = `Filter ${data.projects.length} projects`;
+    filter.setAttribute('aria-label', 'Filter projects by name, description, or language');
+    filter.autocomplete = 'off';
+    filter.spellcheck = false;
+    this.listFilter = filter;
     header.append(
       el('h2', undefined, 'Directory'),
-      el('p', undefined, 'Sorted by commits. Pick one to fly there.'),
+      filter,
       closeButton('Close directory', () => this.toggleList(false))
     );
     sheet.append(header);
+    const empty = el('p', 'list-empty', 'No project matches. Every lot here is still for sale.');
+    empty.hidden = true;
+    const rows: { row: HTMLElement; section: HTMLElement; text: string }[] = [];
+    // Type to narrow the list; Enter flies to the first match.
+    filter.addEventListener('input', () => {
+      const words = filter.value.toLowerCase().split(/\s+/).filter(Boolean);
+      const shown = new Set<HTMLElement>();
+      for (const entry of rows) {
+        const match = words.every((word) => entry.text.includes(word));
+        entry.row.hidden = !match;
+        if (match) shown.add(entry.section);
+      }
+      for (const entry of rows) entry.section.hidden = !shown.has(entry.section);
+      empty.hidden = shown.size > 0;
+    });
+    filter.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      // Consumed, or the same Enter would press whichever button focus lands on next.
+      e.preventDefault();
+      rows.find((entry) => !entry.row.hidden)?.row.click();
+    });
 
     for (const district of data.districts) {
       const projects = data.projects
@@ -172,15 +201,35 @@ export class UI {
           this.toggleList(false);
           this.actions.onSelectProject(project.id);
         });
+        rows.push({ row, section, text: `${project.title} ${project.blurb} ${project.lang} ${district.name}`.toLowerCase() });
         section.append(row);
       }
       sheet.append(section);
     }
+    sheet.append(empty);
     this.listOverlay.append(sheet);
   }
 
   toggleList(open: boolean): void {
     this.listOverlay.hidden = !open;
+    if (!this.listFilter) return;
+    if (this.listFilter.value) {
+      this.listFilter.value = '';
+      this.listFilter.dispatchEvent(new Event('input'));
+    }
+    // With a keyboard to hand, start typing straight away; on a touch screen do not summon the keyboard.
+    if (open && window.matchMedia('(pointer: fine)').matches) this.listFilter.focus();
+    // Closed, it must let go of the keyboard, or it would swallow the town's
+    // shortcuts. Focus goes back to the button that opened it, unless picking a
+    // project has already moved things on.
+    if (!open && this.listOverlay.contains(document.activeElement)) {
+      (document.activeElement as HTMLElement).blur();
+      document.getElementById('btn-list')?.focus({ preventScroll: true });
+    }
+  }
+
+  isListOpen(): boolean {
+    return !this.listOverlay.hidden;
   }
 
   showTooltip(project: Project | null): void {

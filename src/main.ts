@@ -92,6 +92,40 @@ function boot(): void {
     world?.focusProject(id);
   }
 
+  // --- Keyboard: the town is fully drivable without a pointer. ---
+  //   Left / Right  previous / next project, biggest first
+  //   T tour, N night and day, D directory, H whole town, Esc close
+  const bySize = [...data.projects].sort((a, b) => b.commits - a.commits);
+  window.addEventListener('keydown', (e) => {
+    const target = e.target as HTMLElement | null;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+    if (ui.isListOpen()) return;
+    const key = e.key.toLowerCase();
+    if (key === 'arrowright' || key === 'arrowleft') {
+      stopTour();
+      // Step from whatever is open now; with nothing open, Right starts at the biggest.
+      const current = bySize.findIndex((p) => `#/p/${p.id}` === window.location.hash);
+      const step = key === 'arrowright' ? 1 : -1;
+      const cursor = current < 0 ? (step > 0 ? 0 : bySize.length - 1) : (current + step + bySize.length) % bySize.length;
+      selectProject(bySize[cursor].id);
+      // Keyboard users land on the panel, so Tab goes straight to its links.
+      document.getElementById('panel')!.focus({ preventScroll: true });
+    } else if (key === 't') tourButton.click();
+    else if (key === 'n') document.getElementById('btn-daynight')!.click();
+    else if (key === 'd') document.getElementById('btn-list')!.click();
+    else if (key === 'h') {
+      stopTour();
+      ui.hidePanel();
+      writeHash('');
+      world?.setSelected(null);
+      world?.focusOverview();
+    } else return;
+    // Every handled key is consumed. Without this, D opened the directory and
+    // then typed a "d" into its filter box, which had just taken focus.
+    e.preventDefault();
+  });
+
   document.getElementById('btn-about')!.addEventListener('click', () => {
     stopTour();
     selectAbout();
@@ -114,7 +148,7 @@ function boot(): void {
   const renderDayButton = (day: boolean) => {
     document.body.classList.toggle('is-day', day);
     dayButton.innerHTML = icon(day ? 'moon' : 'sun');
-    dayButton.title = day ? 'Switch to night' : 'Switch to day';
+    dayButton.title = day ? 'Switch to night (N)' : 'Switch to day (N)';
   };
   dayButton.addEventListener('click', () => {
     const day = !(world?.isDaytime() ?? false);
