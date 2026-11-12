@@ -6,6 +6,7 @@ export interface UIActions {
   onSelectDistrict: (id: string) => void;
   onOverview: () => void;
   onClosePanel: () => void;
+  onWatchGrowth: () => void;
 }
 
 /** One icon family: 24px grid, 2px round stroke. */
@@ -322,6 +323,11 @@ export class UI {
     this.panel.append(el('p', 'panel-blurb', data.profile.about));
 
     const buttons = el('div', 'panel-buttons');
+    const replay = el('button', 'btn btn-growth', 'Watch it get built');
+    replay.type = 'button';
+    replay.title = 'Replay the town going up in the order the repos were created (B)';
+    replay.addEventListener('click', () => this.actions.onWatchGrowth());
+    this.panel.append(replay);
     buttons.append(
       link('btn btn-primary', 'GitHub', data.profile.github),
       link('btn', 'LinkedIn', data.profile.linkedin),

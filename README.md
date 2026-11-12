@@ -39,6 +39,11 @@ project has one to three residents who quote its documentation when clicked.
 **Recently pushed repos are under construction**, with a crane on towers and
 scaffolding on houses. Empty lots carry a "Lot for sale, `$ git init`" board.
 
+**The town remembers how it was built.** Each repo's creation date is kept in
+`projects.json`, so on arrival the buildings go up in the order the projects were
+started. **Watch it get built** in the town hall panel (or **B**) replays it slowly
+while the city-limit sign counts projects by month.
+
 **The town keeps itself current.** A GitHub Action
 ([`update-stats.yml`](.github/workflows/update-stats.yml)) runs weekly, and again on
 every deploy, to refresh commit counts and to add any new public repo as a building,
@@ -53,7 +58,7 @@ with a title, blurb, and district drafted from its README. Repos listed under
 - **Directory** lists every project; type to filter it, Enter flies to the first match
   (it is also the fallback when WebGL is unavailable)
 - **Keyboard**: Left and Right step through projects from the biggest down, **T** tour,
-  **N** night and day, **D** directory, **H** whole town
+  **N** night and day, **D** directory, **H** whole town, **B** watch it get built
 - District chips fly the camera to each district; the city-limit sign opens the about panel
 - Deep links: `#/p/<project-id>` and `#/d/<district-id>`
 

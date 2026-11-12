@@ -1261,38 +1261,67 @@ export function createOutskirts(plan: CityPlan): {
     group.add(shore);
   }
 
-  // --- Far lights: farmhouse windows and yard lamps scattered to the horizon, so
-  // the night countryside is lived in and not one dark slab. ---
-  const farCount = 560;
-  const farPositions = new Float32Array(farCount * 3);
-  const farColors = new Float32Array(farCount * 3);
+  // --- Far lights: farmsteads and a couple of country roads, out on the open
+  // farmland. Warm sodium and tungsten, soft and round, a few to a yard, dimmer
+  // with distance, and never over woods or water. They shrink with distance
+  // (size is in world units), so they cannot become square blocks of pixels. ---
+  const farPositions: number[] = [];
+  const farColors: number[] = [];
   const warm = new THREE.Color();
-  for (let i = 0; i < farCount; i += 1) {
+  const ponds: [number, number, number][] = [
+    [centerX - halfX - 62, centerZ + halfZ * 0.7, 26],
+    [centerX + halfX * 0.55, centerZ - halfZ - 44, 30],
+    [centerX - halfX * 0.4, centerZ - halfZ - 70, 24]
+  ];
+  const openFarmland = (x: number, z: number) =>
+    !blocked(x, z, 18) &&
+    Math.abs(x - plan.riverX) > RIVER_WIDTH / 2 + 10 &&
+    !woods.some((w) => Math.hypot((x - w.x) / 1.3, z - w.z) < w.r + 8) &&
+    !ponds.some(([px, pz, pr]) => Math.hypot(x - px, z - pz) < pr);
+  const light = (x: number, z: number, y: number, hue: number, level: number) => {
+    // Dimmer the farther out it is: the haze takes it.
+    const fade = THREE.MathUtils.clamp(1.15 - Math.hypot(x - centerX, z - centerZ) / 1500, 0.12, 1);
+    warm.setHSL(hue, 0.92, 0.5).multiplyScalar(level * fade * 2.2);
+    farPositions.push(x, y, z);
+    farColors.push(warm.r, warm.g, warm.b);
+  };
+  // Farmsteads: a yard lamp and a lit window or two, close together.
+  for (let i = 0; i < 80; i += 1) {
     const angle = rand() * Math.PI * 2;
-    const radius = inner + 50 + Math.pow(rand(), 1.6) * 1900;
-    // Lights keep company: most sit near another one.
-    const jitter = i % 3 === 0 ? 0 : 14;
-    farPositions.set(
-      [
-        centerX + Math.cos(angle) * radius + (rand() - 0.5) * jitter,
-        1.4 + rand() * 1.2,
-        centerZ + Math.sin(angle) * radius + (rand() - 0.5) * jitter
-      ],
-      i * 3
-    );
-    warm.setHSL(0.08 + rand() * 0.05, 0.9, 0.58 + rand() * 0.27);
-    farColors.set([warm.r, warm.g, warm.b], i * 3);
+    const radius = inner + 40 + Math.pow(rand(), 1.4) * 1100;
+    const fx = centerX + Math.cos(angle) * radius;
+    const fz = centerZ + Math.sin(angle) * radius;
+    if (!openFarmland(fx, fz)) continue;
+    light(fx, fz, 3.2, 0.075, 1); // sodium yard lamp
+    const windows = 1 + Math.floor(rand() * 2);
+    for (let wdw = 0; wdw < windows; wdw += 1) {
+      light(fx + (rand() - 0.5) * 9, fz + (rand() - 0.5) * 9, 1.6, 0.1, 0.55); // tungsten window
+    }
+  }
+  // Two country roads running out from the beltway, a lamp every so often.
+  for (const bearing of [0.62, 3.9]) {
+    for (let d = R_RING + 30; d < R_RING + 620; d += 34 + rand() * 10) {
+      const rx = centerX + Math.cos(bearing) * d;
+      const rz = centerZ + Math.sin(bearing) * d;
+      if (openFarmland(rx, rz)) light(rx, rz, 4.5, 0.075, 0.7);
+    }
   }
   const farGeo = new THREE.BufferGeometry();
-  farGeo.setAttribute('position', new THREE.BufferAttribute(farPositions, 3));
-  farGeo.setAttribute('color', new THREE.BufferAttribute(farColors, 3));
+  farGeo.setAttribute('position', new THREE.Float32BufferAttribute(farPositions, 3));
+  farGeo.setAttribute('color', new THREE.Float32BufferAttribute(farColors, 3));
   const farMat = new THREE.PointsMaterial({
-    size: 3.4,
-    sizeAttenuation: false,
+    map: radialTexture([
+      [0, 'rgba(255, 255, 255, 1)'],
+      [0.25, 'rgba(255, 255, 255, 0.45)'],
+      [1, 'rgba(255, 255, 255, 0)']
+    ]),
+    size: 9,
+    sizeAttenuation: true,
     vertexColors: true,
     transparent: true,
     opacity: 0,
     depthWrite: false,
+    fog: false,
     blending: THREE.AdditiveBlending
   });
   const farLights = new THREE.Points(farGeo, farMat);

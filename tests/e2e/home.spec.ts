@@ -155,6 +155,13 @@ test('the directory filters as you type, and the keyboard drives the town', asyn
   await page.keyboard.press('h');
   await expect(page.locator('#panel')).toBeHidden();
 
+  // B replays the town going up: the sign counts projects by date, then goes back to its totals.
+  const stats = page.locator('#brand-stats');
+  const resting = await stats.textContent();
+  await page.keyboard.press('b');
+  await expect(stats).toHaveText(/^[A-Z][a-z]{2} \d{4} · \d+ of \d+ projects built$/, { timeout: 10_000 });
+  await expect(stats).toHaveText(resting!, { timeout: 40_000 });
+
   // Arrow keys step through projects from the biggest down; N flips night and day.
   await page.keyboard.press('ArrowRight');
   await expect(page.locator('#panel h2')).toHaveText(bySize[0].title);

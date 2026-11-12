@@ -74,6 +74,7 @@ function boot(): void {
       world?.setSelected(null);
       world?.focusOverview();
     },
+    onWatchGrowth: () => watchGrowth(),
     onClosePanel: () => {
       stopTour();
       ui.hidePanel();
@@ -82,6 +83,29 @@ function boot(): void {
       world?.focusOverview();
     }
   });
+
+  // --- The town going up, in the order the repos were created. ---
+  const stats = document.getElementById('brand-stats')!;
+  let restingStats = '';
+  function watchGrowth(): void {
+    if (!world) return;
+    stopTour();
+    ui.hidePanel();
+    writeHash('');
+    world.setSelected(null);
+    world.focusOverview();
+    restingStats ||= stats.textContent ?? '';
+    world.playGrowth(
+      15000,
+      (date, built) => {
+        const month = date.toLocaleDateString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+        stats.textContent = `${month} · ${built} of ${data.projects.length} projects built`;
+      },
+      () => {
+        stats.textContent = restingStats;
+      }
+    );
+  }
 
   function selectProject(id: string): void {
     const project = data.projects.find((p) => p.id === id);
@@ -114,6 +138,7 @@ function boot(): void {
     } else if (key === 't') tourButton.click();
     else if (key === 'n') document.getElementById('btn-daynight')!.click();
     else if (key === 'd') document.getElementById('btn-list')!.click();
+    else if (key === 'b') watchGrowth();
     else if (key === 'h') {
       stopTour();
       ui.hidePanel();
@@ -162,6 +187,7 @@ function boot(): void {
   const hour = new Date().getHours();
   const startAsDay = savedDay !== null ? savedDay === '1' : hour >= 7 && hour < 19;
 
+  performance.mark('city-build-start');
   world = new CityWorld(container, data, {
     onHover: (project) => ui.showTooltip(project),
     onSelect: (id) => {
@@ -172,6 +198,7 @@ function boot(): void {
       }
     },
     onReady: () => {
+      performance.mark('city-first-frame');
       ui.hideLoader();
       document.documentElement.dataset.testReady = '1';
       const initial = readHash();
@@ -179,6 +206,7 @@ function boot(): void {
       else if (initial.kind === 'district') world?.focusDistrict(initial.id);
     }
   });
+  performance.mark('city-build-end');
   world.setDaytime(startAsDay, true);
   renderDayButton(startAsDay);
   world.start();

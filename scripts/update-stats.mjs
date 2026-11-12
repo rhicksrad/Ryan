@@ -168,6 +168,7 @@ export function draftProject(repo, markdown, commits) {
     commits,
     quotes,
     pushedAt: repo.pushed_at.slice(0, 10),
+    createdAt: (repo.created_at ?? repo.pushed_at).slice(0, 10),
     auto: true
   };
 }
@@ -192,6 +193,12 @@ async function main() {
     try {
       const commits = await commitCount(project.repo);
       const pushed = repo.pushed_at.slice(0, 10);
+      // When the repo was founded: the order the town was built in.
+      const created = (repo.created_at ?? repo.pushed_at).slice(0, 10);
+      if (created !== project.createdAt) {
+        project.createdAt = created;
+        changed += 1;
+      }
       if (commits !== project.commits || pushed !== project.pushedAt || project.estimated) {
         console.log(`${project.repo}: ${project.commits} -> ${commits} commits, pushed ${pushed}`);
         project.commits = commits;

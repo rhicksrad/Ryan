@@ -52,6 +52,39 @@ export function noiseTexture(): THREE.DataTexture {
   return noise;
 }
 
+/**
+ * Growth. Every baked vertex carries `grow`: 0 for the town that is always
+ * standing, or the moment (0 to 1 along the town's history) at which its
+ * building goes up. The shader raises each building from the ground as the
+ * shared clock passes that moment. At rest the clock sits at 2: all built.
+ */
+export const growClock = { value: 2 };
+export const GROW_RISE = 0.05;
+
+export function patchGrow(shader: THREE.WebGLProgramParametersWithUniforms): void {
+  shader.uniforms.uGrow = growClock;
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', '#include <common>\nattribute float grow;\nuniform float uGrow;')
+    .replace(
+      '#include <begin_vertex>',
+      `#include <begin_vertex>\ntransformed.y *= smoothstep(grow - 0.0001, grow + ${GROW_RISE.toFixed(3)}, uGrow);`
+    );
+}
+
+/** For materials that are not weathered (posters, lit windows) but sit on a building that rises. */
+export function growable<T extends THREE.Material>(material: T): T {
+  material.onBeforeCompile = patchGrow;
+  material.customProgramCacheKey = () => 'grow';
+  return material;
+}
+
+let growDepth: THREE.MeshDepthMaterial | null = null;
+/** Shadows have to rise with the buildings, so the shadow pass gets the same vertex edit. */
+export function growDepthMaterial(): THREE.MeshDepthMaterial {
+  growDepth ??= growable(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }));
+  return growDepth;
+}
+
 export interface Weathering {
   /** Broad patches, as a fraction of brightness (0.15 = plus or minus 7.5%). */
   blotch?: number;
@@ -120,6 +153,7 @@ export function weather<T extends THREE.MeshStandardMaterial>(
            diffuseColor.rgb *= sShade;
          }`
       );
+    patchGrow(shader);
     extra?.(shader);
   };
   material.customProgramCacheKey = () => `weather|${blotch}|${blotchSize}|${grain}|${grainSize}|${ground}|${roofs}|${extraKey}`;
