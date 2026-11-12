@@ -146,6 +146,13 @@ svg.icon {
   white-space: nowrap;
 }
 
+/* During the replay the population line becomes the calendar: paint yellow and a size up. */
+.brand.is-replaying p {
+  color: var(--paint);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
 .hud-actions {
   display: flex;
   gap: 8px;
@@ -650,6 +657,29 @@ svg.icon {
   pointer-events: none;
   transform: scale(1.35);
   margin-bottom: 14px;
+}
+
+/* A lane line running under the sign: the page is working, not stuck. */
+#loader::after {
+  content: '';
+  width: min(300px, 60vw);
+  height: 4px;
+  border-radius: 2px;
+  background: repeating-linear-gradient(90deg, var(--paint) 0 26px, transparent 26px 44px);
+  background-size: 44px 4px;
+  animation: lane 0.9s linear infinite;
+}
+
+@keyframes lane {
+  to {
+    background-position: 44px 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #loader::after {
+    animation: none;
+  }
 }
 
 .loader-note {

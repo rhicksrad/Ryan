@@ -67,7 +67,10 @@ export function patchGrow(shader: THREE.WebGLProgramParametersWithUniforms): voi
     .replace('#include <common>', '#include <common>\nattribute float grow;\nuniform float uGrow;')
     .replace(
       '#include <begin_vertex>',
-      `#include <begin_vertex>\ntransformed.y *= smoothstep(grow - 0.0001, grow + ${GROW_RISE.toFixed(3)}, uGrow);`
+      // Rises past its full height and settles back: a small beat that makes each arrival visible.
+      `#include <begin_vertex>
+       float growS = smoothstep(grow - 0.0001, grow + ${GROW_RISE.toFixed(3)}, uGrow);
+       transformed.y *= growS * (1.0 + 0.12 * sin(growS * 3.14159265));`
     );
 }
 
@@ -100,9 +103,12 @@ export interface Weathering {
   roofs?: boolean;
 }
 
-const f = (n: number) => n.toFixed(4);
-
-/** Patch `material` in place. `extra` lets a caller add its own shader edits alongside. */
+/**
+ * Patch `material` in place. `extra` lets a caller add its own shader edits alongside.
+ * The settings are uniforms, not constants baked into the source, so every
+ * weathered material of the same kind shares one compiled program: fewer shaders
+ * for the GPU to build on a cold start.
+ */
 export function weather<T extends THREE.MeshStandardMaterial>(
   material: T,
   opts: Weathering,
@@ -110,8 +116,12 @@ export function weather<T extends THREE.MeshStandardMaterial>(
   extraKey = ''
 ): T {
   const { blotch = 0.14, blotchSize = 30, grain = 0.08, grainSize = 2.2, ground = 0, roofs = false } = opts;
+  const settings = new THREE.Vector4(blotch, 1 / blotchSize, grain, 1 / grainSize);
+  const marks = new THREE.Vector2(ground, roofs ? 1 : 0);
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uSurfNoise = { value: noiseTexture() };
+    shader.uniforms.uSurf = { value: settings };
+    shader.uniforms.uSurfMarks = { value: marks };
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vSurfPos;\nvarying vec3 vSurfNormal;')
       .replace(
@@ -126,37 +136,34 @@ export function weather<T extends THREE.MeshStandardMaterial>(
          vSurfNormal = normalize(mat3(modelMatrix) * objectNormal);`
       );
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vSurfPos;\nvarying vec3 vSurfNormal;\nuniform sampler2D uSurfNoise;')
+      .replace(
+        '#include <common>',
+        '#include <common>\nvarying vec3 vSurfPos;\nvarying vec3 vSurfNormal;\nuniform sampler2D uSurfNoise;\nuniform vec4 uSurf;\nuniform vec2 uSurfMarks;'
+      )
       .replace(
         '#include <map_fragment>',
         `#include <map_fragment>
          {
            vec3 sn = abs(normalize(vSurfNormal));
            vec2 sq = sn.y > 0.6 ? vSurfPos.xz : (sn.x > sn.z ? vSurfPos.zy : vSurfPos.xy);
-           float sBroad = texture2D(uSurfNoise, sq / ${f(blotchSize)}).r;
-           float sFine = texture2D(uSurfNoise, sq / ${f(grainSize)}).g;
-           float sShade = 1.0 + (sBroad - 0.5) * ${f(blotch)} + (sFine - 0.5) * ${f(grain)};
-           ${
-             ground > 0
-               ? `sShade *= mix(${f(1 - ground)}, 1.0, clamp(smoothstep(0.1, 2.8, vSurfPos.y) + step(0.6, sn.y), 0.0, 1.0));`
-               : ''
-           }
-           ${
-             roofs
-               ? `float sPitch = step(0.22, sn.y) * step(sn.y, 0.93);
-                  float sCourse = vSurfPos.y * 4.5;
-                  float sFade = 1.0 - smoothstep(0.25, 0.7, fwidth(sCourse));
-                  sShade *= 1.0 - sPitch * sFade * 0.2 * smoothstep(0.55, 0.7, fract(sCourse));
-                  sShade *= 1.0 + step(0.93, sn.y) * step(1.5, vSurfPos.y) * (sFine - 0.5) * 0.3;`
-               : ''
-           }
+           float sBroad = texture2D(uSurfNoise, sq * uSurf.y).r;
+           float sFine = texture2D(uSurfNoise, sq * uSurf.w).g;
+           float sShade = 1.0 + (sBroad - 0.5) * uSurf.x + (sFine - 0.5) * uSurf.z;
+           // Walls darken toward the pavement.
+           sShade *= mix(1.0 - uSurfMarks.x, 1.0, clamp(smoothstep(0.1, 2.8, vSurfPos.y) + step(0.6, sn.y), 0.0, 1.0));
+           // Shingle courses on pitched faces, gravel on flat roofs.
+           float sPitch = step(0.22, sn.y) * step(sn.y, 0.93);
+           float sCourse = vSurfPos.y * 4.5;
+           float sFade = 1.0 - smoothstep(0.25, 0.7, fwidth(sCourse));
+           sShade *= 1.0 - uSurfMarks.y * sPitch * sFade * 0.2 * smoothstep(0.55, 0.7, fract(sCourse));
+           sShade *= 1.0 + uSurfMarks.y * step(0.93, sn.y) * step(1.5, vSurfPos.y) * (sFine - 0.5) * 0.3;
            diffuseColor.rgb *= sShade;
          }`
       );
     patchGrow(shader);
     extra?.(shader);
   };
-  material.customProgramCacheKey = () => `weather|${blotch}|${blotchSize}|${grain}|${grainSize}|${ground}|${roofs}|${extraKey}`;
+  material.customProgramCacheKey = () => `weather|${extraKey}`;
   material.needsUpdate = true;
   return material;
 }

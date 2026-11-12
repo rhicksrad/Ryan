@@ -950,7 +950,11 @@ export class CityWorld {
         const far = handle.landmark ? (this.headliners.has(box.id) && aspect >= 1 ? 1.25 : 0.7) : 0;
         const reach = far > 0 ? Math.max((this.overviewDistance() * far) / LABEL_FAR, 1) : 1;
         const near = 1 - THREE.MathUtils.clamp((distance - LABEL_NEAR * reach) / ((LABEL_FAR - LABEL_NEAR) * reach), 0, 1);
-        const forced = box.id === this.hoveredId || box.id === this.selectedId;
+        // During the replay the newest building wears its name for a moment as it tops out.
+        const at = this.growAt.get(box.id) ?? 0;
+        const justBuilt =
+          Boolean(this.growth?.onTick) && growClock.value > at + GROW_RISE * 0.7 && growClock.value < at + GROW_RISE + 0.07;
+        const forced = box.id === this.hoveredId || box.id === this.selectedId || justBuilt;
         const ndc = world.project(this.camera);
         return { box, near, forced, ndc };
       })
@@ -1009,7 +1013,7 @@ export class CityWorld {
   start(): void {
     let firstFrame = true;
     let lastT = 0;
-    this.renderer.setAnimationLoop(() => {
+    const loop = () => {
       const t = this.clock.getElapsedTime();
       const dt = Math.min(t - lastT, 0.05);
       lastT = t;
@@ -1136,6 +1140,7 @@ export class CityWorld {
         this.shadowRefresh -= 1;
         this.renderer.shadowMap.needsUpdate = true;
       }
+      if (firstFrame) performance.mark('city-first-render');
       this.composer.render();
       this.watchFrameRate();
 
@@ -1143,6 +1148,23 @@ export class CityWorld {
         firstFrame = false;
         this.events.onReady();
       }
-    });
+    };
+    // On a cold start the GPU has some forty shader programs to compile, which
+    // froze the page for seconds. Compile them off the main thread where the
+    // browser allows it, so the loader keeps moving, and only then start drawing.
+    const begin = () => {
+      // The opening is timed from the first frame, not from before the wait.
+      if (this.tween) this.tween.start = performance.now() + 250;
+      if (this.growth) this.growth.start = performance.now() + 500;
+      this.renderer.setAnimationLoop(loop);
+    };
+    performance.mark('city-compile-start');
+    // Compile against the HDR target the scene is really drawn into. A program's
+    // tone mapping and color space depend on its target, so shaders compiled for
+    // the screen would all be thrown away and rebuilt on the first draw.
+    this.renderer.setRenderTarget(this.composer.renderTarget1);
+    const compiled = this.renderer.compileAsync(this.scene, this.camera);
+    this.renderer.setRenderTarget(null);
+    compiled.then(begin, begin);
   }
 }

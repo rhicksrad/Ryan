@@ -26,6 +26,13 @@ for (const [name, throttle] of Object.entries(profiles)) {
   const kinds = new Map();
   cdp.on('Network.responseReceived', (e) => kinds.set(e.requestId, e.type));
 
+  // Long tasks: how long the page was frozen while loading.
+  await page.addInitScript(() => {
+    window.__long = [];
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) window.__long.push(Math.round(entry.duration));
+    }).observe({ type: 'longtask', buffered: true });
+  });
   const start = Date.now();
   await page.goto(url, { waitUntil: 'commit' });
   const loaderUp = await page
@@ -54,6 +61,11 @@ for (const [name, throttle] of Object.entries(profiles)) {
         .map(([k, v]) => `${k} ${kb(v)}`)
         .join(', ') +
       ')'
+  );
+  const long = await page.evaluate(() => window.__long);
+  console.log(`  longest freeze ${Math.max(0, ...long)} ms, frozen ${long.reduce((x, y) => x + y, 0)} ms in total`);
+  console.log(
+    `  shaders compiling ${marks['city-first-render'] - marks['city-compile-start']} ms, first draw ${marks['city-first-frame'] - marks['city-first-render']} ms`
   );
   console.log(
     `  script running at ${marks['city-build-start']} ms, town built in ${marks['city-build-end'] - marks['city-build-start']} ms, ` +
