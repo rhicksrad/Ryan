@@ -1,17 +1,31 @@
 import * as THREE from 'three';
 import { mulberry32 } from './rng';
-import { roadTexture, signTexture } from './textures';
-import {
-  BLOCK,
-  ROAD,
-  RIVER_CENTER_X,
-  RIVER_WIDTH,
-  planCenterX,
-  allBlocks,
-  type CityPlan
-} from './cityplan';
+import { roadTexture, signTexture, vacancyTexture } from './textures';
+import { emblemUrl } from '../art';
+import { BLOCK, ROAD, RIVER_WIDTH, type CityPlan } from './cityplan';
 
 const BOX_GEO = new THREE.BoxGeometry(1, 1, 1);
+
+/**
+ * Surfaces whose base color shifts between night and day (ground, pavement,
+ * asphalt…). Register once; `applyTints(dayMix)` lerps them all.
+ */
+const tints: { color: THREE.Color; night: THREE.Color; day: THREE.Color }[] = [];
+
+function tint<T extends THREE.MeshStandardMaterial>(material: T, night: number, day: number): T {
+  tints.push({ color: material.color, night: new THREE.Color(night), day: new THREE.Color(day) });
+  material.color.setHex(night);
+  material.userData.tinted = true; // keeps its own material through the static bake
+  return material;
+}
+
+export function applyTints(dayMix: number): void {
+  for (const t of tints) t.color.lerpColors(t.night, t.day, dayMix);
+}
+
+// Asphalt reads as cool charcoal by day and deep navy at night.
+const ASPHALT_NIGHT = 0x7078a8;
+const ASPHALT_DAY = 0xffffff;
 
 // Shared wind clock; trees read it in their vertex shaders. Updated each frame.
 const windUniform = { value: 0 };
@@ -54,7 +68,7 @@ export function createSkyDome(): { mesh: THREE.Mesh; material: THREE.ShaderMater
     uniforms: {
       topColor: { value: new THREE.Color(0x05070f) },
       bottomColor: { value: new THREE.Color(0x10162c) },
-      offset: { value: 120 },
+      offset: { value: 60 },
       exponent: { value: 0.7 }
     },
     vertexShader: `
@@ -78,7 +92,7 @@ export function createSkyDome(): { mesh: THREE.Mesh; material: THREE.ShaderMater
       }
     `
   });
-  const mesh = new THREE.Mesh(new THREE.SphereGeometry(600, 32, 16), material);
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(1500, 32, 16), material);
   mesh.renderOrder = -1;
   return { mesh, material };
 }
@@ -118,47 +132,99 @@ export function createStars(): { points: THREE.Points; material: THREE.PointsMat
 }
 
 /** Night grass beneath and beyond the city. */
-export function createTerrain(): { mesh: THREE.Mesh; material: THREE.MeshStandardMaterial } {
-  const material = new THREE.MeshStandardMaterial({ color: 0x11201a, roughness: 1, metalness: 0 });
-  const mesh = new THREE.Mesh(new THREE.CircleGeometry(420, 64), material);
+export function createTerrain(): THREE.Mesh {
+  const material = tint(new THREE.MeshStandardMaterial({ roughness: 1, metalness: 0 }), 0x16291f, 0x4f8f46);
+  const mesh = new THREE.Mesh(new THREE.CircleGeometry(520, 64), material);
   mesh.rotation.x = -Math.PI / 2;
   mesh.position.y = -0.12;
-  return { mesh, material };
+  return mesh;
 }
 
-export interface BlockMaterials {
-  sidewalk: THREE.MeshStandardMaterial;
-  lot: THREE.MeshStandardMaterial;
-  plaza: THREE.MeshStandardMaterial;
-  park: THREE.MeshStandardMaterial;
-}
-
-/** Pavement slab + sidewalk for every block. */
-export function createBlocks(): { group: THREE.Group; materials: BlockMaterials } {
+/** Pavement, lawns, and park greens for every block. */
+export function createBlocks(plan: CityPlan): THREE.Group {
   const group = new THREE.Group();
-  const materials: BlockMaterials = {
-    sidewalk: new THREE.MeshStandardMaterial({ color: 0x3a4160, roughness: 0.9 }),
-    lot: new THREE.MeshStandardMaterial({ color: 0x232a44, roughness: 0.95 }),
-    plaza: new THREE.MeshStandardMaterial({ color: 0x2c3556, roughness: 0.85 }),
-    park: new THREE.MeshStandardMaterial({ color: 0x1e4630, roughness: 1 })
+  const sidewalkMat = tint(new THREE.MeshStandardMaterial({ roughness: 0.9 }), 0x474f70, 0xb3b0a7);
+  const lotMat = tint(new THREE.MeshStandardMaterial({ roughness: 0.95 }), 0x2c3450, 0x8f8e8a);
+  const plazaMat = tint(new THREE.MeshStandardMaterial({ roughness: 0.8 }), 0x38416a, 0xc2bcae);
+  const grassMat = tint(new THREE.MeshStandardMaterial({ roughness: 1 }), 0x1f4a32, 0x5fa24e);
+  const pathMat = tint(new THREE.MeshStandardMaterial({ roughness: 0.95 }), 0x4a4a5e, 0xd9cdb0);
+  const fountainMat = tint(new THREE.MeshStandardMaterial({ roughness: 0.6 }), 0x4a5378, 0xe4e0d6);
+
+  const slab = (mat: THREE.Material, w: number, h: number, d: number, x: number, y: number, z: number) => {
+    const mesh = new THREE.Mesh(BOX_GEO, mat);
+    mesh.scale.set(w, h, d);
+    mesh.position.set(x, y, z);
+    mesh.userData.noCast = true;
+    group.add(mesh);
+    return mesh;
   };
 
-  for (const block of allBlocks()) {
-    const sidewalk = new THREE.Mesh(new THREE.BoxGeometry(BLOCK, 0.12, BLOCK), materials.sidewalk);
-    sidewalk.position.set(block.x, 0.06, block.z);
-    group.add(sidewalk);
-
-    const inner = new THREE.Mesh(
-      new THREE.BoxGeometry(BLOCK - 2.4, 0.1, BLOCK - 2.4),
-      block.isPark ? materials.park : block.isPlaza ? materials.plaza : materials.lot
-    );
-    inner.position.set(block.x, 0.13, block.z);
-    group.add(inner);
+  for (const block of plan.blocks) {
+    slab(sidewalkMat, BLOCK, 0.12, BLOCK, block.x, 0.06, block.z);
+    const inner = block.kind === 'park' ? grassMat : block.kind === 'plaza' ? plazaMat : lotMat;
+    slab(inner, BLOCK - 2.4, 0.1, BLOCK - 2.4, block.x, 0.13, block.z);
   }
-  return { group, materials };
+
+  // Lawns under the houses and on lots still waiting for a project.
+  for (const lawn of plan.lawns) {
+    slab(grassMat, lawn.size - 0.6, 0.06, lawn.size - 0.6, lawn.x, 0.18, lawn.z);
+  }
+
+  // Parks: crossing footpaths; the riverside park gets a fountain.
+  const waterMat = new THREE.MeshStandardMaterial({
+    color: 0x4d8fc4,
+    roughness: 0.2,
+    metalness: 0.4,
+    emissive: 0x1c3c60,
+    emissiveIntensity: 0.5
+  });
+  for (const park of plan.parkBlocks) {
+    slab(pathMat, BLOCK - 2.4, 0.04, 1.5, park.x, 0.19, park.z);
+    slab(pathMat, 1.5, 0.04, BLOCK - 2.4, park.x, 0.19, park.z);
+    const basinR = park.main ? 3.2 : 2.2;
+    const basin = new THREE.Mesh(new THREE.CylinderGeometry(basinR, basinR, 0.5, 24), fountainMat);
+    basin.position.set(park.x, 0.4, park.z);
+    group.add(basin);
+    const pool = new THREE.Mesh(new THREE.CylinderGeometry(basinR - 0.35, basinR - 0.35, 0.06, 24), waterMat);
+    pool.position.set(park.x, 0.64, park.z);
+    pool.userData.noCast = true;
+    group.add(pool);
+    if (park.main) {
+      const column = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.4, 1.6, 10), fountainMat);
+      column.position.set(park.x, 1.3, park.z);
+      group.add(column);
+      const bowl = new THREE.Mesh(new THREE.CylinderGeometry(1, 0.3, 0.3, 14), fountainMat);
+      bowl.position.set(park.x, 2.2, park.z);
+      group.add(bowl);
+    }
+  }
+  return group;
 }
 
-/** Roads with dashed centerlines. */
+/** Zebra crossings on all four sides of a plain asphalt square. */
+function intersectionTexture(): THREE.CanvasTexture {
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#343946';
+  ctx.fillRect(0, 0, size, size);
+  ctx.fillStyle = '#c9ccd6';
+  const band = 14; // crossing depth
+  for (let i = 0; i < 7; i += 1) {
+    const p = 24 + i * 12.5;
+    ctx.fillRect(p, 3, 6, band);
+    ctx.fillRect(p, size - band - 3, 6, band);
+    ctx.fillRect(3, p, band, 6);
+    ctx.fillRect(size - band - 3, p, band, 6);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
+  return texture;
+}
+
+/** Roads with lane markings, plus crosswalk squares where they meet. */
 export function createRoads(plan: CityPlan): THREE.Group {
   const group = new THREE.Group();
   for (const road of plan.roads) {
@@ -166,13 +232,32 @@ export function createRoads(plan: CityPlan): THREE.Group {
     texture.repeat.set(1, road.length / ROAD);
     const mesh = new THREE.Mesh(
       new THREE.PlaneGeometry(ROAD, road.length),
-      new THREE.MeshStandardMaterial({ map: texture, roughness: 0.95 })
+      tint(new THREE.MeshStandardMaterial({ map: texture, roughness: 0.95 }), ASPHALT_NIGHT, ASPHALT_DAY)
     );
     mesh.rotation.x = -Math.PI / 2;
     if (road.horizontal) mesh.rotation.z = Math.PI / 2;
-    mesh.position.set(road.x, 0.02, road.z);
+    // Streets sit a hair above avenues so the two never z-fight where they cross.
+    mesh.position.set(road.x, road.horizontal ? 0.03 : 0.02, road.z);
+    mesh.userData.noCast = true;
     group.add(mesh);
   }
+
+  const crossMat = tint(
+    new THREE.MeshStandardMaterial({ map: intersectionTexture(), roughness: 0.95 }),
+    ASPHALT_NIGHT,
+    ASPHALT_DAY
+  );
+  const crossGeo = new THREE.PlaneGeometry(ROAD, ROAD);
+  crossGeo.rotateX(-Math.PI / 2);
+  const crossings = new THREE.InstancedMesh(crossGeo, crossMat, plan.intersections.length);
+  const dummy = new THREE.Object3D();
+  plan.intersections.forEach((spot, i) => {
+    dummy.position.set(spot.x, 0.04, spot.z);
+    dummy.updateMatrix();
+    crossings.setMatrixAt(i, dummy.matrix);
+  });
+  crossings.userData.noCast = true;
+  group.add(crossings);
   return group;
 }
 
@@ -184,19 +269,20 @@ export function createRiver(plan: CityPlan): {
 } {
   const group = new THREE.Group();
   // Runs the full width of the world so it flows off past the forest into the fog.
-  const length = 780;
-  const centerZ = (plan.bounds.minZ + plan.bounds.maxZ) / 2;
+  const length = 980;
+  const centerZ = plan.center.z;
+  const riverX = plan.riverX;
 
   // Water with drifting highlight streaks.
   const canvas = document.createElement('canvas');
   canvas.width = 64;
   canvas.height = 256;
   const ctx = canvas.getContext('2d')!;
-  ctx.fillStyle = '#0d2136';
+  ctx.fillStyle = '#2f6d9e';
   ctx.fillRect(0, 0, 64, 256);
   const rand = mulberry32(777);
   for (let i = 0; i < 46; i += 1) {
-    ctx.fillStyle = rand() < 0.5 ? 'rgba(90, 150, 210, 0.16)' : 'rgba(50, 100, 160, 0.2)';
+    ctx.fillStyle = rand() < 0.5 ? 'rgba(120, 180, 235, 0.2)' : 'rgba(60, 120, 185, 0.24)';
     ctx.fillRect(rand() * 64, rand() * 256, 8 + rand() * 22, 1.6);
   }
   const water = new THREE.CanvasTexture(canvas);
@@ -204,30 +290,32 @@ export function createRiver(plan: CityPlan): {
   water.wrapT = THREE.RepeatWrapping;
   water.repeat.set(1, length / 40);
   water.colorSpace = THREE.SRGBColorSpace;
+  water.anisotropy = 8;
 
   const waterMaterial = new THREE.MeshStandardMaterial({
     map: water,
     color: 0xb8d2f0,
-    roughness: 0.3,
-    metalness: 0.35,
+    roughness: 0.42,
+    metalness: 0.25,
     emissive: 0x1c3c60,
     emissiveIntensity: 0.9
   });
   const surface = new THREE.Mesh(new THREE.PlaneGeometry(RIVER_WIDTH, length), waterMaterial);
   surface.rotation.x = -Math.PI / 2;
-  surface.position.set(RIVER_CENTER_X, -0.04, centerZ);
+  surface.position.set(riverX, -0.04, centerZ);
+  surface.userData.noCast = true;
   group.add(surface);
 
-  // Banks.
-  const bankMat = new THREE.MeshStandardMaterial({ color: 0x252c44, roughness: 0.9 });
+  // Stone embankments.
+  const bankMat = tint(new THREE.MeshStandardMaterial({ roughness: 0.9 }), 0x2c3350, 0xb3b0a6);
   for (const side of [-1, 1]) {
     const bank = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.3, length), bankMat);
-    bank.position.set(RIVER_CENTER_X + side * (RIVER_WIDTH / 2 + 0.7), 0.1, centerZ);
+    bank.position.set(riverX + side * (RIVER_WIDTH / 2 + 0.7), 0.1, centerZ);
     group.add(bank);
   }
 
-  // Bridges with railings.
-  const deckMat = new THREE.MeshStandardMaterial({ color: 0x323a5c, roughness: 0.8 });
+  // Bridges with lit railings.
+  const deckMat = tint(new THREE.MeshStandardMaterial({ roughness: 0.8 }), 0x3a4266, 0x8e9098);
   const railMat = new THREE.MeshStandardMaterial({
     color: 0x8fa7ff,
     emissive: 0x5a72d8,
@@ -236,15 +324,15 @@ export function createRiver(plan: CityPlan): {
   });
   for (const bridge of plan.bridges) {
     const deck = new THREE.Mesh(new THREE.BoxGeometry(RIVER_WIDTH + 5, 0.5, ROAD + 1), deckMat);
-    deck.position.set(RIVER_CENTER_X, 0.28, bridge.z);
+    deck.position.set(riverX, 0.28, bridge.z);
     group.add(deck);
     for (const side of [-1, 1]) {
       const rail = new THREE.Mesh(new THREE.BoxGeometry(RIVER_WIDTH + 5, 0.16, 0.16), railMat);
-      rail.position.set(RIVER_CENTER_X, 1, bridge.z + side * (ROAD / 2 + 0.3));
+      rail.position.set(riverX, 1, bridge.z + side * (ROAD / 2 + 0.3));
       group.add(rail);
       for (let px = -2; px <= 2; px += 1) {
         const post = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.9, 0.12), deckMat);
-        post.position.set(RIVER_CENTER_X + px * (RIVER_WIDTH / 4.4), 0.7, bridge.z + side * (ROAD / 2 + 0.3));
+        post.position.set(riverX + px * (RIVER_WIDTH / 4.4), 0.7, bridge.z + side * (ROAD / 2 + 0.3));
         group.add(post);
       }
     }
@@ -259,37 +347,20 @@ export function createRiver(plan: CityPlan): {
   };
 }
 
-/** Low-poly street trees: pines and rounded canopies. */
+/** Low-poly street and park trees, instanced. */
 export function createTrees(plan: CityPlan): THREE.Group {
   const group = new THREE.Group();
   const rand = mulberry32(4242);
-  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x3d3226, roughness: 1 });
-  const pineMat = new THREE.MeshStandardMaterial({ color: 0x1a3f2c, roughness: 1 });
-  const roundMat = new THREE.MeshStandardMaterial({ color: 0x24503a, roughness: 1 });
-  applyWind(pineMat, 0.05);
-  applyWind(roundMat, 0.05);
-
-  for (const tree of plan.trees) {
-    const s = 0.8 + rand() * 0.7;
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12 * s, 0.16 * s, s, 5), trunkMat);
-    trunk.position.set(tree.x, s / 2, tree.z);
-    group.add(trunk);
-    if (tree.kind === 'pine') {
-      for (let layer = 0; layer < 3; layer += 1) {
-        const cone = new THREE.Mesh(
-          new THREE.ConeGeometry((1.1 - layer * 0.28) * s, 1.1 * s, 6),
-          pineMat
-        );
-        cone.position.set(tree.x, s + layer * 0.7 * s + 0.4 * s, tree.z);
-        group.add(cone);
-      }
-    } else {
-      const blob = new THREE.Mesh(new THREE.IcosahedronGeometry(0.95 * s, 0), roundMat);
-      blob.position.set(tree.x, s + 0.7 * s, tree.z);
-      blob.rotation.set(rand(), rand(), rand());
-      group.add(blob);
-    }
-  }
+  buildForest(
+    group,
+    plan.trees.map((tree) => ({
+      x: tree.x,
+      z: tree.z,
+      s: 0.55 + rand() * 0.4,
+      pine: tree.kind === 'pine',
+      autumn: rand() < 0.08
+    }))
+  );
   return group;
 }
 
@@ -299,31 +370,34 @@ export function createTrees(plan: CityPlan): THREE.Group {
  * a surrounding forest, low hills, ponds, and street lamps out along the roads.
  * Placed in plan coordinates and added to the city group.
  */
-export function createOutskirts(
-  plan: CityPlan,
-  kit: LampKit
-): { group: THREE.Group; update: (t: number) => void } {
+export function createOutskirts(plan: CityPlan): {
+  group: THREE.Group;
+  lamps: LampSpec[];
+  update: (t: number) => void;
+} {
   const group = new THREE.Group();
+  const lamps: LampSpec[] = [];
   const rand = mulberry32(9091);
 
-  const centerX = planCenterX();
-  const centerZ = (plan.bounds.minZ + plan.bounds.maxZ) / 2;
+  const centerX = plan.center.x;
+  const centerZ = plan.center.z;
   const { minX, maxX, minZ, maxZ } = plan.bounds;
   const halfX = (maxX - minX) / 2;
   const halfZ = (maxZ - minZ) / 2;
-  const REACH = 340; // how far the forest extends from the city center
-  const R_RING = 200; // radius of the beltway loop
+  // The beltway and forest scale with the town so a growing city never outruns them.
+  const R_RING = Math.max(200, Math.hypot(halfX, halfZ) + 55); // radius of the beltway loop
+  const REACH = R_RING + 140; // how far the forest extends from the city center
 
   const HW_WIDTH = 11;
-  const HW_Z = -15; // east/west highway follows a city cross-street
-  const HW_X = -15; // north/south highway follows a city avenue
+  const HW_Z = plan.mainStreetZ; // east/west highway follows a city cross-street
+  const HW_X = plan.mainAvenueX; // north/south highway follows a city avenue
   const roadMat = (length: number) => {
     const tex = roadTexture();
     tex.repeat.set(1, length / HW_WIDTH);
-    return new THREE.MeshStandardMaterial({ map: tex, roughness: 0.95 });
+    return tint(new THREE.MeshStandardMaterial({ map: tex, roughness: 0.95 }), ASPHALT_NIGHT, ASPHALT_DAY);
   };
-  const shoulderMat = new THREE.MeshStandardMaterial({ color: 0x2b3040, roughness: 0.95 });
-  const asphaltMat = new THREE.MeshStandardMaterial({ color: 0x1c2138, roughness: 0.95 });
+  const shoulderMat = tint(new THREE.MeshStandardMaterial({ roughness: 0.95 }), 0x2b3040, 0x6d6f76);
+  const asphaltMat = tint(new THREE.MeshStandardMaterial({ roughness: 0.95 }), 0x171b2e, 0x343946);
 
   // Where each highway meets the ring (circle centered on the city).
   const ewCross = Math.sqrt(R_RING * R_RING - (HW_Z - centerZ) ** 2);
@@ -346,6 +420,7 @@ export function createOutskirts(
     asphalt.rotation.x = -Math.PI / 2;
     if (hw.horizontal) asphalt.rotation.z = Math.PI / 2;
     asphalt.position.set(hw.cx, 0.0, hw.cz);
+    asphalt.userData.noCast = true;
     group.add(asphalt);
     for (const side of [-1, 1]) {
       const shoulder = new THREE.Mesh(new THREE.PlaneGeometry(1.6, hw.length), shoulderMat);
@@ -353,6 +428,7 @@ export function createOutskirts(
       if (hw.horizontal) shoulder.rotation.z = Math.PI / 2;
       if (hw.horizontal) shoulder.position.set(hw.cx, -0.01, hw.cz + side * (HW_WIDTH / 2 + 0.8));
       else shoulder.position.set(hw.cx + side * (HW_WIDTH / 2 + 0.8), -0.01, hw.cz);
+      shoulder.userData.noCast = true;
       group.add(shoulder);
     }
   }
@@ -364,6 +440,7 @@ export function createOutskirts(
   );
   ring.rotation.x = -Math.PI / 2;
   ring.position.set(centerX, 0.0, centerZ);
+  ring.userData.noCast = true;
   group.add(ring);
   const ringLine = new THREE.Mesh(
     new THREE.RingGeometry(R_RING - 0.2, R_RING + 0.2, 140),
@@ -371,6 +448,7 @@ export function createOutskirts(
   );
   ringLine.rotation.x = -Math.PI / 2;
   ringLine.position.set(centerX, 0.02, centerZ);
+  ringLine.userData.noCast = true;
   group.add(ringLine);
 
   // --- Rejection tests so nothing lands on a road, ring, or the river's mouth. ---
@@ -389,7 +467,7 @@ export function createOutskirts(
     return Math.abs(rad - R_RING) < HW_WIDTH / 2 + 4;
   };
   const onRiverMouth = (x: number, z: number) =>
-    Math.abs(x - RIVER_CENTER_X) < RIVER_WIDTH / 2 + 4 && (z < minZ || z > maxZ);
+    Math.abs(x - plan.riverX) < RIVER_WIDTH / 2 + 4 && (z < minZ || z > maxZ);
   const blocked = (x: number, z: number, pad: number) =>
     inCity(x, z, pad) || onHighway(x, z) || onRing(x, z) || onRiverMouth(x, z);
 
@@ -432,18 +510,18 @@ export function createOutskirts(
     for (let d = lo + 6; d < hi - 4; d += 26) {
       const x = hw.horizontal ? d : hw.cx + HW_WIDTH / 2 + 1.4;
       const z = hw.horizontal ? hw.cz + HW_WIDTH / 2 + 1.4 : d;
-      addLamp(group, kit, x, z, 5.5, 5);
+      lamps.push({ x, z, height: 5.5 });
     }
   }
   const ringLamps = 30;
   for (let i = 0; i < ringLamps; i += 1) {
     const a = (i / ringLamps) * Math.PI * 2;
     const r = R_RING + HW_WIDTH / 2 + 1.6;
-    addLamp(group, kit, centerX + Math.cos(a) * r, centerZ + Math.sin(a) * r, 5.5, 5);
+    lamps.push({ x: centerX + Math.cos(a) * r, z: centerZ + Math.sin(a) * r, height: 5.5 });
   }
 
   // --- Low hills on the horizon for a valley silhouette. ---
-  const hillMat = new THREE.MeshStandardMaterial({ color: 0x1a2c1e, roughness: 1, flatShading: true });
+  const hillMat = tint(new THREE.MeshStandardMaterial({ roughness: 1, flatShading: true }), 0x1a2c1e, 0x4f8650);
   for (let i = 0; i < 14; i += 1) {
     const angle = (i / 14) * Math.PI * 2 + rand() * 0.3;
     const radius = REACH - 20 + rand() * 55;
@@ -469,12 +547,14 @@ export function createOutskirts(
     const pond = new THREE.Mesh(new THREE.CircleGeometry(r, 24), pondMat);
     pond.rotation.x = -Math.PI / 2;
     pond.scale.x = 1.3;
-    pond.position.set(px, -0.08, pz);
+    pond.position.set(px, -0.03, pz);
+    pond.userData.noCast = true;
     group.add(pond);
   }
 
   return {
     group,
+    lamps,
     update: (t: number) => setWindTime(t)
   };
 }
@@ -542,75 +622,120 @@ function buildForest(group: THREE.Group, trees: { x: number; z: number; s: numbe
   group.add(roundMesh);
 }
 
-export interface LampKit {
-  poleMat: THREE.MeshStandardMaterial;
+export interface LampSpec {
+  x: number;
+  z: number;
+  height?: number;
+}
+
+export interface LampField {
+  group: THREE.Group;
   bulbMaterial: THREE.MeshStandardMaterial;
-  glowMaterial: THREE.SpriteMaterial;
-  poleGeo: THREE.CylinderGeometry;
-  bulbGeo: THREE.SphereGeometry;
+  /** Halo + ground-pool materials; opacity follows the night. */
+  glowMaterials: { material: THREE.Material; base: number }[];
 }
 
-/** Shared lamp materials so day/night only has to tweak one bulb + one glow. */
-export function createLampKit(): LampKit {
-  const glowTexture = (() => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 64;
-    canvas.height = 64;
-    const ctx = canvas.getContext('2d')!;
-    const g = ctx.createRadialGradient(32, 32, 2, 32, 32, 32);
-    g.addColorStop(0, 'rgba(255, 208, 130, 0.7)');
-    g.addColorStop(0.5, 'rgba(255, 190, 110, 0.32)');
-    g.addColorStop(1, 'rgba(255, 190, 110, 0)');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, 64, 64);
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    return texture;
-  })();
-  return {
-    poleMat: new THREE.MeshStandardMaterial({ color: 0x2c3350, roughness: 0.7, metalness: 0.4 }),
-    bulbMaterial: new THREE.MeshStandardMaterial({
-      color: 0xffe1b0,
-      emissive: 0xffc472,
-      emissiveIntensity: 3.4,
-      roughness: 0.3
-    }),
-    glowMaterial: new THREE.SpriteMaterial({
-      map: glowTexture,
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false
-    }),
-    poleGeo: new THREE.CylinderGeometry(0.09, 0.13, 1, 6),
-    bulbGeo: new THREE.SphereGeometry(0.26, 10, 10)
-  };
+function radialTexture(stops: [number, string][]): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 64;
+  const ctx = canvas.getContext('2d')!;
+  const g = ctx.createRadialGradient(32, 32, 1, 32, 32, 32);
+  for (const [at, color] of stops) g.addColorStop(at, color);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 64, 64);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
 }
 
-/** Place one lamp: tall pole, warm bulb, big additive glow. */
-export function addLamp(group: THREE.Group, kit: LampKit, x: number, z: number, height = 5, glowScale = 3.6): void {
-  const pole = new THREE.Mesh(kit.poleGeo, kit.poleMat);
-  pole.scale.y = height;
-  pole.position.set(x, height / 2, z);
-  group.add(pole);
-  // little arm + head shroud
-  const head = new THREE.Mesh(BOX_GEO, kit.poleMat);
-  head.scale.set(0.5, 0.16, 0.5);
-  head.position.set(x, height + 0.05, z);
-  group.add(head);
-  const bulb = new THREE.Mesh(kit.bulbGeo, kit.bulbMaterial);
-  bulb.position.set(x, height - 0.08, z);
-  group.add(bulb);
-  const glow = new THREE.Sprite(kit.glowMaterial);
-  glow.scale.set(glowScale, glowScale, 1);
-  glow.position.set(x, height - 0.08, z);
-  group.add(glow);
-}
-
-/** City street lamps at the positions the plan chose. */
-export function createLamps(plan: CityPlan, kit: LampKit): THREE.Group {
+/**
+ * Every street lamp in the world as a handful of instanced meshes: poles,
+ * heads, bulbs, a tight halo, and a warm pool of light on the pavement.
+ */
+export function createLampField(specs: LampSpec[]): LampField {
   const group = new THREE.Group();
-  for (const lamp of plan.lamps) addLamp(group, kit, lamp.x, lamp.z);
-  return group;
+  const n = specs.length;
+  const poleMat = new THREE.MeshStandardMaterial({ color: 0x2c3350, roughness: 0.7, metalness: 0.4 });
+  const bulbMaterial = new THREE.MeshStandardMaterial({
+    color: 0xffe1b0,
+    emissive: 0xffc472,
+    emissiveIntensity: 3.4,
+    roughness: 0.3
+  });
+
+  const poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.07, 0.11, 1, 6), poleMat, n);
+  const heads = new THREE.InstancedMesh(BOX_GEO, poleMat, n);
+  const bulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(0.2, 8, 8), bulbMaterial, n);
+  bulbs.userData.noCast = true;
+
+  const poolGeo = new THREE.CircleGeometry(1, 20);
+  poolGeo.rotateX(-Math.PI / 2);
+  const poolMat = new THREE.MeshBasicMaterial({
+    map: radialTexture([
+      [0, 'rgba(255, 205, 135, 0.55)'],
+      [0.45, 'rgba(255, 190, 110, 0.2)'],
+      [1, 'rgba(255, 190, 110, 0)']
+    ]),
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  });
+  const pools = new THREE.InstancedMesh(poolGeo, poolMat, n);
+  pools.userData.skipShadow = true;
+  pools.renderOrder = 2;
+
+  const haloPositions = new Float32Array(n * 3);
+  const dummy = new THREE.Object3D();
+  specs.forEach((spec, i) => {
+    const height = spec.height ?? 4.2;
+    dummy.rotation.set(0, 0, 0);
+    dummy.position.set(spec.x, height / 2, spec.z);
+    dummy.scale.set(1, height, 1);
+    dummy.updateMatrix();
+    poles.setMatrixAt(i, dummy.matrix);
+    dummy.position.set(spec.x, height + 0.05, spec.z);
+    dummy.scale.set(0.46, 0.14, 0.46);
+    dummy.updateMatrix();
+    heads.setMatrixAt(i, dummy.matrix);
+    dummy.position.set(spec.x, height - 0.1, spec.z);
+    dummy.scale.set(1, 1, 1);
+    dummy.updateMatrix();
+    bulbs.setMatrixAt(i, dummy.matrix);
+    const reach = height * 0.8;
+    dummy.position.set(spec.x, 0.24, spec.z);
+    dummy.scale.set(reach, 1, reach);
+    dummy.updateMatrix();
+    pools.setMatrixAt(i, dummy.matrix);
+    haloPositions.set([spec.x, height - 0.1, spec.z], i * 3);
+  });
+  group.add(poles, heads, bulbs, pools);
+
+  const haloGeo = new THREE.BufferGeometry();
+  haloGeo.setAttribute('position', new THREE.BufferAttribute(haloPositions, 3));
+  const haloMat = new THREE.PointsMaterial({
+    map: radialTexture([
+      [0, 'rgba(255, 214, 150, 0.9)'],
+      [0.35, 'rgba(255, 190, 110, 0.28)'],
+      [1, 'rgba(255, 190, 110, 0)']
+    ]),
+    size: 1.9,
+    sizeAttenuation: true,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  });
+  const halos = new THREE.Points(haloGeo, haloMat);
+  halos.frustumCulled = false;
+  group.add(halos);
+
+  return {
+    group,
+    bulbMaterial,
+    glowMaterials: [
+      { material: poolMat, base: 0.6 },
+      { material: haloMat, base: 0.85 }
+    ]
+  };
 }
 
 /** District entrance signs. */
@@ -618,10 +743,16 @@ export function createSigns(plan: CityPlan): THREE.Group {
   const group = new THREE.Group();
   const poleMat = new THREE.MeshStandardMaterial({ color: 0x39415e, roughness: 0.6, metalness: 0.3 });
   for (const sign of plan.signs) {
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 4.2, 6), poleMat);
-    pole.position.set(sign.x, 2.1, sign.z);
-    group.add(pole);
-    const texture = signTexture(sign.district.name, sign.district.color);
+    const post = new THREE.Group();
+    post.position.set(sign.x, 0, sign.z);
+    post.rotation.y = sign.rotationY;
+    group.add(post);
+    for (const px of [-2.2, 2.2]) {
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 4.2, 6), poleMat);
+      pole.position.set(px, 2.1, 0);
+      post.add(pole);
+    }
+    const texture = signTexture(sign.district.name, sign.district.color, emblemUrl(sign.district.id));
     const board = new THREE.Mesh(
       new THREE.PlaneGeometry(5.2, 1.3),
       new THREE.MeshStandardMaterial({
@@ -633,9 +764,37 @@ export function createSigns(plan: CityPlan): THREE.Group {
         side: THREE.DoubleSide
       })
     );
-    board.position.set(sign.x, 3.6, sign.z);
-    board.rotation.y = sign.rotationY;
-    group.add(board);
+    board.position.set(0, 3.6, 0);
+    post.add(board);
+  }
+
+  // "Lot for sale" boards on unbuilt lots — room for whatever gets built next.
+  if (plan.vacancies.length > 0) {
+    const texture = vacancyTexture();
+    const boardMat = new THREE.MeshStandardMaterial({
+      map: texture,
+      emissive: 0xffffff,
+      emissiveMap: texture,
+      emissiveIntensity: 0.35,
+      roughness: 0.8,
+      side: THREE.DoubleSide
+    });
+    const stakeMat = new THREE.MeshStandardMaterial({ color: 0xe8e4d8, roughness: 0.9 });
+    for (const lot of plan.vacancies) {
+      const stand = new THREE.Group();
+      stand.position.set(lot.x, 0.2, lot.z);
+      stand.rotation.y = lot.rotationY;
+      for (const px of [-0.7, 0.7]) {
+        const stake = new THREE.Mesh(BOX_GEO, stakeMat);
+        stake.scale.set(0.1, 1.9, 0.1);
+        stake.position.set(px, 0.95, 0);
+        stand.add(stake);
+      }
+      const board = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 1.25), boardMat);
+      board.position.y = 1.4;
+      stand.add(board);
+      group.add(stand);
+    }
   }
   return group;
 }
@@ -674,6 +833,7 @@ export function createSpire(): { group: THREE.Group; rings: THREE.Mesh[]; pickMe
   for (let i = 0; i < 3; i += 1) {
     const ring = new THREE.Mesh(new THREE.TorusGeometry(3.4 + i * 1.15, 0.06, 8, 64), ringMat);
     ring.position.y = 14 + i * 3.2;
+    ring.userData.dynamic = true;
     ring.rotation.x = Math.PI / 2 + (i - 1) * 0.18;
     group.add(ring);
     rings.push(ring);
@@ -683,18 +843,29 @@ export function createSpire(): { group: THREE.Group; rings: THREE.Mesh[]; pickMe
   glow.position.y = 24;
   group.add(glow);
 
+  // One invisible hit volume stands in for the whole monument.
+  const hit = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 5.4, 27, 8), new THREE.MeshBasicMaterial());
+  hit.position.y = 13.5;
+  hit.visible = false;
+  hit.userData.keep = true;
+  group.add(hit);
+  pickMeshes.length = 0;
+  pickMeshes.push(hit);
+
   const base = new THREE.Mesh(
     new THREE.CylinderGeometry(4.6, 5.4, 1.2, 8),
     new THREE.MeshStandardMaterial({ color: 0x10162c, roughness: 0.8 })
   );
   base.position.y = 0.6;
   group.add(base);
-  pickMeshes.push(base);
 
   for (const mesh of pickMeshes) mesh.userData.projectId = '__about__';
 
   return { group, rings, pickMeshes };
 }
+
+const CLOUD_NIGHT = new THREE.Color(0x232c48);
+const CLOUD_DAY = new THREE.Color(0xffffff);
 
 /**
  * The living sky: soft clouds drifting on the wind and a few flocks of birds
@@ -731,14 +902,14 @@ export function createSky(): {
   for (let i = 0; i < 16; i += 1) {
     // Each cloud is a clump of 3–5 overlapping puffs sharing one material.
     const container = new THREE.Group();
-    const cmat = new THREE.SpriteMaterial({
+    const cmat = cloudMats[0] ?? new THREE.SpriteMaterial({
       map: cloudTex,
       transparent: true,
       opacity: 0.8,
       depthWrite: false,
       fog: false
     });
-    cloudMats.push(cmat);
+    if (cloudMats.length === 0) cloudMats.push(cmat);
     const puffs = 3 + Math.floor(rand() * 3);
     const scale = 40 + rand() * 60;
     for (let p = 0; p < puffs; p += 1) {
@@ -777,6 +948,7 @@ export function createSky(): {
       const scale = 1.4 + rand() * 1;
       for (const side of [-1, 1]) {
         const wing = new THREE.Mesh(wingGeo, birdMat);
+        wing.userData.skipShadow = true; // no bird-shaped blots on the plaza
         wing.scale.setScalar(scale);
         wing.position.x = side * 0.5 * scale;
         wing.rotation.z = side * 0.4;
@@ -801,7 +973,10 @@ export function createSky(): {
   const update = (t: number, dayMix: number, moving: boolean) => {
     // Clouds bright and white by day, dim and sparse-feeling by night.
     const cloudOpacity = 0.28 + dayMix * 0.55;
-    for (const cmat of cloudMats) cmat.opacity = cloudOpacity;
+    for (const cmat of cloudMats) {
+      cmat.opacity = cloudOpacity;
+      cmat.color.lerpColors(CLOUD_NIGHT, CLOUD_DAY, dayMix);
+    }
 
     if (!moving) return;
     for (const cloud of clouds) {

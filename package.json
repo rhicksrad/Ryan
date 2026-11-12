@@ -1,5 +1,5 @@
 {
-  "name": "ryan-3d-world",
+  "name": "project-city",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -9,13 +9,15 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run --dir tests/unit",
     "test:e2e": "playwright test",
-    "verify:screenshot": "node scripts/verify-screenshot.mjs",
     "check:size": "node scripts/size-budget.mjs",
-    "test:ci": "npm run test:e2e && npm run verify:screenshot",
-    "ci": "npm run test:ci && npm run build && npm run check:size"
+    "stats": "node scripts/update-stats.mjs",
+    "ci": "npm run typecheck && npm run test && npm run build && npm run check:size && npm run test:e2e"
   },
   "dependencies": {
+    "@fontsource-variable/overpass": "^5.3.0",
+    "@fontsource-variable/overpass-mono": "^5.3.0",
     "three": "^0.162.0"
   },
   "devDependencies": {
@@ -24,7 +26,8 @@
     "@types/three": "^0.162.0",
     "playwright": "^1.42.1",
     "typescript": "^5.4.2",
-    "vite": "^5.1.5"
+    "vite": "^5.1.5",
+    "vitest": "^2.1.9"
   },
   "allowScripts": {
     "esbuild@0.21.5": true

@@ -2,17 +2,33 @@
   "profile": {
     "name": "Ryan Hicks",
     "github": "https://github.com/rhicksrad",
-    "tagline": "An explorable city of AI-built experiments — games, data visualizations, music tools, and more.",
+    "tagline": "A town where every building is one of my GitHub projects and its height is the commit count.",
     "about": "Every building in this city is a real project from my GitHub. Most were designed, built, and shipped with AI-assisted engineering. Click any building to visit the live demo or read the source.",
     "linkedin": "https://www.linkedin.com/in/ryan-hicks-10790a206/",
     "email": "hicksrch@gmail.com"
   },
+  "ignore": [
+    "shahanshah-voice-*",
+    "shahanshah-music",
+    "scroob-archive",
+    "persian-strike",
+    "ryana",
+    "Thxgiving",
+    "NES1",
+    "chat",
+    "iac",
+    "iac60f",
+    "devops",
+    "Sora",
+    "Garden",
+    "PokerDesktop"
+  ],
   "districts": [
     {
       "id": "arcade",
       "name": "Arcade District",
       "color": "#ff4d8f",
-      "blurb": "Playable browser games — shooters, roguelikes, card tables, and puzzlers."
+      "blurb": "Playable browser games: shooters, roguelikes, card tables, and puzzlers."
     },
     {
       "id": "data",
@@ -29,7 +45,7 @@
     {
       "id": "web",
       "name": "Web Works",
-      "color": "#a78bfa",
+      "color": "#4cc38a",
       "blurb": "Practical apps, schedulers, and sites for the real world."
     }
   ],
@@ -40,11 +56,11 @@
       "repo": "SuperSolitare",
       "district": "arcade",
       "lang": "TypeScript",
-      "blurb": "A roguelike deck-builder built on Klondike solitaire — Balatro's run structure married to the classic 52-card game, with blinds, jokers, and escalating score targets.",
+      "blurb": "A roguelike deck-builder built on Klondike solitaire. Balatro's run structure married to the classic 52-card game, with blinds, jokers, and escalating score targets.",
       "demo": "https://rhicksrad.github.io/SuperSolitare/",
       "commits": 21,
       "quotes": [
-        "A run is 8 antes — Small, Big, and Boss Blinds on fresh Klondike deals.",
+        "A run is 8 antes: Small, Big, and Boss Blinds on fresh Klondike deals.",
         "No timer. Your limits are recycles and discards."
       ],
       "pushedAt": "2026-07-07"
@@ -70,12 +86,12 @@
       "repo": "Vivaforte",
       "district": "arcade",
       "lang": "6502 ASM",
-      "blurb": "A complete Life Force–style scrolling shooter written in pure 6502 assembly that builds to a cartridge-ready NES ROM — plus a MonoGame ECS starter project.",
+      "blurb": "A complete Life Force–style scrolling shooter written in pure 6502 assembly that builds to a cartridge-ready NES ROM, plus a MonoGame ECS starter project.",
       "demo": null,
       "commits": 10,
       "quotes": [
         "Pure 6502 assembly. Builds a cartridge-ready iNES ROM.",
-        "Runs on real NES hardware — 32 KB PRG + 8 KB CHR."
+        "Runs on real NES hardware: 32 KB PRG + 8 KB CHR."
       ],
       "pushedAt": "2026-07-08"
     },
@@ -89,7 +105,7 @@
       "demo": "https://rhicksrad.github.io/dotsouls/",
       "commits": 30,
       "quotes": [
-        "Enemies telegraph attacks — slash, dodge, guard, parry.",
+        "Enemies telegraph attacks. Slash, dodge, guard, parry.",
         "Collect relics, open the brass gate, defeat the Chapel Warden."
       ],
       "pushedAt": "2026-07-07"
@@ -100,11 +116,11 @@
       "repo": "Breakout",
       "district": "arcade",
       "lang": "JavaScript",
-      "blurb": "A dependency-free breakout game in a single JavaScript file — nebula backdrops, a looping synth soundtrack, and vector-art fallbacks so it always runs.",
+      "blurb": "A dependency-free breakout game in a single JavaScript file, with nebula backdrops, a looping synth soundtrack, and vector-art fallbacks so it always runs.",
       "demo": "https://rhicksrad.github.io/Breakout/",
       "commits": 3,
       "quotes": [
-        "No build step, no frameworks — open index.html and play.",
+        "No build step, no frameworks. Open index.html and play.",
         "If an asset fails to load, vector art kicks in. It always runs."
       ],
       "pushedAt": "2026-07-08"
@@ -145,12 +161,12 @@
       "repo": "PokerInTheFront",
       "district": "arcade",
       "lang": "TypeScript",
-      "blurb": "Texas Hold'em in an 1860s Western saloon — AI opponents with distinct personalities, custom SVG avatars, and proper poker rules.",
+      "blurb": "Texas Hold'em in an 1860s Western saloon, with AI opponents of distinct personalities, custom SVG avatars, and proper poker rules.",
       "demo": "https://rhicksrad.github.io/PokerInTheFront/",
       "commits": 11,
       "quotes": [
         "Smart AI opponents with distinct personalities.",
-        "An 1860s saloon — custom SVG avatars and proper poker rules."
+        "An 1860s saloon, custom SVG avatars, and proper poker rules."
       ],
       "pushedAt": "2025-08-11"
     },
@@ -227,7 +243,7 @@
         "NEO3D visualizes near-Earth objects and planetary orbits.",
         "Press W to toggle the Wow! Signal overlay from 1977."
       ],
-      "pushedAt": "2026-07-07"
+      "pushedAt": "2026-11-12"
     },
     {
       "id": "nba",
@@ -250,11 +266,11 @@
       "repo": "NCAAM",
       "district": "data",
       "lang": "TypeScript",
-      "blurb": "A fast multi-page hub for NCAA men's basketball with all data flowing through a Cloudflare Worker proxy — no API keys in the browser.",
+      "blurb": "A fast multi-page hub for NCAA men's basketball with all data flowing through a Cloudflare Worker proxy, so no API keys reach the browser.",
       "demo": "https://rhicksrad.github.io/NCAAM/",
       "commits": 545,
       "quotes": [
-        "All data flows through a Cloudflare Worker — no API keys in the browser.",
+        "All data flows through a Cloudflare Worker. No API keys in the browser.",
         "A fast multi-page hub for NCAA basketball."
       ],
       "pushedAt": "2025-12-01"
@@ -285,7 +301,7 @@
       "commits": 31,
       "quotes": [
         "Where does MLB talent come from? WAR archives × state populations.",
-        "Maps, rankings, and a decade slider — all static, all instant."
+        "Maps, rankings, and a decade slider. All static, all instant."
       ],
       "pushedAt": "2025-09-25"
     },
@@ -385,7 +401,7 @@
       "repo": "goblin",
       "district": "creative",
       "lang": "TypeScript",
-      "blurb": "Generates whimsical creature profiles — goblins, gremlins, raccoons, trolls, ogres, and the occasional pigeon.",
+      "blurb": "Generates whimsical creature profiles: goblins, gremlins, raccoons, trolls, ogres, and the occasional pigeon.",
       "demo": "https://rhicksrad.github.io/goblin/",
       "commits": 15,
       "quotes": [
@@ -445,7 +461,7 @@
       "repo": "envisirad",
       "district": "web",
       "lang": "HTML",
-      "blurb": "A site for radiology IT infrastructure services — Fortinet, Intelerad, and secure imaging practice.",
+      "blurb": "A site for radiology IT infrastructure services: Fortinet, Intelerad, and secure imaging practice.",
       "demo": "https://rhicksrad.github.io/envisirad/",
       "commits": 2,
       "quotes": [
@@ -468,6 +484,181 @@
         "All set, thanks."
       ],
       "pushedAt": "2025-09-01"
+    },
+    {
+      "id": "persian-strike",
+      "title": "Persian Strike: Retribution",
+      "repo": "Choppa2",
+      "district": "arcade",
+      "lang": "GDScript",
+      "blurb": "A low-poly isometric helicopter-action game from Reformat Games, built in Godot. The flying, fuel, ammo, rescues, and destruction of Desert Strike, set against an autonomous Command & Conquer-style ground war.",
+      "demo": "https://persianstrike.com/",
+      "commits": 400,
+      "quotes": [
+        "Physical flying, fuel, ammunition, rescue, and destruction.",
+        "An autonomous Command & Conquer-style ground war rages below."
+      ],
+      "pushedAt": "2026-11-12",
+      "estimated": true
+    },
+    {
+      "id": "shahanshah",
+      "title": "SHAHANSHAH",
+      "repo": "playshahanshah",
+      "district": "arcade",
+      "lang": "HTML",
+      "blurb": "Home and encyclopedia for SHAHANSHAH, a strategy game of the Persian Empire from 530 to 479 BCE: build cities, manage trade and tribute, and lead armies and fleets into Thermopylae and Salamis.",
+      "demo": "https://playshahanshah.com",
+      "commits": 60,
+      "quotes": [
+        "Learn the history as you play.",
+        "Sixteen governors for every level.",
+        "Grapnels fly and the hulls are hauled together."
+      ],
+      "pushedAt": "2026-11-11",
+      "estimated": true
+    },
+    {
+      "id": "galaxybrain",
+      "title": "Galaxy Brain",
+      "repo": "GalaxyBrain",
+      "district": "arcade",
+      "lang": "C#",
+      "blurb": "A deckbuilding card duel from Reformat Games, built on the studio's own Qanat Engine.",
+      "demo": null,
+      "commits": 40,
+      "quotes": [
+        "A deckbuilding card duel.",
+        "Runs on the Qanat Engine."
+      ],
+      "pushedAt": "2026-10-31",
+      "estimated": true
+    },
+    {
+      "id": "farsi",
+      "title": "Vâzheh Bârân",
+      "repo": "Farsi",
+      "district": "arcade",
+      "lang": "JavaScript",
+      "blurb": "Learn Persian by shooting it down: intercept Farsi word-shells across a destructible artillery battlefield, with three difficulty levels, streak multipliers, and a top-10 leaderboard.",
+      "demo": "https://rhicksrad.github.io/Farsi/",
+      "commits": 25,
+      "quotes": [
+        "Learn Farsi by intercepting Persian word-shells across a destructible artillery battlefield.",
+        "Consecutive correct answers build a streak multiplier."
+      ],
+      "pushedAt": "2026-08-20",
+      "estimated": true
+    },
+    {
+      "id": "vet-jeopardy",
+      "title": "Vet Jeopardy! ECC Challenge",
+      "repo": "Jeopardy-",
+      "district": "arcade",
+      "lang": "TypeScript",
+      "blurb": "A classroom quiz game for fourth-year veterinary students in emergency and critical care: 12 full games, 360 clinical clues, a teacher console, and phones as buzzers on a projector-safe board.",
+      "demo": "https://rhicksrad.github.io/Jeopardy-/",
+      "commits": 20,
+      "quotes": [
+        "360 clinical clues across 72 chapter units.",
+        "Six categories, 30 clues, a Clinical Double, and a Final Case."
+      ],
+      "pushedAt": "2026-08-28",
+      "estimated": true
+    },
+    {
+      "id": "mysty",
+      "title": "The Last Equation of Elowen Voss",
+      "repo": "MYSTY",
+      "district": "creative",
+      "lang": "JavaScript",
+      "blurb": "A quiet exploration story told through places and field notes, starting from the Arrival Dock on Moonset Shore.",
+      "demo": "https://rhicksrad.github.io/MYSTY/",
+      "commits": 12,
+      "quotes": [
+        "Arrival Dock, Moonset Shore.",
+        "Check the field notes."
+      ],
+      "pushedAt": "2026-07-09",
+      "estimated": true
+    },
+    {
+      "id": "jacobian",
+      "title": "Jacobian Conjecture: Degree 3",
+      "repo": "jacobian-degree3",
+      "district": "data",
+      "lang": "HTML",
+      "blurb": "A research note presenting an explicit degree-3 polynomial map on 19 complex dimensions as a candidate counterexample to the Jacobian Conjecture, with a standalone script that verifies it in exact arithmetic.",
+      "demo": "https://rhicksrad.github.io/jacobian-degree3/",
+      "commits": 6,
+      "quotes": [
+        "Total degree 3, constant Jacobian determinant −2.",
+        "Three distinct rational points, one image.",
+        "Still undergoing community review."
+      ],
+      "pushedAt": "2026-07-20",
+      "estimated": true
+    },
+    {
+      "id": "reformatgames",
+      "title": "Reformat Games",
+      "repo": "reformatgames",
+      "district": "web",
+      "lang": "HTML",
+      "blurb": "The studio site for Reformat Games LLC, the label behind Persian Strike, SHAHANSHAH, and Galaxy Brain.",
+      "demo": "http://deadformatgames.com/",
+      "commits": 30,
+      "quotes": [
+        "Reformat Games LLC studio site.",
+        "Three games and counting."
+      ],
+      "pushedAt": "2026-11-10",
+      "estimated": true
+    },
+    {
+      "id": "hammeredboilers",
+      "title": "Hammered Boilers",
+      "repo": "HammeredBoilers",
+      "district": "web",
+      "lang": "TypeScript",
+      "blurb": "Tailgate HQ for the Hammered Boilers, built as an installable phone app. Boiler Up. Bottoms Up.",
+      "demo": "https://rhicksrad.github.io/HammeredBoilers/",
+      "commits": 40,
+      "quotes": [
+        "Tailgate HQ for the Hammered Boilers.",
+        "Boiler Up. Bottoms Up."
+      ],
+      "pushedAt": "2026-11-08",
+      "estimated": true
+    },
+    {
+      "id": "it-consulting",
+      "title": "Ryan's IT Consulting",
+      "repo": "ryans-it-consulting",
+      "district": "web",
+      "lang": "HTML",
+      "blurb": "A demo website for a made-up IT consulting business.",
+      "demo": "https://rhicksrad.github.io/ryans-it-consulting/",
+      "commits": 8,
+      "quotes": [
+        "A demo website for a made-up IT consulting business."
+      ],
+      "pushedAt": "2026-10-13",
+      "estimated": true
+    },
+    {
+      "id": "acupuncture",
+      "title": "Acupuncture Practice Site",
+      "repo": "Subaru",
+      "district": "web",
+      "blurb": "A static GitHub Pages site for an acupuncture practice.",
+      "demo": "https://rhicksrad.github.io/Subaru/",
+      "commits": 6,
+      "quotes": [
+        "A static site for an acupuncture practice."
+      ],
+      "pushedAt": "2026-09-11",
+      "estimated": true
     }
   ]
 }
