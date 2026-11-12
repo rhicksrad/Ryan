@@ -4,8 +4,9 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import type { WorldData, Project } from '../data';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
+import { tierOf, type WorldData, type Project } from '../data';
 import { createBuilding, type BuildingHandle } from './buildings';
 import {
   createStars,
@@ -20,8 +21,12 @@ import {
   createSpire,
   createSky,
   createSkyDome,
-  applyTints
+  createSkyEnvScene,
+  setWaterLook,
+  applyTints,
+  SUN_DIR
 } from './environment';
+import { createFabric } from './fabric';
 import { buildCityPlan, type CityPlan } from './cityplan';
 import { createPerson, updatePerson, citizenCount, type Person } from './people';
 import { createTraffic, type Traffic } from './cars';
@@ -30,36 +35,43 @@ import { bakeStatic, bakedGlow } from './bake';
 
 /** Everything that changes between night and day, lerped by a single mix factor. */
 const NIGHT = {
-  sky: new THREE.Color('#0a0f1e'),
-  skyTop: new THREE.Color('#04060e'),
-  skyBottom: new THREE.Color('#141b33'),
-  bloom: 0.7,
-  bloomThreshold: 0.86,
-  fog: 0.55, // fog density × overview distance, so haze scales with the town
+  skyTop: new THREE.Color('#040714'),
+  skyBottom: new THREE.Color('#222c52'),
+  skySun: new THREE.Color('#5a6aa8'),
+  sunDisc: 2.2,
+  bloom: 0.6,
+  bloomThreshold: 0.9,
+  fog: 0.5, // fog density × overview distance, so haze scales with the town
   ambient: new THREE.Color(0x5a6aa0),
-  ambientIntensity: 1.55,
-  hemiSky: new THREE.Color(0x5a6aa0),
-  hemiGround: new THREE.Color(0x191d2c),
-  hemiIntensity: 1.25,
+  ambientIntensity: 0.55,
+  hemiSky: new THREE.Color(0x5066a8),
+  hemiGround: new THREE.Color(0x161a2a),
+  hemiIntensity: 1.5,
   sun: new THREE.Color(0xa8b8ff),
-  sunIntensity: 1.15,
-  water: new THREE.Color(0x4c5c78)
+  sunIntensity: 1.5,
+  waterDeep: new THREE.Color(0x172f5c),
+  glint: 0.9,
+  exposure: 1.15
 };
+// A clear late afternoon: low warm sun, long shadows, cream haze on the horizon.
 const DAY = {
-  sky: new THREE.Color('#8fb8dd'),
-  skyTop: new THREE.Color('#2a6fc4'),
-  skyBottom: new THREE.Color('#c4def2'),
-  bloom: 0.18,
+  skyTop: new THREE.Color('#2a6ccb'),
+  skyBottom: new THREE.Color('#cfe0ec'),
+  skySun: new THREE.Color('#fff0d2'),
+  sunDisc: 6,
+  bloom: 0.16,
   bloomThreshold: 1.0,
   fog: 0.2,
   ambient: new THREE.Color(0xc4d2e8),
-  ambientIntensity: 1.05,
-  hemiSky: new THREE.Color(0xcfe4ff),
-  hemiGround: new THREE.Color(0x6a7a8a),
-  hemiIntensity: 0.9,
-  sun: new THREE.Color(0xfff2d8),
-  sunIntensity: 2.7,
-  water: new THREE.Color(0xcfe2f6)
+  ambientIntensity: 0.1,
+  hemiSky: new THREE.Color(0xa9c6ff),
+  hemiGround: new THREE.Color(0x8a7a5c),
+  hemiIntensity: 0.55,
+  sun: new THREE.Color(0xffe0b0),
+  sunIntensity: 3.6,
+  waterDeep: new THREE.Color(0x1b6388),
+  glint: 1.8,
+  exposure: 1.0
 };
 
 export const ABOUT_ID = '__about__';
@@ -79,7 +91,9 @@ interface CameraTween {
   duration: number;
 }
 
-const OVERVIEW_TARGET = new THREE.Vector3(0, 4, 0);
+const OVERVIEW_TARGET = new THREE.Vector3(0, 7, 0);
+/** The opening view looks northeast across downtown from this compass bearing off due south. */
+const OVERVIEW_BEARING = THREE.MathUtils.degToRad(-33);
 const LABEL_NEAR = 45;
 const LABEL_FAR = 110;
 
@@ -102,7 +116,8 @@ export class CityWorld {
   private people: Person[] = [];
   private traffic: Traffic | null = null;
   private pickMeshes: THREE.Mesh[] = [];
-  private spireRings: THREE.Mesh[] = [];
+  private clockTick: () => void = () => {};
+  private clockMinute = -1;
   private riverUpdate: (t: number) => void = () => {};
   private outskirtsUpdate: (t: number) => void = () => {};
   private skyUpdate: (t: number, dayMix: number, moving: boolean) => void = () => {};
@@ -118,11 +133,23 @@ export class CityWorld {
   private skyDomeMaterial!: THREE.ShaderMaterial;
   private bloomPass!: UnrealBloomPass;
   private composer!: EffectComposer;
-  private waterMaterial!: THREE.MeshStandardMaterial;
+  private envDay!: THREE.Texture;
+  private envNight!: THREE.Texture;
+  private shadowRefresh = 30;
+  private fxaaPass!: ShaderPass;
+  private sizeScratch = new THREE.Vector2();
   private lampBulbMaterial!: THREE.MeshStandardMaterial;
   private lampGlowMaterials: { material: THREE.Material; base: number }[] = [];
   private nightWindows: { mat: THREE.MeshStandardMaterial; base: number; dim: number }[] = [];
-  private labelBoxes: { id: string; label: THREE.Sprite; priority: number; halfW: number; halfH: number }[] = [];
+  private labelBoxes: {
+    id: string;
+    label: THREE.Sprite;
+    priority: number;
+    halfW: number;
+    halfH: number;
+    baseW: number;
+    baseH: number;
+  }[] = [];
   private overviewPos = new THREE.Vector3(0, 72, 134);
   private atOverview = true;
   private frame = 0;
@@ -145,26 +172,32 @@ export class CityWorld {
     private events: CityWorldEvents
   ) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-    this.pixelRatio = Math.min(window.devicePixelRatio, 2);
+    this.pixelRatio = Math.min(window.devicePixelRatio, 1.5);
     this.renderer.setPixelRatio(this.pixelRatio);
     this.renderer.setSize(container.clientWidth, container.clientHeight);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.25;
+    this.renderer.toneMappingExposure = 1;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    this.renderer.shadowMap.autoUpdate = false; // refreshed every other frame in the loop
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    // The sun never moves and nearly everything is static, so the shadow map is
+    // drawn a few times at load and then left alone.
+    this.renderer.shadowMap.autoUpdate = false;
     this.renderer.info.autoReset = false; // count draw calls across all composer passes
     this.renderer.domElement.dataset.test = 'world-canvas';
     container.appendChild(this.renderer.domElement);
 
-    // Neutral image-based lighting so glass, metal, and water read as real PBR.
+    // Image-based lighting from the town's own sky, so glass and metal reflect what is overhead.
     const pmrem = new THREE.PMREMGenerator(this.renderer);
-    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    // Kept dim: it is there for reflections, not to flood the shadows with fill light.
+    this.envDay = pmrem.fromScene(createSkyEnvScene('#1c3a66', '#6f7478', '#2c2a22', '#8a7a5a'), 0.02).texture;
+    this.envNight = pmrem.fromScene(createSkyEnvScene('#050a18', '#111830', '#05060a', '#1c2238'), 0.02).texture;
+    pmrem.dispose();
+    this.scene.environment = this.envNight;
 
     this.scene.fog = new THREE.FogExp2(0x05070f, 0.0042);
 
     this.camera = new THREE.PerspectiveCamera(
-      40,
+      36,
       container.clientWidth / container.clientHeight,
       1,
       2400
@@ -184,7 +217,7 @@ export class CityWorld {
     });
 
     this.selectionRing = new THREE.Mesh(
-      new THREE.RingGeometry(1, 1.14, 48),
+      new THREE.RingGeometry(1, 1.045, 64),
       new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false })
     );
     this.selectionRing.rotation.x = -Math.PI / 2;
@@ -193,16 +226,19 @@ export class CityWorld {
 
     this.plan = buildCityPlan(data);
     this.fitOverview();
-    this.camera.position.copy(this.reducedMotion ? this.overviewPos : this.overviewPos.clone().multiplyScalar(1.9));
+    this.camera.position.copy(
+      this.reducedMotion
+        ? this.overviewPos
+        : OVERVIEW_TARGET.clone().add(this.overviewPos.clone().sub(OVERVIEW_TARGET).multiplyScalar(1.7).setY(this.overviewPos.y * 2.1))
+    );
     this.buildScene();
     this.bindEvents();
 
-    // HDR post-processing: MSAA render target + bloom + tone-mapped output.
+    // HDR post-processing: bloom, tone-mapped output, then FXAA. Multisampling a
+    // half-float target cost a third of the frame rate on integrated graphics;
+    // FXAA on the finished image costs almost nothing.
     const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
-    const renderTarget = new THREE.WebGLRenderTarget(size.x, size.y, {
-      type: THREE.HalfFloatType,
-      samples: 4
-    });
+    const renderTarget = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType });
     this.composer = new EffectComposer(this.renderer, renderTarget);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
     this.bloomPass = new UnrealBloomPass(
@@ -213,11 +249,21 @@ export class CityWorld {
     );
     this.composer.addPass(this.bloomPass);
     this.composer.addPass(new OutputPass());
+    this.fxaaPass = new ShaderPass(FXAAShader);
+    this.composer.addPass(this.fxaaPass);
+    this.sizePasses();
 
     if (import.meta.env.DEV) {
       // Dev-only hook so e2e tests can find moving citizens on screen.
       (window as unknown as Record<string, unknown>).__cityDebug = {
         bubbleActive: () => this.bubble !== null,
+        world: this,
+          quality: () => ({ pixelRatio: this.pixelRatio }),
+          view: (px: number, py: number, pz: number, tx: number, ty: number, tz: number) => {
+            this.tween = null;
+            this.camera.position.set(px, py, pz);
+            this.controls.target.set(tx, ty, tz);
+          },
         renderInfo: () => ({ ...this.renderer.info.render, ...this.renderer.info.memory }),
         peopleOnScreen: () => {
           const rect = this.renderer.domElement.getBoundingClientRect();
@@ -255,23 +301,41 @@ export class CityWorld {
 
   /** Pull the overview camera back just far enough to frame the whole town. */
   private fitOverview(): void {
-    const { minX, maxX, minZ, maxZ } = this.plan.bounds;
-    const halfX = (maxX - minX) / 2 + 6;
-    const halfZ = (maxZ - minZ) / 2 + 6;
-    const vFov = THREE.MathUtils.degToRad(this.camera.fov);
-    const aspect = this.camera.aspect;
-    const hFov = 2 * Math.atan(Math.tan(vFov / 2) * aspect);
-    // On a tall screen, stand at the east end and look down the town's long axis.
-    const portrait = aspect < 1;
-    const across = portrait ? halfZ : halfX;
-    const deep = portrait ? halfX : halfZ;
-    const pitch = THREE.MathUtils.degToRad(portrait ? 40 : 33);
-    // Wide enough for the span across, tall enough for the foreshortened depth.
-    const forWidth = across / Math.tan(hFov / 2) + deep * Math.cos(pitch) * 0.4;
-    const forDepth = (deep * Math.sin(pitch) + 18) / Math.tan(vFov / 2);
-    const dist = Math.max(forWidth, forDepth);
-    const out = Math.cos(pitch) * dist;
-    this.overviewPos.set(portrait ? out : 0, OVERVIEW_TARGET.y + Math.sin(pitch) * dist, portrait ? 0 : out);
+    // Frame the project grid (the ring of neighbourhood blocks may run off the
+    // edges) from a low three-quarter angle, so the skyline stands against the
+    // sky. Walk the camera back until every corner of that box is on screen.
+    const { core, center } = this.plan;
+    // A tall screen looks down the town's long axis from the west instead.
+    const portrait = this.camera.aspect < 1;
+    const bearing = portrait ? THREE.MathUtils.degToRad(-78) : OVERVIEW_BEARING;
+    const pitch = THREE.MathUtils.degToRad(portrait ? 24 : 17);
+    const dir = new THREE.Vector3(Math.sin(bearing) * Math.cos(pitch), Math.sin(pitch), Math.cos(bearing) * Math.cos(pitch));
+    const target = OVERVIEW_TARGET.clone().setX((core.minX + core.maxX) / 2 - center.x).setZ((core.minZ + core.maxZ) / 2 - center.z);
+    OVERVIEW_TARGET.copy(target);
+    const corners: THREE.Vector3[] = [];
+    for (const x of [core.minX - center.x, core.maxX - center.x]) {
+      for (const z of [core.minZ - center.z, core.maxZ - center.z]) {
+        for (const y of [0, 34]) corners.push(new THREE.Vector3(x, y, z));
+      }
+    }
+    const probe = this.camera.clone();
+    const fits = (dist: number) => {
+      probe.position.copy(target).addScaledVector(dir, dist);
+      probe.lookAt(target);
+      probe.updateMatrixWorld(true);
+      return corners.every((corner) => {
+        const ndc = corner.clone().project(probe);
+        return Math.abs(ndc.x) < (portrait ? 0.9 : 0.97) && ndc.y < (portrait ? 0.7 : 0.62) && ndc.y > (portrait ? -0.7 : -0.86);
+      });
+    };
+    let lo = 40;
+    let hi = 1200;
+    for (let i = 0; i < 18; i += 1) {
+      const mid = (lo + hi) / 2;
+      if (fits(mid)) hi = mid;
+      else lo = mid;
+    }
+    this.overviewPos.copy(target).addScaledVector(dir, hi);
   }
 
   private buildScene(): void {
@@ -280,17 +344,23 @@ export class CityWorld {
     this.hemiLight = new THREE.HemisphereLight(0x46548c, 0x10131f, 1.1);
     this.scene.add(this.hemiLight);
     this.sunLight = new THREE.DirectionalLight(0x93a7ff, 0.85);
-    this.sunLight.position.set(90, 140, -70);
+    // One static shadow map fitted to the town. Because it is drawn once, it can
+    // afford to be large; phones get a smaller one.
+    const { minX, maxX, minZ, maxZ } = this.plan.bounds;
+    const reach = Math.hypot(maxX - minX, maxZ - minZ) / 2 + 14;
+    const small = window.matchMedia('(pointer: coarse)').matches;
+    this.sunLight.position.copy(SUN_DIR).multiplyScalar(reach + 120);
     this.sunLight.castShadow = true;
-    this.sunLight.shadow.mapSize.set(2048, 2048);
+    this.sunLight.shadow.mapSize.setScalar(small ? 2048 : 4096);
     this.sunLight.shadow.camera.near = 20;
-    this.sunLight.shadow.camera.far = 460;
-    this.sunLight.shadow.camera.left = -170;
-    this.sunLight.shadow.camera.right = 170;
-    this.sunLight.shadow.camera.top = 170;
-    this.sunLight.shadow.camera.bottom = -170;
-    this.sunLight.shadow.bias = -0.0004;
-    this.sunLight.shadow.normalBias = 0.03;
+    this.sunLight.shadow.camera.far = reach * 2 + 240;
+    this.sunLight.shadow.camera.left = -reach;
+    this.sunLight.shadow.camera.right = reach;
+    this.sunLight.shadow.camera.top = reach;
+    this.sunLight.shadow.camera.bottom = -reach;
+    this.sunLight.shadow.bias = -0.0005;
+    this.sunLight.shadow.normalBias = 0.16;
+    this.sunLight.shadow.radius = 2.2;
     this.scene.add(this.sunLight);
     this.scene.add(this.sunLight.target);
 
@@ -311,7 +381,11 @@ export class CityWorld {
     const river = createRiver(this.plan);
     this.city.add(river.group);
     this.riverUpdate = river.update;
-    this.waterMaterial = river.waterMaterial;
+    const fabric = createFabric(this.plan);
+    this.city.add(fabric.group);
+    for (const mat of fabric.windowMaterials) {
+      this.nightWindows.push({ mat, base: mat.emissiveIntensity, dim: 0.97 });
+    }
     this.city.add(createTrees(this.plan));
 
     const outskirts = createOutskirts(this.plan);
@@ -336,14 +410,14 @@ export class CityWorld {
       base: mat.emissiveIntensity
     }));
 
-    const terrain = createTerrain();
+    const terrain = createTerrain(this.plan);
     terrain.userData.noCast = true; // flat ground: receive only
     this.scene.add(terrain);
 
     // Buildings and their citizens.
     const centroids = new Map<string, { sum: THREE.Vector3; n: number }>();
     for (const placement of this.plan.placements) {
-      const handle = createBuilding(placement.project, placement.district, placement.towerRank);
+      const handle = createBuilding(placement.project, placement.district, placement.towerRank, placement.rotationY);
       handle.group.position.set(placement.lot.x, 0.18, placement.lot.z);
       this.city.add(handle.group);
       this.buildings.set(placement.project.id, handle);
@@ -373,7 +447,9 @@ export class CityWorld {
         label: handle.label,
         priority: placement.project.commits,
         halfW: labelScale.x / 2,
-        halfH: labelScale.y / 2
+        halfH: labelScale.y / 2,
+        baseW: labelScale.x,
+        baseH: labelScale.y
       });
 
       const entry = centroids.get(placement.district.id) ?? { sum: new THREE.Vector3(), n: 0 };
@@ -388,7 +464,7 @@ export class CityWorld {
           placement.district,
           placement.lot.x,
           placement.lot.z,
-          handle.footprint * 0.9 + 1.6,
+          Math.min(handle.footprint * 0.9 + 1.6, tierOf(placement.project.commits) === 4 ? 10.4 : 5.2),
           i % Math.max(placement.project.quotes.length, 1)
         );
         this.city.add(person.group);
@@ -403,27 +479,52 @@ export class CityWorld {
     const spire = createSpire();
     spire.group.position.set(this.plan.plaza.x, 0.15, this.plan.plaza.z);
     this.city.add(spire.group);
-    this.spireRings = spire.rings;
+    this.clockTick = spire.tick;
+    this.nightWindows.push({ mat: spire.faceMaterial, base: 1.1, dim: 0.75 });
     this.pickMeshes.push(...spire.pickMeshes);
 
     bakeStatic(this.city);
     this.enableShadows();
+    this.sizeLabels();
+  }
+
+  /** Name plates are sized against the view height; on a narrow screen that is too wide, so shrink them. */
+  private sizeLabels(): void {
+    const k = THREE.MathUtils.clamp(this.camera.aspect / 1.15, 0.52, 1);
+    for (const box of this.labelBoxes) {
+      box.label.scale.set(box.baseW * k, box.baseH * k, 1);
+      box.halfW = (box.baseW * k) / 2;
+      box.halfH = (box.baseH * k) / 2;
+    }
   }
 
   /** Solid opaque meshes cast + receive; thin/transparent decals only receive. */
   private enableShadows(): void {
-    this.scene.traverse((obj) => {
-      if (!(obj instanceof THREE.Mesh)) return; // InstancedMesh extends Mesh
-      if (obj.userData.skipShadow) {
-        obj.castShadow = false;
-        obj.receiveShadow = false;
-        return;
+    // Anything that moves stays out of the static shadow map.
+    const walk = (obj: THREE.Object3D, moving: boolean) => {
+      const dynamic = moving || Boolean(obj.userData.dynamic);
+      if (obj instanceof THREE.Mesh) {
+        // InstancedMesh extends Mesh
+        if (obj.userData.skipShadow) {
+          obj.castShadow = false;
+          obj.receiveShadow = false;
+        } else {
+          const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+          const transparent = mats.some((m) => (m as THREE.Material).transparent);
+          obj.castShadow = !transparent && !obj.userData.noCast && !dynamic;
+          obj.receiveShadow = true;
+        }
       }
-      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-      const transparent = mats.some((m) => (m as THREE.Material).transparent);
-      obj.castShadow = !transparent && !obj.userData.noCast;
-      obj.receiveShadow = true;
-    });
+      for (const child of obj.children) walk(child, dynamic);
+    };
+    walk(this.scene, false);
+  }
+
+  /** Bloom is a soft effect, so a quarter of the pixels is plenty; FXAA needs the true pixel size. */
+  private sizePasses(): void {
+    const size = this.renderer.getDrawingBufferSize(this.sizeScratch);
+    this.bloomPass.setSize(size.x / 2, size.y / 2);
+    this.fxaaPass.material.uniforms.resolution.value.set(1 / size.x, 1 / size.y);
   }
 
   private bindEvents(): void {
@@ -504,7 +605,7 @@ export class CityWorld {
     for (const [id, handle] of this.buildings) {
       const active = id === this.hoveredId || id === this.selectedId;
       handle.glowMaterials.forEach((mat, i) => {
-        mat.emissiveIntensity = handle.baseEmissive[i] * (active ? 2.4 : 1);
+        mat.emissiveIntensity = active ? 1.8 : handle.baseEmissive[i];
       });
     }
   }
@@ -532,13 +633,18 @@ export class CityWorld {
     const handle = this.buildings.get(id);
     if (!handle) return;
     const pos = handle.group.position.clone().add(this.city.position);
-    const outward = pos.clone().setY(0);
-    if (outward.lengthSq() < 1) outward.set(0, 0, 1);
-    outward.normalize();
+    // Always approach from the sunlit south-west: that is the side the front
+    // door and the posters face, and the side the opening view comes from.
+    const bearing = OVERVIEW_BEARING * (handle.landmark ? 1 : 0.6);
+    const outward = new THREE.Vector3(Math.sin(bearing), 0, Math.cos(bearing));
+    if (!handle.landmark && Math.abs(handle.group.rotation.y) > 1) outward.z *= -1; // houses that face north
     // Nudge the framing right so the building sits left of the info panel.
     const right = new THREE.Vector3(outward.z, 0, -outward.x);
     const portrait = this.camera.aspect < 1;
-    const dist = (12 + handle.footprint * 2 + handle.height * 0.75) * (portrait ? 1.35 : 1);
+    // Small buildings are viewed from closer and steeper, over their neighbours' roofs.
+    const dist =
+      (handle.landmark ? 14 + handle.footprint * 2 + handle.height * 0.95 : 8 + handle.footprint * 1.5 + handle.height) *
+      (portrait ? 1.35 : 1);
     // Desktop: the panel sits on the right, so slide the building left.
     // Phone: the panel is a bottom sheet, so lift the building into the top half.
     const toTarget = new THREE.Vector3(pos.x, handle.height * 0.45, pos.z);
@@ -547,7 +653,7 @@ export class CityWorld {
     const toPos = new THREE.Vector3(pos.x, 0, pos.z)
       .add(right.clone().multiplyScalar(portrait ? 0 : dist * 0.2))
       .add(outward.multiplyScalar(dist))
-      .setY(Math.max(handle.height * 0.7 + 6, 9));
+      .setY(handle.landmark ? handle.height * 0.62 + 8 : dist * 0.8);
     this.atOverview = false;
     this.startTween(toPos, toTarget);
   }
@@ -592,7 +698,11 @@ export class CityWorld {
     this.skyDomeMaterial.uniforms.bottomColor.value.lerpColors(NIGHT.skyBottom, DAY.skyBottom, k);
     const fog = this.scene.fog as THREE.FogExp2;
     fog.color.lerpColors(NIGHT.skyBottom, DAY.skyBottom, k);
-    fog.density = THREE.MathUtils.lerp(NIGHT.fog, DAY.fog, k) / this.overviewPos.length();
+    fog.density = THREE.MathUtils.lerp(NIGHT.fog, DAY.fog, k) / this.overviewDistance();
+    this.skyDomeMaterial.uniforms.sunColor.value.lerpColors(NIGHT.skySun, DAY.skySun, k);
+    this.skyDomeMaterial.uniforms.sunDisc.value = THREE.MathUtils.lerp(NIGHT.sunDisc, DAY.sunDisc, k);
+    this.scene.environment = k > 0.5 ? this.envDay : this.envNight;
+    this.renderer.toneMappingExposure = THREE.MathUtils.lerp(NIGHT.exposure, DAY.exposure, k);
 
     // Bloom blooms hard at night (neon), gentle by day.
     this.bloomPass.strength = THREE.MathUtils.lerp(NIGHT.bloom, DAY.bloom, k);
@@ -609,10 +719,13 @@ export class CityWorld {
     this.starsMaterial.opacity = 0.95 * night;
     applyTints(k);
     bakedGlow.value = 1 - 0.8 * k;
-    this.waterMaterial.color.lerpColors(NIGHT.water, DAY.water, k);
-    this.waterMaterial.emissiveIntensity = 0.9 * night + 0.15;
-    // Grazing-angle reflections of the studio environment read as a white sheet at night.
-    this.waterMaterial.envMapIntensity = 0.12 + 0.88 * k;
+    setWaterLook(
+      NIGHT.waterDeep.clone().lerp(DAY.waterDeep, k),
+      this.skyDomeMaterial.uniforms.topColor.value,
+      this.skyDomeMaterial.uniforms.bottomColor.value,
+      this.skyDomeMaterial.uniforms.sunColor.value,
+      THREE.MathUtils.lerp(NIGHT.glint, DAY.glint, k)
+    );
 
     this.lampBulbMaterial.emissiveIntensity = 3.4 * night + 0.1;
     for (const glow of this.lampGlowMaterials) {
@@ -627,9 +740,13 @@ export class CityWorld {
     const plaza = this.toWorld(this.plan.plaza.x, this.plan.plaza.z);
     this.atOverview = false;
     this.startTween(
-      plaza.clone().add(new THREE.Vector3(16, 26, 34)),
-      plaza.clone().setY(15)
+      plaza.clone().add(new THREE.Vector3(-26, 22, 40)),
+      plaza.clone().setY(13)
     );
+  }
+
+  private overviewDistance(): number {
+    return this.overviewPos.distanceTo(OVERVIEW_TARGET);
   }
 
   private startTween(toPos: THREE.Vector3, toTarget: THREE.Vector3): void {
@@ -649,9 +766,11 @@ export class CityWorld {
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(clientWidth, clientHeight);
     this.composer.setSize(clientWidth, clientHeight);
+    this.sizePasses();
+    this.sizeLabels();
     this.fitOverview();
     (this.scene.fog as THREE.FogExp2).density =
-      THREE.MathUtils.lerp(NIGHT.fog, DAY.fog, this.dayMix) / this.overviewPos.length();
+      THREE.MathUtils.lerp(NIGHT.fog, DAY.fog, this.dayMix) / this.overviewDistance();
     if (this.atOverview) this.startTween(this.overviewPos.clone(), OVERVIEW_TARGET.clone());
   }
 
@@ -668,10 +787,11 @@ export class CityWorld {
         const handle = this.buildings.get(box.id)!;
         const world = box.label.getWorldPosition(new THREE.Vector3());
         const distance = this.camera.position.distanceTo(world);
-        const near = 1 - THREE.MathUtils.clamp((distance - LABEL_NEAR) / (LABEL_FAR - LABEL_NEAR), 0, 1);
+        // Towers are named from the opening view; smaller buildings as you come closer.
+        const reach = handle.landmark ? Math.max(this.overviewDistance() * 1.25 / LABEL_FAR, 1) : 1;
+        const near = 1 - THREE.MathUtils.clamp((distance - LABEL_NEAR * reach) / ((LABEL_FAR - LABEL_NEAR) * reach), 0, 1);
         const forced = box.id === this.hoveredId || box.id === this.selectedId;
         const ndc = world.project(this.camera);
-        void handle;
         return { box, near, forced, ndc };
       })
       .sort((a, b) => Number(b.forced) - Number(a.forced) || b.box.priority - a.box.priority);
@@ -703,12 +823,13 @@ export class CityWorld {
     this.lastFrameAt = now;
     if (elapsed <= 0 || elapsed > 500) return; // first frame, or the tab was in the background
     this.slowFrames = elapsed > 24 ? this.slowFrames + 1 : Math.max(this.slowFrames - 2, 0);
-    if (this.slowFrames > 45 && this.pixelRatio > 1) {
-      this.slowFrames = 0;
-      this.pixelRatio = Math.max(1, this.pixelRatio - 0.25);
-      this.renderer.setPixelRatio(this.pixelRatio);
-      this.composer.setPixelRatio(this.pixelRatio);
-    }
+    if (this.slowFrames <= 45) return;
+    this.slowFrames = 0;
+    if (this.pixelRatio <= 0.75) return;
+    this.pixelRatio = Math.max(0.75, this.pixelRatio - 0.25);
+    this.renderer.setPixelRatio(this.pixelRatio);
+    this.composer.setPixelRatio(this.pixelRatio);
+    this.sizePasses();
   }
 
   start(): void {
@@ -743,9 +864,6 @@ export class CityWorld {
       this.skyUpdate(t, this.dayMix, !this.reducedMotion);
 
       if (!this.reducedMotion) {
-        this.spireRings.forEach((ring, i) => {
-          ring.rotation.z = t * (0.2 + i * 0.07);
-        });
         this.riverUpdate(t);
         this.outskirtsUpdate(t);
         this.traffic?.update(dt);
@@ -773,6 +891,13 @@ export class CityWorld {
         }
       }
 
+      // The town hall clock keeps the visitor's own time.
+      const minute = new Date().getMinutes();
+      if (minute !== this.clockMinute) {
+        this.clockMinute = minute;
+        this.clockTick();
+      }
+
       if (this.bubble && performance.now() > this.bubble.expires) {
         this.clearBubble();
       }
@@ -790,7 +915,10 @@ export class CityWorld {
         box.label.visible = material.opacity > 0.02;
       }
 
-      this.renderer.shadowMap.needsUpdate = this.frame % 2 === 0;
+      if (this.shadowRefresh > 0) {
+        this.shadowRefresh -= 1;
+        this.renderer.shadowMap.needsUpdate = true;
+      }
       this.composer.render();
       this.watchFrameRate();
 

@@ -31,6 +31,24 @@ export interface Placement {
   lot: Lot;
   /** Rank among the city's skyscrapers (tallest first); -1 for everything else. */
   towerRank: number;
+  /** Which way the front door faces: toward the street the lot sits on. */
+  rotationY: number;
+}
+
+/**
+ * A building that is not a project: the ordinary town that grew up around the
+ * named ones. Drawn quieter, never labelled, never clickable.
+ */
+export interface Filler {
+  x: number;
+  z: number;
+  w: number;
+  d: number;
+  h: number;
+  rotationY: number;
+  kind: 'house' | 'walkup' | 'office';
+  /** Picks a finish from that kind's small palette. */
+  style: number;
 }
 
 export interface RoadStrip {
@@ -40,7 +58,7 @@ export interface RoadStrip {
   horizontal: boolean;
 }
 
-export type BlockKind = 'plaza' | 'park' | 'district';
+export type BlockKind = 'plaza' | 'park' | 'district' | 'fabric';
 
 export interface PlanBlock {
   col: number;
@@ -49,17 +67,21 @@ export interface PlanBlock {
   z: number;
   kind: BlockKind;
   districtId: string | null;
+  /** Downtown lots are paved; everything else is grass. */
+  paved: boolean;
 }
 
 export interface CityPlan {
   placements: Placement[];
+  /** The unnamed town around the projects. */
+  fillers: Filler[];
   blocks: PlanBlock[];
   /** Grass patches: house lawns and unbuilt lots. */
   lawns: Lot[];
   roads: RoadStrip[];
   intersections: { x: number; z: number }[];
   bridges: { z: number }[];
-  trees: { x: number; z: number; kind: 'pine' | 'round' }[];
+  trees: { x: number; z: number; kind: 'pine' | 'round'; street?: boolean }[];
   lamps: { x: number; z: number }[];
   signs: { x: number; z: number; district: District; rotationY: number }[];
   /** Unbuilt lots, each advertising for the next project. */
@@ -71,6 +93,8 @@ export interface CityPlan {
   mainStreetZ: number;
   mainAvenueX: number;
   bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
+  /** The project grid alone, without the outer ring of neighbourhood blocks. */
+  core: { minX: number; maxX: number; minZ: number; maxZ: number };
   center: { x: number; z: number };
 }
 
@@ -124,10 +148,13 @@ export function buildCityPlan(data: WorldData): CityPlan {
   const rowZ = (r: number) => (r - plazaRow) * PITCH;
   const riverX = (colX(riverCol) + colX(riverCol + 1)) / 2;
 
+  // The project grid, wrapped in one ring of ordinary neighbourhood blocks so the
+  // town thins out into the countryside instead of stopping at a hard edge.
   const blocks: PlanBlock[] = [];
-  for (let c = 0; c < cols; c += 1) {
-    for (let r = 0; r < rows; r += 1) {
-      blocks.push({ col: c, row: r, x: colX(c), z: rowZ(r), kind: 'district', districtId: null });
+  for (let c = -1; c <= cols; c += 1) {
+    for (let r = -1; r <= rows; r += 1) {
+      const ring = c < 0 || c >= cols || r < 0 || r >= rows;
+      blocks.push({ col: c, row: r, x: colX(c), z: rowZ(r), kind: ring ? 'fabric' : 'district', districtId: null, paved: false });
     }
   }
   const blockAt = (c: number, r: number) => blocks.find((b) => b.col === c && b.row === r)!;
@@ -167,6 +194,8 @@ export function buildCityPlan(data: WorldData): CityPlan {
   const signs: CityPlan['signs'] = [];
   const vacancies: CityPlan['vacancies'] = [];
   const lotBlock = new Map<Lot, PlanBlock>();
+  const towerBlocks: PlanBlock[] = [];
+  const fillers: Filler[] = [];
 
   let cursor = 0;
   for (const { district, projects } of byDistrict) {
@@ -185,7 +214,9 @@ export function buildCityPlan(data: WorldData): CityPlan {
     for (const project of projects) {
       if (tierOf(project.commits) === 4) {
         const b = blockQueue.shift()!;
-        placements.push({ project, district, lot: { x: b.x, z: b.z, size: BLOCK * 0.8 }, towerRank: -1 });
+        b.paved = true;
+        placements.push({ project, district, lot: { x: b.x, z: b.z, size: BLOCK * 0.8 }, towerRank: -1, rotationY: 0 });
+        towerBlocks.push(b);
         continue;
       }
       if (lotQueue.length === 0) {
@@ -199,8 +230,23 @@ export function buildCityPlan(data: WorldData): CityPlan {
         lotQueue.push(...quarters);
       }
       const lot = lotQueue.shift()!;
-      placements.push({ project, district, lot, towerRank: -1 });
-      if (tierOf(project.commits) <= 2) lawns.push(lot);
+      const home = lotBlock.get(lot)!;
+      // Front doors face the street along the block's north or south edge.
+      const south = lot.z > home.z;
+      placements.push({ project, district, lot, towerRank: -1, rotationY: south ? 0 : Math.PI });
+      if (tierOf(project.commits) === 3) home.paved = true;
+      else {
+        lawns.push(lot);
+        // A couple of garden trees behind each house.
+        for (const side of [-1, 1]) {
+          if (rand() < 0.25) continue;
+          trees.push({
+            x: lot.x + side * (lot.size * 0.36 + rand() * 0.6),
+            z: lot.z - (south ? 1 : -1) * (lot.size * 0.3 + rand() * 0.8),
+            kind: rand() < 0.25 ? 'pine' : 'round'
+          });
+        }
+      }
     }
 
     // Unbuilt lots wait under grass and a few trees for the next project.
@@ -239,15 +285,21 @@ export function buildCityPlan(data: WorldData): CityPlan {
 
   // --- Roads: strips between block rows/cols (the river replaces one). ---
   const roads: RoadStrip[] = [];
-  const minX = colX(0) - BLOCK / 2 - ROAD;
-  const maxX = colX(cols - 1) + BLOCK / 2 + ROAD;
-  const minZ = rowZ(0) - BLOCK / 2 - ROAD;
-  const maxZ = rowZ(rows - 1) + BLOCK / 2 + ROAD;
+  const minX = colX(-1) - BLOCK / 2 - ROAD;
+  const maxX = colX(cols) + BLOCK / 2 + ROAD;
+  const minZ = rowZ(-1) - BLOCK / 2 - ROAD;
+  const maxZ = rowZ(rows) + BLOCK / 2 + ROAD;
+  const core = {
+    minX: colX(0) - BLOCK / 2,
+    maxX: colX(cols - 1) + BLOCK / 2,
+    minZ: rowZ(0) - BLOCK / 2,
+    maxZ: rowZ(rows - 1) + BLOCK / 2
+  };
 
   const streetZs: number[] = [];
-  for (let r = 0; r < rows - 1; r += 1) streetZs.push((rowZ(r) + rowZ(r + 1)) / 2);
+  for (let r = -1; r < rows; r += 1) streetZs.push((rowZ(r) + rowZ(r + 1)) / 2);
   const avenueXs: number[] = [];
-  for (let c = 0; c < cols - 1; c += 1) {
+  for (let c = -1; c < cols; c += 1) {
     if (c === riverCol) continue;
     avenueXs.push((colX(c) + colX(c + 1)) / 2);
   }
@@ -274,6 +326,95 @@ export function buildCityPlan(data: WorldData): CityPlan {
       for (const dz of [-off, off]) {
         lamps.push({ x: b.x + dx, z: b.z + dz });
       }
+    }
+  }
+
+  // --- Street trees along every sidewalk, three to a side. ---
+  for (const b of blocks) {
+    if (b.kind === 'plaza') continue;
+    const edge = BLOCK / 2 - 0.85;
+    for (const t of [-6.3, 0, 6.3]) {
+      for (const side of [-1, 1]) {
+        if (rand() < 0.12) continue;
+        trees.push({ x: b.x + t + (rand() - 0.5), z: b.z + side * edge, kind: 'round', street: true });
+        trees.push({ x: b.x + side * edge, z: b.z + t + (rand() - 0.5), kind: 'round', street: true });
+      }
+    }
+  }
+
+  // --- The unnamed town. Downtown towers get neighbours at their back corners. ---
+  for (const b of towerBlocks) {
+    for (const side of [-1, 1]) {
+      const w = 4 + rand() * 0.6;
+      fillers.push({
+        x: b.x + side * (BLOCK / 2 - 1.6 - w / 2),
+        z: b.z - (BLOCK / 2 - 1.6 - w / 2),
+        w,
+        d: w,
+        h: 7 + Math.floor(rand() * 5) * 1.5,
+        rotationY: 0,
+        kind: 'office',
+        style: Math.floor(rand() * 8)
+      });
+    }
+  }
+  // Ring blocks: walk-ups and small offices next to downtown, houses farther out.
+  const coreMidX = (core.minX + core.maxX) / 2;
+  const coreMidZ = (core.minZ + core.maxZ) / 2;
+  for (const b of blocks) {
+    if (b.kind !== 'fabric') continue;
+    const nearDowntown = Math.hypot(b.x - plazaBlock.x, b.z - plazaBlock.z) < PITCH * 2.3;
+    const outX = b.col < 0 || b.col >= cols ? Math.sign(b.x - coreMidX) : 0;
+    const outZ = b.row < 0 || b.row >= rows ? Math.sign(b.z - coreMidZ) : 0;
+    if (nearDowntown) {
+      b.paved = true;
+      for (const [qx, qz] of QUARTERS) {
+        if (rand() < 0.12) continue;
+        const w = 6.4 + rand() * 2;
+        const d = 6.4 + rand() * 2;
+        const office = rand() < 0.35;
+        fillers.push({
+          x: b.x + qx * 0.94,
+          z: b.z + qz * 0.94,
+          w,
+          d,
+          h: office ? 9 + Math.floor(rand() * 5) * 1.5 : 5 + Math.floor(rand() * 4) * 1.4,
+          rotationY: 0,
+          kind: office ? 'office' : 'walkup',
+          style: Math.floor(rand() * 8)
+        });
+      }
+      continue;
+    }
+    // Houses face the streets on all four sides; fewer along the edge that looks out at the fields.
+    const sites: [number, number, number][] = [
+      [-5.3, -6.9, Math.PI],
+      [5.3, -6.9, Math.PI],
+      [-5.3, 6.9, 0],
+      [5.3, 6.9, 0],
+      [-7.2, 0, -Math.PI / 2],
+      [7.2, 0, Math.PI / 2]
+    ];
+    for (const [sx, sz, rotationY] of sites) {
+      const outward = (outX !== 0 && Math.sign(sx) === outX && Math.abs(sx) > 6) || (outZ !== 0 && Math.sign(sz) === outZ);
+      if (rand() < (outward ? 0.55 : 0.1)) {
+        if (rand() < 0.7) trees.push({ x: b.x + sx, z: b.z + sz, kind: rand() < 0.3 ? 'pine' : 'round' });
+        continue;
+      }
+      fillers.push({
+        x: b.x + sx,
+        z: b.z + sz,
+        w: 3.6 + rand() * 1.2,
+        d: 3.2 + rand() * 0.8,
+        h: rand() < 0.3 ? 4.6 : 2.6,
+        rotationY,
+        kind: 'house',
+        style: Math.floor(rand() * 8)
+      });
+    }
+    // Back gardens.
+    for (let i = 0; i < 3; i += 1) {
+      trees.push({ x: b.x + (rand() - 0.5) * 6, z: b.z + (rand() - 0.5) * 5, kind: rand() < 0.3 ? 'pine' : 'round' });
     }
   }
 
@@ -305,6 +446,7 @@ export function buildCityPlan(data: WorldData): CityPlan {
 
   return {
     placements,
+    fillers,
     blocks,
     lawns,
     roads,
@@ -320,6 +462,7 @@ export function buildCityPlan(data: WorldData): CityPlan {
     mainStreetZ,
     mainAvenueX,
     bounds: { minX, maxX, minZ, maxZ },
+    core,
     center
   };
 }

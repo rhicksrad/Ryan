@@ -67,15 +67,29 @@ function plainMaterial(bucket: Bucket): THREE.MeshStandardMaterial {
   return material;
 }
 
+/** One mesh, or one material group of a multi-material mesh. */
+interface Piece {
+  mesh: THREE.Mesh;
+  material: THREE.Material;
+  /** Vertex range in the un-indexed geometry; null means all of it. */
+  range: { start: number; count: number } | null;
+}
+
 /** Position + normal (+ uv) only, un-indexed, moved into the root's space. */
-function prepare(mesh: THREE.Mesh, toRoot: THREE.Matrix4, keepUv: boolean): THREE.BufferGeometry | null {
-  const source = mesh.geometry;
+function prepare(piece: Piece, toRoot: THREE.Matrix4, keepUv: boolean): THREE.BufferGeometry | null {
+  const source = piece.mesh.geometry;
   if (!source.getAttribute('normal') || (keepUv && !source.getAttribute('uv'))) return null;
-  const geo = source.index ? source.toNonIndexed() : source.clone();
-  for (const name of Object.keys(geo.attributes)) {
-    if (name !== 'position' && name !== 'normal' && !(keepUv && name === 'uv')) geo.deleteAttribute(name);
+  const flat = source.index ? source.toNonIndexed() : source.clone();
+  const geo = new THREE.BufferGeometry();
+  for (const name of ['position', 'normal', ...(keepUv ? ['uv'] : [])]) {
+    const attr = flat.getAttribute(name) as THREE.BufferAttribute;
+    const size = attr.itemSize;
+    const from = piece.range ? piece.range.start * size : 0;
+    const to = piece.range ? (piece.range.start + piece.range.count) * size : attr.array.length;
+    geo.setAttribute(name, new THREE.BufferAttribute((attr.array as Float32Array).slice(from, to), size));
   }
-  geo.applyMatrix4(new THREE.Matrix4().multiplyMatrices(toRoot, mesh.matrixWorld));
+  flat.dispose();
+  geo.applyMatrix4(new THREE.Matrix4().multiplyMatrices(toRoot, piece.mesh.matrixWorld));
   return geo;
 }
 
@@ -90,7 +104,7 @@ export function bakeStatic(root: THREE.Object3D): void {
   root.updateMatrixWorld(true);
   const toRoot = root.matrixWorld.clone().invert();
 
-  const meshes: THREE.Mesh[] = [];
+  const pieces: Piece[] = [];
   const walk = (node: THREE.Object3D) => {
     if (node.userData.dynamic) return;
     if (
@@ -98,25 +112,36 @@ export function bakeStatic(root: THREE.Object3D): void {
       !(node instanceof THREE.InstancedMesh) &&
       !node.userData.keep &&
       !node.userData.skipShadow &&
-      node.visible &&
-      !Array.isArray(node.material)
+      node.visible
     ) {
-      meshes.push(node);
+      if (Array.isArray(node.material)) {
+        // A box with a facade on its sides and a roof on top: bake each group with its own material.
+        for (const group of node.geometry.groups) {
+          const material = node.material[group.materialIndex ?? 0];
+          if (material) pieces.push({ mesh: node, material, range: { start: group.start, count: group.count } });
+        }
+      } else {
+        pieces.push({ mesh: node, material: node.material, range: null });
+      }
     }
     node.children.forEach(walk);
   };
   walk(root);
 
   const plain = new Map<string, Bucket>();
-  const shared = new Map<THREE.Material, { meshes: THREE.Mesh[]; noCast: boolean }>();
-  const baked: THREE.Mesh[] = [];
+  const shared = new Map<THREE.Material, { meshes: Piece[]; noCast: boolean }>();
+  const baked = new Set<THREE.Mesh>();
+  const kept = new Set<THREE.Mesh>();
 
-  for (const mesh of meshes) {
-    const material = mesh.material as THREE.Material;
+  for (const piece of pieces) {
+    const { mesh, material } = piece;
     const noCast = Boolean(mesh.userData.noCast);
     if (isPlain(material)) {
-      const geo = prepare(mesh, toRoot, false);
-      if (!geo) continue;
+      const geo = prepare(piece, toRoot, false);
+      if (!geo) {
+        kept.add(mesh);
+        continue;
+      }
       fill(geo, 'color', material.color);
       fill(geo, 'glow', material.emissive.clone().multiplyScalar(material.emissiveIntensity));
       const bucket: Bucket = {
@@ -129,10 +154,10 @@ export function bakeStatic(root: THREE.Object3D): void {
       const key = `${bucket.flatShading}|${bucket.rough}|${bucket.metal}|${bucket.noCast}`;
       if (!plain.has(key)) plain.set(key, bucket);
       plain.get(key)!.geometries.push(geo);
-      baked.push(mesh);
+      baked.add(mesh);
     } else {
       const entry = shared.get(material) ?? { meshes: [], noCast };
-      entry.meshes.push(mesh);
+      entry.meshes.push(piece);
       entry.noCast = entry.noCast && noCast;
       shared.set(material, entry);
     }
@@ -149,29 +174,37 @@ export function bakeStatic(root: THREE.Object3D): void {
   }
 
   for (const [material, entry] of shared) {
-    if (entry.meshes.length < 2) continue;
-    const geometries: THREE.BufferGeometry[] = [];
-    const used: THREE.Mesh[] = [];
-    for (const mesh of entry.meshes) {
-      const geo = prepare(mesh, toRoot, true);
-      if (!geo) continue;
-      geometries.push(geo);
-      used.push(mesh);
-    }
-    if (used.length < 2) {
-      geometries.forEach((g) => g.dispose());
+    // A lone single-material mesh is already one draw call: leave it be.
+    if (entry.meshes.length < 2 && !entry.meshes[0].range) {
+      kept.add(entry.meshes[0].mesh);
       continue;
     }
+    const geometries: THREE.BufferGeometry[] = [];
+    const used: THREE.Mesh[] = [];
+    for (const piece of entry.meshes) {
+      const geo = prepare(piece, toRoot, true);
+      if (!geo) {
+        kept.add(piece.mesh);
+        continue;
+      }
+      geometries.push(geo);
+      used.push(piece.mesh);
+    }
+    if (geometries.length === 0) continue;
     const merged = mergeGeometries(geometries, false);
     geometries.forEach((g) => g.dispose());
-    if (!merged) continue;
+    if (!merged) {
+      used.forEach((m) => kept.add(m));
+      continue;
+    }
     const mesh = new THREE.Mesh(merged, material);
     mesh.userData.noCast = entry.noCast;
     mesh.userData.keep = true;
     mesh.renderOrder = used[0].renderOrder;
     root.add(mesh);
-    baked.push(...used);
+    used.forEach((m) => baked.add(m));
   }
 
-  for (const mesh of baked) mesh.removeFromParent();
+  // A mesh any of whose pieces could not be merged stays whole (and is drawn twice at worst).
+  for (const mesh of baked) if (!kept.has(mesh)) mesh.removeFromParent();
 }

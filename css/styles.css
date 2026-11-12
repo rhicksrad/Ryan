@@ -81,6 +81,15 @@ svg.icon {
   touch-action: none;
 }
 
+/* A lens vignette, done by the compositor so it costs the GPU nothing. */
+#scene::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 46%, rgba(8, 12, 28, 0) 58%, rgba(8, 12, 28, 0.34) 100%);
+}
+
 /* ---------- Masthead ---------- */
 .hud {
   position: fixed;
@@ -143,6 +152,11 @@ svg.icon {
   pointer-events: auto;
 }
 
+/*
+ * Controls are sign plates from the same family as the masthead. Actions are
+ * white regulatory plates with a black keyline; districts are green street
+ * blades; the one thing switched on is a yellow warning plate.
+ */
 .hud-actions button,
 .hud-actions a,
 .chip {
@@ -151,30 +165,47 @@ svg.icon {
   align-items: center;
   gap: 7px;
   height: 34px;
-  padding: 0 12px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--asphalt);
-  color: var(--paper);
-  font-size: 13px;
-  font-weight: 600;
+  padding: 1px 11px 0;
+  border: 2px solid var(--asphalt);
+  border-radius: 5px;
+  background: var(--paper);
+  box-shadow: 0 0 0 2px var(--paper), 0 5px 14px rgba(0, 0, 0, 0.3);
+  margin: 2px;
+  color: var(--asphalt);
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
   white-space: nowrap;
   cursor: pointer;
   text-decoration: none;
-  transition: border-color 0.12s, background 0.12s;
+  transition: transform 0.12s cubic-bezier(0.2, 0.8, 0.3, 1), background 0.12s;
 }
 
 .hud-actions button:hover,
 .hud-actions a:hover,
 .chip:hover {
-  border-color: var(--paper);
-  background: var(--asphalt-raised);
+  transform: translateY(-1px);
+  background: #fff;
+}
+
+.hud-actions button:active,
+.hud-actions a:active,
+.chip:active {
+  transform: translateY(1px);
+}
+
+.hud-actions svg.icon {
+  stroke-width: 2.4;
 }
 
 .hud-actions button[aria-pressed='true'] {
   background: var(--paint);
-  border-color: var(--paint);
-  color: var(--asphalt);
+  box-shadow: 0 0 0 2px var(--paint), 0 5px 14px rgba(0, 0, 0, 0.3);
+}
+
+.hud-actions button[aria-pressed='true']:hover {
+  background: #ffd04d;
 }
 
 /* ---------- District legend ---------- */
@@ -193,8 +224,18 @@ svg.icon {
   max-width: 94vw;
 }
 
-.chip:hover {
-  border-color: var(--district);
+/* Street blades: green, white keyline, the district's badge riding the left end. */
+.chip:not(.chip-overview) {
+  background: var(--sign);
+  border-color: #fff;
+  border-width: 1.5px;
+  border-radius: 4px;
+  box-shadow: 0 0 0 2.5px var(--sign), 0 5px 14px rgba(0, 0, 0, 0.3);
+  color: #fff;
+}
+
+.chip:not(.chip-overview):hover {
+  background: #0e6b48;
 }
 
 /* Route-marker swatch, like the colored bullet of a transit line. */
@@ -217,16 +258,16 @@ svg.icon {
 /* ---------- Hint ---------- */
 #hint {
   position: fixed;
-  bottom: 62px;
+  bottom: 66px;
   left: 50%;
   transform: translateX(-50%);
   font-size: 12.5px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--paper);
-  background: var(--asphalt);
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  padding: 5px 10px;
+  background: rgba(22, 24, 29, 0.86);
+  border-left: 4px solid var(--paint);
+  border-radius: 2px;
+  padding: 5px 10px 4px;
   white-space: nowrap;
   z-index: 9;
   pointer-events: none;
@@ -650,8 +691,8 @@ body.no-webgl #legend {
   .hud-actions button,
   .hud-actions a {
     height: 32px;
-    padding: 0 10px;
-    font-size: 12px;
+    padding: 1px 9px 0;
+    font-size: 11.5px;
   }
 
   /* GitHub is one tap away in the about panel; icons carry the rest. */
@@ -681,7 +722,7 @@ body.no-webgl #legend {
   .chip {
     flex: none;
     height: 32px;
-    font-size: 12px;
+    font-size: 11.5px;
   }
 
   #panel {

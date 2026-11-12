@@ -58,15 +58,24 @@ export function facadeTextures(style: FacadeStyle, rand: () => number): Facade {
   night.ctx.fillRect(0, 0, width, height);
 
   const curtain = style.kind === 'curtain';
-  const padX = curtain ? 1.5 : 7;
-  const padTop = curtain ? 2 : 6;
-  const padBottom = curtain ? 7 : 9; // spandrel / sill
+  if (!curtain) {
+    // Masonry: faint courses and weathering so the wall is not a flat fill.
+    for (let i = 0; i < 2600; i += 1) {
+      day.ctx.fillStyle = rand() < 0.5 ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)';
+      day.ctx.fillRect(rand() * width, Math.floor(rand() * (height / 4)) * 4, 3 + rand() * 9, 2);
+    }
+  }
+  const padX = curtain ? 1 : 7.5;
+  const padTop = curtain ? 0 : 6;
+  const padBottom = curtain ? 8 : 9; // spandrel / sill
+  // The sky reflects unevenly across a glass wall: a slow wave of brightness, column by column.
+  const columnTone = Array.from({ length: FACADE_COLS }, (_, x) => 1 + Math.sin((x / FACADE_COLS) * Math.PI * 2 + rand() * 0.6) * 0.07);
 
   for (let y = 0; y < FACADE_ROWS; y += 1) {
     // Offices light up by the floor: some storeys blaze, most are sparse.
     const floorMood = rand();
     const floorLit = floorMood < 0.12 ? 0.85 : floorMood < 0.3 ? style.lit * 1.8 : style.lit * 0.7;
-    const floorTone = 0.9 + rand() * 0.2;
+    const floorTone = 0.93 + rand() * 0.14;
     for (let x = 0; x < FACADE_COLS; x += 1) {
       const px = x * cell + padX;
       const py = y * cell + padTop;
@@ -74,14 +83,32 @@ export function facadeTextures(style: FacadeStyle, rand: () => number): Facade {
       const ph = cell - padTop - padBottom;
 
       // Daytime pane: sky-tinted glass, brighter toward the top of each pane.
-      const tone = floorTone * (0.92 + rand() * 0.16);
-      const top = glass.clone().multiplyScalar(tone * 1.12);
-      const bottom = glass.clone().multiplyScalar(tone * 0.8);
+      const tone = floorTone * columnTone[x] * (0.95 + rand() * 0.1);
+      const top = glass.clone().multiplyScalar(tone * (curtain ? 1.1 : 0.9));
+      const bottom = glass.clone().multiplyScalar(tone * (curtain ? 0.84 : 0.62));
       const g = day.ctx.createLinearGradient(0, py, 0, py + ph);
       g.addColorStop(0, hex(top));
       g.addColorStop(1, hex(bottom));
       day.ctx.fillStyle = g;
       day.ctx.fillRect(px, py, pw, ph);
+      // Blinds drawn part-way down on some panes.
+      if (rand() < 0.16) {
+        day.ctx.fillStyle = 'rgba(236, 232, 220, 0.5)';
+        day.ctx.fillRect(px, py, pw, ph * (0.25 + rand() * 0.45));
+      }
+      if (curtain) {
+        // Spandrel panel at the floor line, a shade deeper than the vision glass.
+        day.ctx.fillStyle = hex(glass.clone().lerp(frame, 0.55).multiplyScalar(tone));
+        day.ctx.fillRect(px, py + ph, pw, padBottom - 1.5);
+      } else {
+        // Stone sill and a shadow under the lintel.
+        day.ctx.fillStyle = 'rgba(255,255,255,0.28)';
+        day.ctx.fillRect(px - 1.5, py + ph, pw + 3, 2);
+        day.ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        day.ctx.fillRect(px, py, pw, 2);
+        day.ctx.fillStyle = 'rgba(0,0,0,0.28)';
+        day.ctx.fillRect(px + pw / 2 - 0.5, py, 1, ph);
+      }
 
       if (rand() < floorLit) {
         const pick = rand();
@@ -139,9 +166,10 @@ export function billboardTexture(
   artUrl?: string
 ): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 256;
+  canvas.width = 1024;
+  canvas.height = 512;
   const ctx = canvas.getContext('2d')!;
+  ctx.scale(2, 2); // drawn on a 512 x 256 grid, at twice the resolution
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   const upper = title.toUpperCase();
