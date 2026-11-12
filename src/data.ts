@@ -30,6 +30,10 @@ export interface Project {
   quotes: string[];
   /** Last push date (ISO). Recently active projects get a construction site. */
   pushedAt: string;
+  /** Commit count is a placeholder until the next stats refresh. */
+  estimated?: boolean;
+  /** Entry was drafted automatically from the repo's README. */
+  auto?: boolean;
 }
 
 /** Pushed to within the last 30 days → crane and scaffolding. */
@@ -50,6 +54,8 @@ export interface WorldData {
   profile: Profile;
   districts: District[];
   projects: Project[];
+  /** Repos that never get a building (exact names or `prefix*`). */
+  ignore?: string[];
 }
 
 export const data = raw as WorldData;

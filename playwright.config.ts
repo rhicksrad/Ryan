@@ -1,27 +1,35 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// Headless machines have no GPU; SwiftShader gives WebGL a software fallback so
+// the real scene (not the no-WebGL fallback) is what gets tested.
+const launchOptions = {
+  args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
+  // Point at an already-installed Chromium instead of downloading one.
+  executablePath: process.env.PW_CHROMIUM || undefined
+};
+
 export default defineConfig({
   testDir: './tests/e2e',
   timeout: 120 * 1000,
-  fullyParallel: true,
+  fullyParallel: false,
+  workers: 1,
   retries: process.env.CI ? 1 : 0,
+  reporter: process.env.CI ? [['github'], ['list']] : 'list',
   use: {
-    baseURL: 'http://127.0.0.1:5173',
+    baseURL: 'http://127.0.0.1:4173',
     trace: 'retain-on-failure',
-    screenshot: 'only-on-failure'
+    screenshot: 'only-on-failure',
+    launchOptions
   },
+  // Test the production bundle, the same files that get deployed.
   webServer: {
-    command: 'npm run dev:ci',
-    port: 5173,
+    command: 'npm run preview -- --port 4173 --strictPort',
+    port: 4173,
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000
   },
   projects: [
-    {
-      name: 'chromium',
-      // Use the full Chromium build (not the headless shell) so a single
-      // `npx playwright install chromium --no-shell` download covers local runs.
-      use: { ...devices['Desktop Chrome'], channel: 'chromium' }
-    }
+    { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } } },
+    { name: 'phone', use: { ...devices['Pixel 7'] } }
   ]
 });

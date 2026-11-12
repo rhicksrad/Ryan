@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import type { Project, District } from '../data';
 import { tierOf, isUnderConstruction } from '../data';
 import { rngFor } from './rng';
-import { windowTexture, houseWindowTexture, billboardTexture, labelSprite } from './textures';
+import { facadeTextures, houseWindowTexture, billboardTexture, labelSprite, type Facade } from './textures';
+import { posterUrl } from '../art';
 
 export interface BuildingHandle {
   project: Project;
@@ -53,9 +54,65 @@ function warmGlass(intensity = 1.3): THREE.MeshStandardMaterial {
   });
 }
 
+/** Building skin: daytime glass/masonry plus a night-only window glow. */
+function facadeMaterial(
+  facade: Facade,
+  opts: { roughness: number; metalness: number; glow: number }
+): THREE.MeshStandardMaterial {
+  const material = new THREE.MeshStandardMaterial({
+    map: facade.map,
+    emissiveMap: facade.emissiveMap,
+    emissive: 0xffffff,
+    emissiveIntensity: opts.glow,
+    roughness: opts.roughness,
+    metalness: opts.metalness
+  });
+  material.userData.dayDim = 0.97; // office lights go off in the morning
+  return material;
+}
+
 // ---------------------------------------------------------------------------
 // Reusable geometry helpers.
 // ---------------------------------------------------------------------------
+
+/** Multiply a geometry's UVs so a texture tiles a whole number of times. */
+function scaleUv(geo: THREE.BufferGeometry, su: number, sv: number, from = 0, to = Infinity): void {
+  const uv = geo.getAttribute('uv') as THREE.BufferAttribute;
+  const end = Math.min(to, uv.count);
+  for (let i = from; i < end; i += 1) uv.setXY(i, uv.getX(i) * su, uv.getY(i) * sv);
+  uv.needsUpdate = true;
+}
+
+/**
+ * A box skinned with a facade. Each side's UVs are counted in whole windows, so
+ * panes keep their proportions whatever the box's shape; the top and bottom get
+ * a plain roof material.
+ */
+function facadeBox(
+  group: THREE.Group,
+  skin: THREE.Material,
+  roof: THREE.Material,
+  facade: Facade,
+  w: number,
+  h: number,
+  d: number,
+  x: number,
+  y: number,
+  z: number,
+  bay: number,
+  floor: number
+): THREE.Mesh {
+  const geo = new THREE.BoxGeometry(w, h, d);
+  const sv = Math.max(1, Math.round(h / floor)) / facade.rows;
+  const across = (span: number) => Math.max(1, Math.round(span / bay)) / facade.cols;
+  // BoxGeometry lays out 4 vertices per face in the order +x, -x, +y, -y, +z, -z.
+  scaleUv(geo, across(d), sv, 0, 8);
+  scaleUv(geo, across(w), sv, 16, 24);
+  const mesh = new THREE.Mesh(geo, [skin, skin, roof, roof, skin, skin]);
+  mesh.position.set(x, y, z);
+  group.add(mesh);
+  return mesh;
+}
 
 /** Axis-aligned block. */
 function block(
@@ -440,20 +497,19 @@ function buildCommercial(
   const brickTone = rand() < 0.5 ? 0x8a5a44 : 0x6a6470;
   const brick = mat(brickTone, { roughness: 0.9 });
 
-  // Upper floors: emissive district-tinted window bands wrapped on a box.
-  const winTex = windowTexture(district.color, rand);
-  winTex.wrapS = winTex.wrapT = THREE.RepeatWrapping;
-  winTex.repeat.set(3, floors);
-  const upperMat = new THREE.MeshStandardMaterial({
-    color: 0x1c2338,
-    roughness: 0.7,
-    metalness: 0.2,
-    map: winTex,
-    emissive: 0xffffff,
-    emissiveMap: winTex,
-    emissiveIntensity: 1
-  });
-  block(group, upperMat, w, floors * floorH, d, 0, groundH + (floors * floorH) / 2, 0);
+  // Upper floors: a masonry wall with punched windows that light up at night.
+  const facade = facadeTextures(
+    {
+      kind: 'punched',
+      glass: '#4a5d78',
+      frame: `#${new THREE.Color(brickTone).getHexString()}`,
+      accent: district.color,
+      lit: 0.38
+    },
+    rand
+  );
+  const upperMat = facadeMaterial(facade, { roughness: 0.75, metalness: 0.1, glow: 1.1 });
+  facadeBox(group, upperMat, mat(0x3a3f4c), facade, w, floors * floorH, d, 0, groundH + (floors * floorH) / 2, 0, 1.5, floorH);
 
   // Brick pilasters at the corners to frame the window wall.
   for (const cx of [-w / 2, w / 2]) {
@@ -465,9 +521,9 @@ function buildCommercial(
   // Ground-floor storefront: dark base, big glowing glass, awning, blade sign.
   block(group, brick, w, groundH, d, 0, groundH / 2, 0);
   const storefront = new THREE.MeshStandardMaterial({
-    color: 0x0c1020,
-    emissive: new THREE.Color(district.color),
-    emissiveIntensity: 0.9,
+    color: 0x1a2438,
+    emissive: new THREE.Color('#ffd9a0').lerp(new THREE.Color(district.color), 0.35),
+    emissiveIntensity: 1.3,
     roughness: 0.3,
     metalness: 0.5
   });
@@ -482,7 +538,7 @@ function buildCommercial(
   const awning = block(group, trimMaterial(district.color), w * 0.85, 0.14, 1.1, 0, groundH * 0.72, d / 2 + 0.55);
   awning.rotation.x = -0.18;
   // projecting blade sign
-  const bladeTex = billboardTexture(project.title, project.lang, district.color);
+  const bladeTex = billboardTexture(project.title, project.lang, district.color, `${project.commits} commits`);
   const blade = new THREE.Mesh(
     new THREE.PlaneGeometry(1.1, 2.2),
     new THREE.MeshStandardMaterial({ map: bladeTex, emissive: 0xffffff, emissiveMap: bladeTex, emissiveIntensity: 1.2, side: THREE.DoubleSide, roughness: 0.6 })
@@ -534,186 +590,260 @@ function buildCommercial(
 // TIER 4 — downtown skyscraper with billboards.
 // ---------------------------------------------------------------------------
 
+const TOWER_GLASS = ['#6f9fc6', '#5aa3a6', '#8a9db8', '#4d74a8'];
+const TOWER_FLOOR = 1.5;
+const TOWER_BAY = 1.25;
+
 function buildSkyscraper(
   group: THREE.Group,
   project: Project,
   district: District,
   rand: () => number,
-  billboards: THREE.MeshStandardMaterial[]
+  billboards: THREE.MeshStandardMaterial[],
+  variant: number
 ): { top: number; footprint: number } {
-  const height = 18 + (Math.log10(project.commits) - 2.18) * 32 + rand() * 3;
+  const height = 20 + (Math.log10(project.commits) - 2.176) * 46 + rand() * 3;
   const footprint = 7.5 + rand() * 2;
-  const archetype = Math.floor(rand() * 3);
+  const archetype = ((variant % 4) + 4) % 4;
 
-  const tex = windowTexture(district.color, rand);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  const material = new THREE.MeshStandardMaterial({
-    color: 0x131a2e,
-    roughness: 0.68,
-    metalness: 0.3,
-    map: tex,
-    emissive: 0xffffff,
-    emissiveMap: tex,
-    emissiveIntensity: 1.05
-  });
-
-  // Lobby base — brighter, glassier, wider than the shaft.
-  const lobbyH = 2.6;
-  block(group, new THREE.MeshStandardMaterial({
-    color: 0x0c1020, emissive: new THREE.Color(district.color), emissiveIntensity: 1, roughness: 0.3, metalness: 0.5
-  }), footprint * 1.15, lobbyH, footprint * 1.15, 0, lobbyH / 2, 0);
-
+  // Glass leans a little toward the district color so each skyline has a family look.
+  const glass = new THREE.Color(TOWER_GLASS[archetype]).lerp(new THREE.Color(district.color), 0.14);
+  const facade = facadeTextures(
+    { kind: 'curtain', glass: `#${glass.getHexString()}`, frame: '#1b2233', accent: district.color, lit: 0.2 },
+    rand
+  );
+  const skin = facadeMaterial(facade, { roughness: 0.22, metalness: 0.55, glow: 1.25 });
+  const roof = mat(0x2a3044, { metalness: 0.3, roughness: 0.7 });
+  const steel = mat(0x39415e, { metalness: 0.6, roughness: 0.4 });
   const trim = trimMaterial(district.color);
-  const mullion = mat(0x0c1020, { metalness: 0.4 });
-  let topY = lobbyH;
+
+  // Glass lobby under an accent-lit canopy.
+  const lobbyH = 2.8;
+  const lobby = new THREE.MeshStandardMaterial({
+    color: 0x1a2438,
+    emissive: 0xffd9a0,
+    emissiveIntensity: 1.3,
+    roughness: 0.2,
+    metalness: 0.5
+  });
+  block(group, lobby, footprint * 1.12, lobbyH, footprint * 1.12, 0, lobbyH / 2, 0);
+  for (const s of [-1, 1]) {
+    block(group, steel, 0.3, lobbyH, footprint * 1.16, s * footprint * 0.56, lobbyH / 2, 0);
+    block(group, steel, footprint * 1.16, lobbyH, 0.3, 0, lobbyH / 2, s * footprint * 0.56);
+  }
+  block(group, trim, footprint * 1.22, 0.22, footprint * 1.22, 0, lobbyH + 0.11, 0);
+
+  const base = lobbyH + 0.22;
+  const shaft = height - base;
+  let topY = height;
+  let mastBase = height;
+  let mastX = 0;
+  let mastZ = 0;
+  /** Half-extents at street level, for hanging billboards. */
+  let hx = footprint / 2;
+  let hz = footprint / 2;
 
   if (archetype === 0) {
-    // Stepped setback tower.
-    const tiers = 3 + Math.floor(rand() * 2);
-    let width = footprint;
-    let y = lobbyH;
-    const shaft = (height - lobbyH) / tiers;
-    for (let t = 0; t < tiers; t += 1) {
-      const th = shaft * (t === 0 ? 1.15 : 0.95);
-      const rep = tex.clone();
-      rep.wrapS = rep.wrapT = THREE.RepeatWrapping;
-      rep.repeat.set(Math.max(2, Math.round(width / 2)), Math.max(3, Math.round(th / 2)));
-      const m = material.clone();
-      m.map = rep;
-      m.emissiveMap = rep;
-      block(group, m, width, th, width, 0, y + th / 2, 0);
-      // vertical mullion ribs
-      for (const s of [-1, 1]) {
-        block(group, mullion, 0.14, th, width, s * width * 0.34, y + th / 2, 0);
-        block(group, mullion, width, th, 0.14, 0, y + th / 2, s * width * 0.34);
-      }
-      y += th;
-      width *= 0.78;
-    }
-    topY = y;
+    // Stepped setback tower: three shrinking tiers, each capped with a lit band.
+    const widths = [1, 0.78, 0.56];
+    const shares = [0.52, 0.3, 0.18];
+    let y = base;
+    widths.forEach((k, i) => {
+      const w = footprint * k;
+      const h = shaft * shares[i];
+      facadeBox(group, skin, roof, facade, w, h, w, 0, y + h / 2, 0, TOWER_BAY, TOWER_FLOOR);
+      block(group, i === widths.length - 1 ? trim : steel, w + 0.3, 0.28, w + 0.3, 0, y + h + 0.14, 0);
+      y += h;
+    });
+    topY = y + 0.28;
+    mastBase = topY;
   } else if (archetype === 1) {
-    // Slab tower with a strong vertical grid.
-    const bw = footprint * 1.25;
-    const bd = footprint * 0.85;
-    const sh = height - lobbyH;
-    tex.repeat.set(Math.round(bw / 1.6), Math.round(sh / 1.8));
-    block(group, material, bw, sh, bd, 0, lobbyH + sh / 2, 0);
-    for (let i = -2; i <= 2; i += 1) {
-      block(group, mullion, 0.16, sh, bd + 0.02, (i / 2) * bw * 0.5, lobbyH + sh / 2, 0);
+    // Slab tower beside a taller service core, with a light seam between them.
+    const bw = footprint * 1.05;
+    const bd = footprint * 0.78;
+    const coreW = footprint * 0.3;
+    hx = (bw + coreW) / 2;
+    hz = bd / 2;
+    const slabX = -coreW / 2;
+    const coreX = bw / 2;
+    facadeBox(group, skin, roof, facade, bw, shaft, bd, slabX, base + shaft / 2, 0, TOWER_BAY, TOWER_FLOOR);
+    const coreH = shaft + 2.4;
+    block(group, mat(0x232a3e, { metalness: 0.45, roughness: 0.5 }), coreW, coreH, bd * 0.86, coreX, base + coreH / 2, 0);
+    for (const s of [-1, 1]) {
+      block(group, trim, 0.14, shaft, 0.14, coreX - coreW / 2, base + shaft / 2, s * (bd * 0.43 + 0.04));
     }
-    topY = height;
+    // Louvred mechanical screen on the roof.
+    block(group, steel, bw * 0.7, 1.1, bd * 0.6, slabX, height + 0.55, 0);
+    block(group, trim, bw + 0.2, 0.22, bd + 0.2, slabX, height + 0.11, 0);
+    topY = base + coreH;
+    mastBase = topY;
+    mastX = coreX;
+  } else if (archetype === 2) {
+    // Round glass tower, belted every few floors, under a floating halo.
+    const radius = footprint * 0.5;
+    hx = hz = radius;
+    const geo = new THREE.CylinderGeometry(radius, radius, shaft, 40, 1);
+    scaleUv(geo, Math.round((Math.PI * 2 * radius) / TOWER_BAY) / facade.cols, Math.round(shaft / TOWER_FLOOR) / facade.rows);
+    const tower = new THREE.Mesh(geo, [skin, roof, roof]);
+    tower.position.y = base + shaft / 2;
+    group.add(tower);
+    const beltGeo = new THREE.CylinderGeometry(radius + 0.16, radius + 0.16, 0.2, 40);
+    const belts = Math.max(2, Math.round(shaft / 9));
+    for (let i = 1; i <= belts; i += 1) {
+      const belt = new THREE.Mesh(beltGeo, i === belts ? trim : steel);
+      belt.position.y = base + (shaft * i) / belts - (i === belts ? 0.1 : 0);
+      group.add(belt);
+    }
+    const halo = new THREE.Mesh(new THREE.TorusGeometry(radius * 0.72, 0.14, 8, 40), trim);
+    halo.rotation.x = Math.PI / 2;
+    halo.position.y = height + 1.3;
+    group.add(halo);
+    for (let i = 0; i < 4; i += 1) {
+      const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+      block(group, steel, 0.1, 1.3, 0.1, Math.cos(a) * radius * 0.72, height + 0.65, Math.sin(a) * radius * 0.72);
+    }
+    topY = height + 1.45;
+    mastBase = height;
   } else {
-    // Cylindrical tower.
-    const sh = height - lobbyH;
-    const cyl = new THREE.Mesh(new THREE.CylinderGeometry(footprint * 0.5, footprint * 0.6, sh, 16), material);
-    cyl.position.y = lobbyH + sh / 2;
-    tex.repeat.set(10, Math.round(sh / 2));
-    group.add(cyl);
-    topY = height;
+    // Twin shafts of unequal height joined by a sky bridge.
+    const aw = footprint * 0.52;
+    const bwid = footprint * 0.44;
+    const gap = footprint * 0.14;
+    const ax = -(gap / 2 + aw / 2);
+    const bx = gap / 2 + bwid / 2;
+    hx = gap / 2 + Math.max(aw, bwid);
+    hz = footprint / 2;
+    const bh = shaft * 0.76;
+    facadeBox(group, skin, roof, facade, aw, shaft, footprint, ax, base + shaft / 2, 0, TOWER_BAY, TOWER_FLOOR);
+    facadeBox(group, skin, roof, facade, bwid, bh, footprint * 0.84, bx, base + bh / 2, 0, TOWER_BAY, TOWER_FLOOR);
+    block(group, trim, aw + 0.25, 0.26, footprint + 0.25, ax, height + 0.13, 0);
+    block(group, trim, bwid + 0.25, 0.26, footprint * 0.84 + 0.25, bx, base + bh + 0.13, 0);
+    block(group, mat(0x1f2740, { metalness: 0.5, roughness: 0.35 }), gap + 0.4, 1.4, footprint * 0.3, 0, base + bh * 0.62, 0);
+    block(group, steel, aw * 0.6, 0.9, footprint * 0.5, ax, height + 0.7, 0);
+    topY = height + 0.26;
+    mastBase = height + 1.15;
+    mastX = ax;
   }
 
-  // Glowing crown ring + mechanical cap.
-  block(group, mat(0x2a3048, { metalness: 0.5 }), footprint * 0.72, 1, footprint * 0.72, 0, topY + 0.5, 0);
-  const crown = new THREE.Mesh(BOX, trim);
-  crown.scale.set(footprint * 0.78, 0.35, footprint * 0.78);
-  crown.position.y = topY + 1.1;
-  group.add(crown);
-
   // Antenna mast with beacon.
-  const mastH = 3 + rand() * 3;
-  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.12, mastH, 6), mat(0x39415e, { metalness: 0.5 }));
-  mast.position.y = topY + 1.2 + mastH / 2;
+  const mastH = 3.5 + rand() * 3;
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.12, mastH, 6), steel);
+  mast.position.set(mastX, mastBase + mastH / 2, mastZ);
   group.add(mast);
   const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), trim);
-  beacon.position.y = topY + 1.2 + mastH;
+  beacon.position.set(mastX, mastBase + mastH, mastZ);
   group.add(beacon);
 
-  // Billboards — the flashier the project, the more it runs.
+  // Billboards over the street — the flashier the project, the more it runs.
   const lines = [project.blurb.split(/[.!—]/)[0].trim(), ...project.quotes];
   const count = project.commits >= 500 ? 3 : project.commits >= 250 ? 2 : 1;
   const sides: [number, number][] = [[0, 1], [1, 0], [0, -1], [-1, 0]];
+  const firstSide = rand() < 0.5 ? 0 : 1;
   for (let i = 0; i < count; i += 1) {
-    const boardW = footprint * 1.15;
+    const boardW = footprint * 0.95;
     const boardH = boardW / 2;
-    const texture = billboardTexture(project.title, (lines[i % lines.length] ?? '').slice(0, 44), district.color);
+    const texture = billboardTexture(
+      project.title,
+      (lines[i % lines.length] ?? '').slice(0, 44),
+      district.color,
+      `${project.commits.toLocaleString()} commits and counting`,
+      posterUrl(project.id)
+    );
     const bmat = new THREE.MeshStandardMaterial({
       map: texture, emissive: 0xffffff, emissiveMap: texture, emissiveIntensity: 1.25, roughness: 0.6
     });
+    bmat.userData.poster = Boolean(posterUrl(project.id));
+    if (bmat.userData.poster) {
+      // Matte paper: no sheen from the sky or the neon next door.
+      bmat.roughness = 1;
+      bmat.envMapIntensity = 0;
+    }
     billboards.push(bmat);
     const board = new THREE.Mesh(new THREE.PlaneGeometry(boardW, boardH), bmat);
-    const [sx, sz] = sides[(i * 2 + (rand() < 0.5 ? 1 : 0)) % 4];
-    const offset = footprint * (archetype === 1 ? 0.66 : 0.52) + 0.35;
-    const y = topY * (0.5 + i * 0.17);
+    const [sx, sz] = sides[(firstSide + i) % 4];
+    const offset = (sx !== 0 ? hx : hz) + 0.45;
+    const y = base + 2.2 + boardH / 2 + i * 1.6;
     board.position.set(sx * offset, y, sz * offset);
     board.rotation.y = Math.atan2(sx, sz);
     group.add(board);
-    block(group, mat(0x2a3050), sx === 0 ? boardW + 0.3 : 0.25, boardH + 0.3, sz === 0 ? boardW + 0.3 : 0.25, sx * (offset - 0.15), y, sz * (offset - 0.15));
+    block(group, steel, sx === 0 ? boardW + 0.3 : 0.25, boardH + 0.3, sz === 0 ? boardW + 0.3 : 0.25, sx * (offset - 0.15), y, sz * (offset - 0.15));
   }
 
-  return { top: topY + 1.2 + mastH, footprint };
+  return { top: Math.max(topY, mastBase + mastH), footprint: Math.max(hx, hz) * 2 };
 }
 
 // ---------------------------------------------------------------------------
 // Assembly.
 // ---------------------------------------------------------------------------
 
-/** Tower crane + scaffolding for projects pushed to in the last 30 days. */
+/**
+ * Projects pushed to in the last 30 days are building sites. Anything mid-rise
+ * or taller gets a tower crane; houses make do with scaffolding and cones.
+ */
 function buildConstructionSite(
   group: THREE.Group,
   buildingTop: number,
   footprint: number,
+  withCrane: boolean,
   rand: () => number
-): { jib: THREE.Group; beacon: THREE.MeshStandardMaterial } {
-  const steel = mat(0xe8a13c, { roughness: 0.6, metalness: 0.35 });
+): { jib: THREE.Group | null; beacon: THREE.MeshStandardMaterial | null } {
+  const steel = mat(0xd9a441, { roughness: 0.7, metalness: 0.2 });
   const dark = mat(0x54432a, { roughness: 0.8 });
+  const cx = footprint * 0.62 + 1;
+  const cz = -(footprint * 0.5 + 1);
+  let jib: THREE.Group | null = null;
+  let beaconMat: THREE.MeshStandardMaterial | null = null;
 
-  const mastHeight = buildingTop + 4.5;
-  const cx = footprint * 0.75 + 1;
-  const cz = footprint * 0.55 + 1;
+  if (withCrane) {
+    const mastHeight = buildingTop + 3.5;
+    block(group, steel, 0.42, mastHeight, 0.42, cx, mastHeight / 2, cz);
+    for (let y = 1.4; y < mastHeight - 1; y += 2.4) {
+      const brace = block(group, dark, 0.6, 0.1, 0.6, cx, y, cz);
+      brace.rotation.y = Math.PI / 4;
+    }
 
-  block(group, steel, 0.55, mastHeight, 0.55, cx, mastHeight / 2, cz);
-  for (let y = 1.4; y < mastHeight - 1; y += 2.4) {
-    const brace = block(group, dark, 0.75, 0.1, 0.75, cx, y, cz);
-    brace.rotation.y = Math.PI / 4;
+    jib = new THREE.Group();
+    jib.userData.dynamic = true; // it swings, so it stays out of the static bake
+    jib.position.set(cx, mastHeight, cz);
+    const jibLength = footprint * 0.95 + 3;
+    block(jib, steel, jibLength, 0.24, 0.24, jibLength / 2 - 1.2, 0, 0);
+    block(jib, dark, 1.1, 0.8, 0.9, -2, 0, 0);
+    block(jib, dark, 0.8, 0.8, 0.8, 0, -0.4, 0);
+    const cableDrop = Math.min(mastHeight * 0.3, 7);
+    const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, cableDrop, 4), dark);
+    cable.position.set(jibLength * 0.62, -cableDrop / 2, 0);
+    jib.add(cable);
+    block(jib, dark, 0.9, 0.7, 0.9, jibLength * 0.62, -cableDrop - 0.35, 0);
+    group.add(jib);
+
+    beaconMat = new THREE.MeshStandardMaterial({ color: 0xff5040, emissive: 0xff3020, emissiveIntensity: 2, roughness: 0.4 });
+    const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), beaconMat);
+    beacon.position.set(cx, mastHeight + 0.5, cz);
+    beacon.userData.keep = true; // blinks on its own material
+    group.add(beacon);
   }
 
-  const jib = new THREE.Group();
-  jib.position.set(cx, mastHeight, cz);
-  const jibLength = footprint * 1.4 + 4;
-  block(jib, steel, jibLength, 0.32, 0.32, jibLength / 2 - 1.2, 0, 0);
-  block(jib, dark, 1.1, 0.8, 0.9, -2, 0, 0);
-  block(jib, dark, 0.8, 0.8, 0.8, 0, -0.4, 0);
-  const cableDrop = mastHeight * 0.42;
-  const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, cableDrop, 4), dark);
-  cable.position.set(jibLength * 0.62, -cableDrop / 2, 0);
-  jib.add(cable);
-  block(jib, dark, 0.9, 0.7, 0.9, jibLength * 0.62, -cableDrop - 0.35, 0);
-  group.add(jib);
-
-  const beaconMat = new THREE.MeshStandardMaterial({ color: 0xff5040, emissive: 0xff3020, emissiveIntensity: 2, roughness: 0.4 });
-  const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), beaconMat);
-  beacon.position.set(cx, mastHeight + 0.5, cz);
-  group.add(beacon);
-
-  const scaffH = Math.min(buildingTop * 0.85, 10);
-  const scaffW = footprint * 1.1;
-  const sz = footprint * 0.62 + 0.5;
-  const poleGeo = new THREE.CylinderGeometry(0.05, 0.05, scaffH, 4);
-  for (const px of [-scaffW / 2, 0, scaffW / 2]) {
-    for (const pz of [sz, sz + 0.8]) {
+  // Scaffolding up one side wall: poles, a few decks, cross rails.
+  const scaffH = Math.min(buildingTop * 0.8, 9);
+  const scaffD = footprint * 0.8;
+  const sx = -(footprint * 0.5 + 0.55);
+  const poleGeo = new THREE.CylinderGeometry(0.04, 0.04, scaffH, 4);
+  for (const pz of [-scaffD / 2, 0, scaffD / 2]) {
+    for (const px of [sx, sx - 0.7]) {
       const pole = new THREE.Mesh(poleGeo, steel);
       pole.position.set(px, scaffH / 2, pz);
       group.add(pole);
     }
   }
-  for (let level = 1; level < scaffH / 2.2 + 1; level += 1) {
-    block(group, dark, scaffW + 0.4, 0.09, 1, 0, level * 2.2, sz + 0.4);
+  for (let y = 2; y < scaffH; y += 2.3) {
+    block(group, dark, 0.8, 0.07, scaffD + 0.3, sx - 0.35, y, 0);
+    block(group, steel, 0.05, 0.05, scaffD + 0.3, sx - 0.7, y + 0.8, 0);
   }
 
   const coneMat = mat(0xff7038, { emissive: 0xb03010, emissiveIntensity: 0.5, roughness: 0.7 });
   for (let i = 0; i < 3; i += 1) {
     const cone = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.42, 8), coneMat);
-    cone.position.set(-cx + i * 1.1 + rand() * 0.3, 0.31, cz + rand() * 0.6);
+    cone.position.set(sx - 1.4 - rand() * 0.4, 0.31, -scaffD / 2 + i * (scaffD / 2) + rand() * 0.3);
     group.add(cone);
   }
 
@@ -721,7 +851,7 @@ function buildConstructionSite(
 }
 
 /** Procedurally build one project's home. Everything derives from real repo stats. */
-export function createBuilding(project: Project, district: District): BuildingHandle {
+export function createBuilding(project: Project, district: District, towerRank = 0): BuildingHandle {
   const rand = rngFor(project.repo);
   const group = new THREE.Group();
   const billboards: THREE.MeshStandardMaterial[] = [];
@@ -742,7 +872,7 @@ export function createBuilding(project: Project, district: District): BuildingHa
     top = buildCommercial(group, project, district, rand);
     footprint = 6.8;
   } else {
-    const result = buildSkyscraper(group, project, district, rand, billboards);
+    const result = buildSkyscraper(group, project, district, rand, billboards, towerRank);
     top = result.top;
     footprint = result.footprint;
   }
@@ -751,17 +881,17 @@ export function createBuilding(project: Project, district: District): BuildingHa
   const curbMat = new THREE.MeshStandardMaterial({
     color: new THREE.Color(district.color),
     emissive: new THREE.Color(district.color),
-    emissiveIntensity: 0.55,
+    emissiveIntensity: 0.3,
     roughness: 0.6,
     transparent: true,
-    opacity: 0.8
+    opacity: 0.85
   });
   const curbSize = footprint * 1.2 + 1;
   for (const [dx, dz, cw, cd] of [
-    [0, -curbSize / 2, curbSize, 0.22],
-    [0, curbSize / 2, curbSize, 0.22],
-    [-curbSize / 2, 0, 0.22, curbSize],
-    [curbSize / 2, 0, 0.22, curbSize]
+    [0, -curbSize / 2, curbSize, 0.14],
+    [0, curbSize / 2, curbSize, 0.14],
+    [-curbSize / 2, 0, 0.14, curbSize],
+    [curbSize / 2, 0, 0.14, curbSize]
   ] as const) {
     block(group, curbMat, cw, 0.09, cd, dx, 0.05, dz);
   }
@@ -770,25 +900,29 @@ export function createBuilding(project: Project, district: District): BuildingHa
   let craneJib: THREE.Group | null = null;
   let craneBeacon: THREE.MeshStandardMaterial | null = null;
   if (isUnderConstruction(project)) {
-    const site = buildConstructionSite(group, top, footprint, rand);
+    const site = buildConstructionSite(group, top, footprint, tier >= 3, rand);
     craneJib = site.jib;
     craneBeacon = site.beacon;
   }
 
   // Floating name label.
   const label = labelSprite(project.title, district.color);
-  label.position.y = (craneJib ? top + 4.5 : top) + 1.6;
+  label.position.y = (craneJib ? top + 3.5 : top) + 1.6;
   group.add(label);
 
   group.rotation.y = tier === 4 ? 0 : (rand() - 0.5) * 0.5;
 
-  const pickMeshes: THREE.Mesh[] = [];
-  group.traverse((obj) => {
-    if (obj instanceof THREE.Mesh) {
-      obj.userData.projectId = project.id;
-      pickMeshes.push(obj);
-    }
-  });
+  // One invisible box stands in for the whole building when picking — far
+  // cheaper to raycast than its parts, and it survives the static bake.
+  const hit = new THREE.Mesh(BOX, new THREE.MeshBasicMaterial());
+  const hitHeight = tier === 4 ? top - 3 : top;
+  hit.scale.set(footprint + 0.6, hitHeight, footprint + 0.6);
+  hit.position.y = hitHeight / 2;
+  hit.visible = false;
+  hit.userData.keep = true;
+  hit.userData.projectId = project.id;
+  group.add(hit);
+  const pickMeshes: THREE.Mesh[] = [hit];
 
   const glowMaterials = [curbMat];
 

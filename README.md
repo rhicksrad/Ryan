@@ -1,6 +1,6 @@
 # Project City
 
-An explorable 3D night city where every building is a real project from
+An explorable 3D town where every building is a real project from
 [github.com/rhicksrad](https://github.com/rhicksrad). Built with Three.js, Vite, and
 TypeScript; deployed to GitHub Pages.
 
@@ -8,56 +8,64 @@ TypeScript; deployed to GitHub Pages.
 
 ## How it works
 
-A gridded city with streets, traffic, a river with bridges, trees, and street lamps,
-set in open countryside. A ring-road beltway loops the town and the main streets
-run out to meet it, through a surrounding forest with hills and ponds; the river
-flows off to the horizon. Clouds drift, birds wheel overhead, and the trees sway in
-the wind. Four districts ring a central spire, and the whole thing is explorable in
-day or night (top-right toggle):
+A small river town, generated from [`content/projects.json`](content/projects.json).
+Four districts sit around a central plaza, the grid grows with the number of
+projects, and any block without a project becomes a park. Outside town there is a
+ring road, forest, hills, and ponds. Traffic runs, residents walk, and the whole
+place works by day or by night.
 
-- **Arcade District** — playable browser games (SuperSolitaire, Choppa, Dot Souls, …)
-- **Data Observatory** — data visualizations and dashboards (NASA hub, WAR atlas, …)
-- **Creative Quarter** — music machines and art explorers (8Beat, Art API Explorer, …)
-- **Web Works** — practical apps and sites (ECC Scheduler, Food Roulette, …)
+- **Arcade District**: playable browser games
+- **Data Observatory**: data visualizations and dashboards
+- **Creative Quarter**: music machines and art explorers
+- **Web Works**: practical apps and sites
 
-**Commits are square footage.** Every building is generated procedurally from the
-project's real commit count in [`content/projects.json`](content/projects.json):
+**Commits are square footage.** Each building comes from its repo's real commit count:
 
 | Commits | You get |
 | --- | --- |
-| 1–5 | a dilapidated wooden shack — leaning planks, a boarded window, junk in the yard |
-| 6–24 | a modest suburban house — gable roof, porch, chimney, garage, mailbox, hedges |
-| 25–59 | a large two-story house — cross-gables, a columned portico, bay window, two-car garage, driveway |
-| 60–149 | a commercial mid-rise — brick facade, lit storefront and awning, fire escape, rooftop water tower |
-| 150+ | a downtown skyscraper — setbacks, a glowing crown, an antenna, and Times-Square billboards |
+| 1 to 5 | a leaning wooden shack with junk in the yard |
+| 6 to 24 | a modest house with a porch and a garage |
+| 25 to 59 | a large two-story house with a portico |
+| 60 to 149 | a brick mid-rise with a storefront and a water tower |
+| 150+ | a downtown tower, one of four designs, with billboards |
 
-The more you commit to a project, the taller its tower grows (NBA's 907 commits
-tops the skyline). **The citizens are READMEs** — every project spawns one to three
-locals who stroll around its lot; click one and they quote a line from their
-project's documentation. **Recently active repos are under construction** — projects
-pushed in the last 30 days get a rotating tower crane, scaffolding, and traffic
-cones. Click a building to fly in and open its panel with live demo and source
-links; the central spire opens the about panel.
+Tower height follows the logarithm of the commit count, so the busiest repo owns
+the skyline without flattening everything else. **The citizens are READMEs**: each
+project has one to three residents who quote its documentation when clicked.
+**Recently pushed repos are under construction**, with a crane on towers and
+scaffolding on houses. Empty lots carry a "Lot for sale, `$ git init`" board.
 
-Stats are refreshed weekly by a GitHub Action ([`update-stats.yml`](.github/workflows/update-stats.yml)),
-so the city literally grows as you work.
+**The town keeps itself current.** A GitHub Action
+([`update-stats.yml`](.github/workflows/update-stats.yml)) runs weekly, and again on
+every deploy, to refresh commit counts and to add any new public repo as a building,
+with a title, blurb, and district drafted from its README. Repos listed under
+`ignore` in `projects.json` stay out.
 
 ## Controls
 
-- **Drag** to orbit, **scroll / pinch** to zoom, **click / tap** a building to select
+- **Drag** to orbit, **scroll or pinch** to zoom, **click or tap** a building to visit
 - **Esc** closes the panel and returns to the overview
-- **Project index** button lists every project as a clickable grid (also the fallback
-  when WebGL is unavailable)
-- District chips at the bottom fly the camera to each district
+- **Tour** flies through the twelve biggest projects
+- **Directory** lists every project (also the fallback when WebGL is unavailable)
+- District chips fly the camera to each district; the city-limit sign opens the about panel
 - Deep links: `#/p/<project-id>` and `#/d/<district-id>`
 
-## Rendering
+## Rendering and performance
 
-Built for a modern-city look: real-time sun **shadows** (PCF soft), **HDR bloom**
-post-processing (an MSAA half-float pipeline via `EffectComposer`), neutral
-**image-based lighting** (`RoomEnvironment` PMREM) so glass, metal, and water read
-as PBR, a **gradient sky dome**, and exponential fog. Bloom and sky colors are
-driven by the day/night mix.
+Soft sun shadows, HDR bloom through an MSAA half-float `EffectComposer`, image-based
+lighting, and distance fog scaled to the size of the town. Static geometry is merged
+at load (`src/world/bake.ts`), which cut draw calls from about 5,400 to about 800.
+Trees, lamps, and crosswalks are instanced, shadows update every other frame, and
+the renderer lowers its resolution if the frame rate sags.
+
+## Design
+
+The interface borrows from road signage instead of app chrome: a city-limit sign
+for a masthead, Overpass (the open highway-sign typeface), solid enamel plates, and
+road-paint yellow for the one primary action. The posters on the big towers, the
+district emblems, and the loading-screen blueprint are screen-print style art in
+`src/assets/art/`. Name a file `poster-<project id>.webp` or
+`emblem-<district id>.webp` and it is picked up automatically.
 
 ## Development
 
@@ -65,20 +73,24 @@ driven by the day/night mix.
 npm install
 npm run dev        # http://127.0.0.1:5173
 npm run typecheck  # tsc --noEmit
+npm test           # unit tests (vitest)
 npm run build      # production bundle in dist/
-npm run test:e2e   # Playwright smoke test (requires npx playwright install)
+npm run check:size # gzip size budget
+npm run test:e2e   # Playwright on desktop and phone (npx playwright install chromium)
+npm run stats      # refresh projects.json from the GitHub API
 ```
+
+Every pull request runs all of the above in [`ci.yml`](.github/workflows/ci.yml).
 
 ## Adding a project
 
-Add an entry to `content/projects.json` with an `id`, `title`, `repo`, `district`
-(`arcade` | `data` | `creative` | `web`), `lang`, `commits` (real count — decides
-the building tier and height), `blurb`, `quotes` (README lines the citizens recite),
-and `demo` URL (or `null`). The city rebuilds itself from the data — no scene code
-changes needed. To make a building grow, do more work on the project and bump its
-commit count.
+Push a public repo and wait for the next refresh, or add an entry to
+`content/projects.json` by hand with an `id`, `title`, `repo`, `district`
+(`arcade` | `data` | `creative` | `web`), `lang`, `commits`, `blurb`, `quotes`
+(README lines the residents recite), and `demo` URL (or `null`). No scene code
+changes are needed.
 
 ## Deployment
 
-Pushes to `main` run `.github/workflows/pages.yml`: typecheck → build → size budget →
-deploy to GitHub Pages.
+Merging to `main` runs `.github/workflows/pages.yml`: refresh stats, typecheck,
+test, build, size budget, deploy to GitHub Pages.

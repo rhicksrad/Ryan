@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Project, District } from '../data';
 import { tierOf } from '../data';
 import { rngFor } from './rng';
+import { bakeStatic } from './bake';
 
 export interface Person {
   project: Project;
@@ -71,24 +72,22 @@ export function createPerson(
     group.add(doc);
   }
 
+  // Fold the body parts into a single vertex-colored mesh.
+  bakeStatic(group);
   group.scale.setScalar(scale);
+  group.userData.dynamic = true;
 
   // Generous invisible hit target — citizens are small and they keep walking.
   const proxy = new THREE.Mesh(
     new THREE.CylinderGeometry(0.85, 0.85, 2.2, 6),
-    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
+    new THREE.MeshBasicMaterial()
   );
   proxy.position.y = 1;
+  proxy.visible = false; // never drawn, still raycast
+  proxy.userData.personProjectId = project.id;
+  proxy.userData.quoteIndex = quoteIndex;
   group.add(proxy);
-
-  const pickMeshes: THREE.Mesh[] = [];
-  group.traverse((obj) => {
-    if (obj instanceof THREE.Mesh) {
-      obj.userData.personProjectId = project.id;
-      obj.userData.quoteIndex = quoteIndex;
-      pickMeshes.push(obj);
-    }
-  });
+  const pickMeshes: THREE.Mesh[] = [proxy];
 
   return {
     project,

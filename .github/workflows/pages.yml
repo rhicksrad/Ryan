@@ -30,8 +30,19 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Every deploy ships with this minute's commit counts and any repos created
+      # since the weekly refresh. If GitHub's API is unreachable, ship what is committed.
+      - name: Refresh repo stats
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/update-stats.mjs
+
       - name: Typecheck
         run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
 
       - name: Build site
         run: npm run build

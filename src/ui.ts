@@ -1,10 +1,71 @@
-import { data, districtOf, repoUrl, type Project } from './data';
+import { data, districtOf, repoUrl, tierOf, isUnderConstruction, type Project, type District } from './data';
+import { emblemUrl, posterUrl } from './art';
 
 export interface UIActions {
   onSelectProject: (id: string) => void;
   onSelectDistrict: (id: string) => void;
   onOverview: () => void;
   onClosePanel: () => void;
+}
+
+/** One icon family: 24px grid, 2px round stroke. */
+const ICONS = {
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/>',
+  play: '<path d="M7 4.5v15l12-7.5z"/>',
+  stop: '<rect x="6" y="6" width="12" height="12" rx="1"/>',
+  out: '<path d="M8 16 17 7M9 7h8v8"/>',
+  close: '<path d="M6 6l12 12M18 6 6 18"/>'
+} as const;
+
+export function icon(name: keyof typeof ICONS): string {
+  return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
+}
+
+function closeButton(label: string, onClick: () => void): HTMLButtonElement {
+  const button = el('button', 'btn-close');
+  button.innerHTML = icon('close');
+  button.setAttribute('aria-label', label);
+  button.addEventListener('click', onClick);
+  return button;
+}
+
+function link(className: string, text: string, href: string, external = true): HTMLAnchorElement {
+  const a = el('a', className) as HTMLAnchorElement;
+  a.href = href;
+  a.append(text);
+  if (external) {
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.insertAdjacentHTML('beforeend', icon('out'));
+  }
+  return a;
+}
+
+function facts(rows: [string, string][]): HTMLElement {
+  const list = el('dl', 'panel-facts');
+  for (const [term, value] of rows) list.append(el('dt', undefined, term), el('dd', undefined, value));
+  return list;
+}
+
+/** "2026-11-08" -> "8 Nov 2026" */
+function shortDate(iso: string): string {
+  const date = new Date(`${iso}T00:00:00Z`);
+  return Number.isNaN(date.getTime())
+    ? iso
+    : date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+}
+
+const TIER_NAMES = ['Shack', 'House', 'Large house', 'Mid-rise', 'Skyscraper'];
+
+/** A district's enamel badge, or a plain color swatch if it has no art yet. */
+function badge(district: District): HTMLElement {
+  const url = emblemUrl(district.id);
+  if (!url) return el('span', 'chip-dot');
+  const image = el('img', 'chip-badge');
+  image.src = url;
+  image.alt = '';
+  return image;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -31,6 +92,16 @@ export class UI {
     this.buildLegend();
     this.buildListOverlay();
 
+    const totalCommits = data.projects.reduce((sum, p) => sum + p.commits, 0);
+    document.getElementById('brand-stats')!.textContent =
+      `Pop. ${data.projects.length} projects · Elev. ${totalCommits.toLocaleString()} commits`;
+    // The hint has done its job once the visitor touches the town.
+    document.getElementById('scene')!.addEventListener(
+      'pointerdown',
+      () => window.setTimeout(() => this.hint.classList.add('hint-hidden'), 1200),
+      { once: true }
+    );
+
     window.addEventListener('pointermove', (e) => {
       this.pointerX = e.clientX;
       this.pointerY = e.clientY;
@@ -50,7 +121,7 @@ export class UI {
   }
 
   private buildLegend(): void {
-    const overviewChip = el('button', 'chip chip-overview', 'Overview');
+    const overviewChip = el('button', 'chip chip-overview', 'Whole town');
     overviewChip.addEventListener('click', () => {
       this.tooltip.hidden = true;
       this.actions.onOverview();
@@ -59,9 +130,8 @@ export class UI {
 
     for (const district of data.districts) {
       const chip = el('button', 'chip');
-      chip.style.setProperty('--chip-color', district.color);
-      const dot = el('span', 'chip-dot');
-      chip.append(dot, document.createTextNode(district.name));
+      chip.style.setProperty('--district', district.color);
+      chip.append(badge(district), document.createTextNode(district.name));
       chip.title = district.blurb;
       chip.addEventListener('click', () => {
         this.tooltip.hidden = true;
@@ -74,33 +144,36 @@ export class UI {
   private buildListOverlay(): void {
     const sheet = el('div', 'list-sheet');
     const header = el('div', 'list-header');
-    header.append(el('h2', undefined, 'Project Index'));
-    const close = el('button', 'btn-close', '×');
-    close.setAttribute('aria-label', 'Close project index');
-    close.addEventListener('click', () => this.toggleList(false));
-    header.append(close);
+    header.append(
+      el('h2', undefined, 'Directory'),
+      el('p', undefined, 'Sorted by commits. Pick one to fly there.'),
+      closeButton('Close directory', () => this.toggleList(false))
+    );
     sheet.append(header);
 
     for (const district of data.districts) {
+      const projects = data.projects
+        .filter((p) => p.district === district.id)
+        .sort((a, b) => b.commits - a.commits);
       const section = el('section', 'list-district');
-      const title = el('h3');
-      const dot = el('span', 'chip-dot');
-      dot.style.background = district.color;
-      title.append(dot, document.createTextNode(district.name));
-      section.append(title, el('p', 'list-blurb', district.blurb));
+      section.style.setProperty('--district', district.color);
+      const title = el('h3', undefined, district.name);
+      title.append(el('small', undefined, `${projects.length} projects`));
+      section.append(title);
 
-      const grid = el('div', 'list-grid');
-      for (const project of data.projects.filter((p) => p.district === district.id)) {
-        const card = el('button', 'list-card');
-        card.style.setProperty('--chip-color', district.color);
-        card.append(el('strong', undefined, project.title), el('span', undefined, project.blurb));
-        card.addEventListener('click', () => {
+      for (const project of projects) {
+        const row = el('button', 'list-row');
+        row.append(
+          el('strong', undefined, project.title),
+          el('span', undefined, project.blurb),
+          el('b', undefined, `${project.estimated ? '~' : ''}${project.commits.toLocaleString()}`)
+        );
+        row.addEventListener('click', () => {
           this.toggleList(false);
           this.actions.onSelectProject(project.id);
         });
-        grid.append(card);
+        section.append(row);
       }
-      section.append(grid);
       sheet.append(section);
     }
     this.listOverlay.append(sheet);
@@ -117,8 +190,11 @@ export class UI {
     }
     const district = districtOf(project);
     this.tooltip.innerHTML = '';
-    this.tooltip.append(el('strong', undefined, project.title), el('span', undefined, district.name));
-    (this.tooltip.querySelector('span') as HTMLElement).style.color = district.color;
+    this.tooltip.style.setProperty('--district', district.color);
+    this.tooltip.append(
+      el('strong', undefined, project.title),
+      el('span', undefined, `${district.name} · ${project.commits.toLocaleString()} commits`)
+    );
     this.tooltip.hidden = false;
     this.positionTooltip();
   }
@@ -136,35 +212,32 @@ export class UI {
     this.tooltip.hidden = true;
     const district = districtOf(project);
     this.panel.innerHTML = '';
-
-    const close = el('button', 'btn-close', '×');
-    close.setAttribute('aria-label', 'Close panel');
-    close.addEventListener('click', () => this.actions.onClosePanel());
-    this.panel.append(close);
-
-    const chip = el('span', 'panel-chip', district.name);
-    chip.style.setProperty('--chip-color', district.color);
+    this.panel.style.setProperty('--district', district.color);
+    const poster = posterUrl(project.id);
+    if (poster) {
+      const art = el('img', 'panel-poster') as HTMLImageElement;
+      art.src = poster;
+      art.alt = '';
+      this.panel.append(art);
+    }
+    this.panel.append(closeButton('Close panel', () => this.actions.onClosePanel()));
+    const chip = el('span', 'panel-chip');
+    chip.append(badge(district), document.createTextNode(district.name));
     this.panel.append(chip);
     this.panel.append(el('h2', undefined, project.title));
     this.panel.append(
-      el('p', 'panel-meta', `${project.lang} · ${project.commits} commit${project.commits === 1 ? '' : 's'} · github.com/rhicksrad/${project.repo}`)
+      facts([
+        ['Built', `${project.estimated ? '~' : ''}${project.commits.toLocaleString()} commit${project.commits === 1 ? '' : 's'} of ${project.lang}`],
+        ['Zoning', `${TIER_NAMES[tierOf(project.commits)]}${isUnderConstruction(project) ? ', under construction' : ''}`],
+        ['Last push', shortDate(project.pushedAt)],
+        ['Deed', `${data.profile.github.replace('https://', '')}/${project.repo}`]
+      ])
     );
     this.panel.append(el('p', 'panel-blurb', project.blurb));
 
     const buttons = el('div', 'panel-buttons');
-    if (project.demo) {
-      const demo = el('a', 'btn btn-primary', 'Launch demo ↗') as HTMLAnchorElement;
-      demo.href = project.demo;
-      demo.target = '_blank';
-      demo.rel = 'noopener';
-      demo.style.setProperty('--chip-color', district.color);
-      buttons.append(demo);
-    }
-    const source = el('a', 'btn', 'View source') as HTMLAnchorElement;
-    source.href = repoUrl(project);
-    source.target = '_blank';
-    source.rel = 'noopener';
-    buttons.append(source);
+    if (project.demo) buttons.append(link('btn btn-primary', 'Open it', project.demo));
+    buttons.append(link(project.demo ? 'btn' : 'btn btn-primary', 'Read the source', repoUrl(project)));
     this.panel.append(buttons);
 
     this.panel.hidden = false;
@@ -173,38 +246,33 @@ export class UI {
 
   showAboutPanel(): void {
     this.panel.innerHTML = '';
-    const close = el('button', 'btn-close', '×');
-    close.setAttribute('aria-label', 'Close panel');
-    close.addEventListener('click', () => this.actions.onClosePanel());
-    this.panel.append(close);
-
+    this.panel.style.setProperty('--district', '#ffffff');
+    this.panel.append(closeButton('Close panel', () => this.actions.onClosePanel()));
+    this.panel.append(el('span', 'panel-chip', 'Town hall'));
     this.panel.append(el('h2', undefined, data.profile.name));
-    this.panel.append(el('p', 'panel-blurb', data.profile.about));
+
     const totalCommits = data.projects.reduce((sum, p) => sum + p.commits, 0);
-    const stats = el(
-      'p',
-      'panel-meta',
-      `${data.projects.length} projects · ${totalCommits.toLocaleString()} commits · 4 districts · 1 city`
+    const tallest = [...data.projects].sort((a, b) => b.commits - a.commits)[0];
+    const building = data.projects.filter(isUnderConstruction).length;
+    this.panel.append(
+      facts([
+        ['Population', `${data.projects.length} projects in ${data.districts.length} districts`],
+        ['Elevation', `${totalCommits.toLocaleString()} commits`],
+        ['Tallest', `${tallest.title}, ${tallest.commits.toLocaleString()} commits`],
+        ['Cranes up', `${building} site${building === 1 ? '' : 's'} pushed in the last 30 days`]
+      ])
     );
-    this.panel.append(stats);
+    this.panel.append(el('p', 'panel-blurb', data.profile.about));
 
     const buttons = el('div', 'panel-buttons');
-    const gh = el('a', 'btn btn-primary', 'GitHub ↗') as HTMLAnchorElement;
-    gh.href = data.profile.github;
-    gh.target = '_blank';
-    gh.rel = 'noopener';
-    buttons.append(gh);
-    const li = el('a', 'btn', 'LinkedIn ↗') as HTMLAnchorElement;
-    li.href = data.profile.linkedin;
-    li.target = '_blank';
-    li.rel = 'noopener';
-    buttons.append(li);
-    const mail = el('a', 'btn', 'Email') as HTMLAnchorElement;
-    mail.href = `mailto:${data.profile.email}`;
-    buttons.append(mail);
+    buttons.append(
+      link('btn btn-primary', 'GitHub', data.profile.github),
+      link('btn', 'LinkedIn', data.profile.linkedin),
+      link('btn', 'Email', `mailto:${data.profile.email}`, false)
+    );
     this.panel.append(buttons);
-
     this.panel.hidden = false;
+    this.hint.classList.add('hint-hidden');
   }
 
   hidePanel(): void {
@@ -215,7 +283,7 @@ export class UI {
     const loader = document.getElementById('loader');
     if (!loader) return;
     loader.classList.add('loader-done');
-    window.setTimeout(() => loader.remove(), 900);
+    window.setTimeout(() => loader.remove(), 600);
   }
 
   showWebglFallback(): void {
