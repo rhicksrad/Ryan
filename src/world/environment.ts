@@ -155,7 +155,9 @@ export function createSkyDome(onPainted?: (day: THREE.Texture, night: THREE.Text
         float rise = (crest(azimuth + 0.05, spec) - crest(azimuth - 0.05, spec)) * 0.3;
         float flank = 0.5 - 0.5 * rise * side / (1.0 + abs(rise));
         vec3 m = mix(rock * vec3(0.52, 0.58, 0.7), rock * vec3(1.18, 1.08, 0.94), flank);
-        return mix(col, mix(m, haze, clamp(hazing + depth * 0.28, 0.0, 1.0)), cover);
+        // Every range sinks into the ground haze at its foot, so no hard line marks where the land ends.
+        float footHaze = (1.0 - smoothstep(0.0, 1.6, elev)) * 0.9;
+        return mix(col, mix(m, haze, clamp(hazing + depth * 0.28 + footHaze, 0.0, 1.0)), cover);
       }
 
       // Stars on a grid of directions: each cell holds at most one, cool or warm.

@@ -75,6 +75,12 @@ screenshots can be stale; `scripts/probe.mjs` is the reliable way to look.
 - `src/world/buildings.ts`: one builder per commit tier; towers have five crowns.
 - `src/world/fabric.ts`: the unnamed town, drawn from `plan.fillers` with a
   handful of shared materials.
+- `src/world/walkers.ts`: pedestrians lapping their block's sidewalk, one
+  instanced mesh. The README-quoting citizens in `people.ts` are separate.
+- The hills are not geometry: three ridgelines are painted in the sky shader
+  (`rangeOver` in `environment.ts`), and the terrain fades into the fog color
+  before its edge. The sky dome is drawn last (`renderOrder`) so covered pixels
+  are skipped; keep it that way, the sky shader is the costliest per pixel.
 - `src/world/surface.ts`: `weather(material, opts)` gives any standard material
   world-space grain, patches, darker wall bases, and roof courses from one shared
   noise tile. Use it instead of adding textures. Not for things that move.
