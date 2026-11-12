@@ -190,20 +190,47 @@ export function billboardTexture(
   ctx.textBaseline = 'middle';
   const upper = title.toUpperCase();
 
-  // Lettered board: what every tower gets, and what a poster shows until it loads.
-  ctx.fillStyle = '#10131c';
+  // Lettered board: what a tower without poster art gets, and what a poster shows
+  // until it loads. Set like a letterpress bill: paper stock, the district color
+  // as a wide band of ink, and the name as large as the sheet allows.
+  ctx.fillStyle = '#f1ecdc';
   ctx.fillRect(0, 0, 512, 256);
   ctx.fillStyle = accent;
-  ctx.fillRect(0, 0, 512, 14);
-  ctx.fillStyle = '#fffaf0';
-  ctx.font = `800 58px ${SIGN_FONT}`;
-  ctx.fillText(upper, 256, 96, 460);
-  ctx.fillStyle = '#c9cbd3';
-  ctx.font = `500 27px ${SIGN_FONT}`;
-  ctx.fillText(line, 256, 160, 460);
-  ctx.fillStyle = accent;
-  ctx.font = `700 20px ${SIGN_FONT}`;
-  ctx.fillText(footer.toUpperCase(), 256, 216, 460);
+  ctx.fillRect(0, 0, 512, 34);
+  ctx.fillRect(0, 222, 512, 34);
+  ctx.fillStyle = '#16181d';
+  ctx.fillRect(0, 34, 512, 5);
+  ctx.fillRect(0, 217, 512, 5);
+  // The name on one line if it fits large, otherwise broken over two.
+  const words = upper.split(' ');
+  let rows = [upper];
+  ctx.font = `900 76px ${SIGN_FONT}`;
+  if (ctx.measureText(upper).width > 470 && words.length > 1) {
+    let best = 1;
+    let bestGap = Infinity;
+    for (let i = 1; i < words.length; i += 1) {
+      const gap = Math.abs(ctx.measureText(words.slice(0, i).join(' ')).width - ctx.measureText(words.slice(i).join(' ')).width);
+      if (gap < bestGap) {
+        bestGap = gap;
+        best = i;
+      }
+    }
+    rows = [words.slice(0, best).join(' '), words.slice(best).join(' ')];
+  }
+  const widest = Math.max(...rows.map((row) => ctx.measureText(row).width));
+  const size = Math.min(76, (76 * 468) / widest, rows.length === 1 ? 76 : 60);
+  ctx.font = `900 ${size}px ${SIGN_FONT}`;
+  ctx.fillStyle = '#16181d';
+  const middle = line ? 112 : 128;
+  rows.forEach((row, i) => ctx.fillText(row, 256, middle + (i - (rows.length - 1) / 2) * size * 0.98, 480));
+  if (line) {
+    ctx.fillStyle = '#3b3f49';
+    ctx.font = `600 22px ${SIGN_FONT}`;
+    ctx.fillText(line, 256, rows.length === 1 ? 176 : 192, 470);
+  }
+  ctx.fillStyle = '#16181d';
+  ctx.font = `800 19px ${SIGN_FONT}`;
+  ctx.fillText(footer.toUpperCase(), 256, 240, 480);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;

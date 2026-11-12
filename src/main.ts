@@ -75,6 +75,10 @@ function boot(): void {
       world?.focusOverview();
     },
     onWatchGrowth: () => watchGrowth(),
+    onStep: (direction) => {
+      stopTour();
+      stepProject(direction);
+    },
     onClosePanel: () => {
       stopTour();
       ui.hidePanel();
@@ -126,6 +130,12 @@ function boot(): void {
   //   Left / Right  previous / next project, biggest first
   //   T tour, N night and day, D directory, H whole town, Esc close
   const bySize = [...data.projects].sort((a, b) => b.commits - a.commits);
+  /** Step from whatever is open now; with nothing open, forward starts at the biggest. */
+  function stepProject(step: 1 | -1): void {
+    const current = bySize.findIndex((p) => `#/p/${p.id}` === window.location.hash);
+    const cursor = current < 0 ? (step > 0 ? 0 : bySize.length - 1) : (current + step + bySize.length) % bySize.length;
+    selectProject(bySize[cursor].id);
+  }
   window.addEventListener('keydown', (e) => {
     const target = e.target as HTMLElement | null;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -134,11 +144,7 @@ function boot(): void {
     const key = e.key.toLowerCase();
     if (key === 'arrowright' || key === 'arrowleft') {
       stopTour();
-      // Step from whatever is open now; with nothing open, Right starts at the biggest.
-      const current = bySize.findIndex((p) => `#/p/${p.id}` === window.location.hash);
-      const step = key === 'arrowright' ? 1 : -1;
-      const cursor = current < 0 ? (step > 0 ? 0 : bySize.length - 1) : (current + step + bySize.length) % bySize.length;
-      selectProject(bySize[cursor].id);
+      stepProject(key === 'arrowright' ? 1 : -1);
       // Keyboard users land on the panel, so Tab goes straight to its links.
       document.getElementById('panel')!.focus({ preventScroll: true });
     } else if (key === 't') tourButton.click();
