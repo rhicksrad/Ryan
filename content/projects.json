@@ -63,7 +63,8 @@
         "A run is 8 antes: Small, Big, and Boss Blinds on fresh Klondike deals.",
         "No timer. Your limits are recycles and discards."
       ],
-      "pushedAt": "2026-07-07"
+      "pushedAt": "2026-07-07",
+      "createdAt": "2025-08-14"
     },
     {
       "id": "choppa",
@@ -78,7 +79,8 @@
         "Operation Dawnshield: level the alien forward bases.",
         "A deterministic fixed-step loop, written entirely in TypeScript."
       ],
-      "pushedAt": "2025-09-24"
+      "pushedAt": "2025-09-24",
+      "createdAt": "2025-08-20"
     },
     {
       "id": "vivaforte",
@@ -93,7 +95,8 @@
         "Pure 6502 assembly. Builds a cartridge-ready iNES ROM.",
         "Runs on real NES hardware: 32 KB PRG + 8 KB CHR."
       ],
-      "pushedAt": "2026-07-08"
+      "pushedAt": "2026-07-08",
+      "createdAt": "2025-09-24"
     },
     {
       "id": "dotsouls",
@@ -108,7 +111,8 @@
         "Enemies telegraph attacks. Slash, dodge, guard, parry.",
         "Collect relics, open the brass gate, defeat the Chapel Warden."
       ],
-      "pushedAt": "2026-07-07"
+      "pushedAt": "2026-07-07",
+      "createdAt": "2025-08-02"
     },
     {
       "id": "breakout",
@@ -123,7 +127,8 @@
         "No build step, no frameworks. Open index.html and play.",
         "If an asset fails to load, vector art kicks in. It always runs."
       ],
-      "pushedAt": "2026-07-08"
+      "pushedAt": "2026-07-08",
+      "createdAt": "2025-08-11"
     },
     {
       "id": "rpg",
@@ -138,7 +143,8 @@
         "Zelda-style camera and movement, growing toward a D&D-grade ruleset.",
         "A bearded adventurer hero who can walk and animate."
       ],
-      "pushedAt": "2025-12-01"
+      "pushedAt": "2025-12-01",
+      "createdAt": "2025-11-29"
     },
     {
       "id": "euchre",
@@ -153,7 +159,8 @@
         "Trump has been called. Partner, do not let me down.",
         "A full game of euchre, dealt lakeside in the Adirondacks."
       ],
-      "pushedAt": "2025-08-12"
+      "pushedAt": "2025-08-12",
+      "createdAt": "2025-08-11"
     },
     {
       "id": "pokerinthefront",
@@ -168,7 +175,8 @@
         "Smart AI opponents with distinct personalities.",
         "An 1860s saloon, custom SVG avatars, and proper poker rules."
       ],
-      "pushedAt": "2025-08-11"
+      "pushedAt": "2025-08-11",
+      "createdAt": "2025-08-09"
     },
     {
       "id": "aircraftcarrier",
@@ -183,7 +191,8 @@
         "A 15×15 grid: Battleship with power-ups and a smarter AI.",
         "Four ship types, each with unique weapons."
       ],
-      "pushedAt": "2025-08-11"
+      "pushedAt": "2025-08-11",
+      "createdAt": "2025-08-11"
     },
     {
       "id": "fruit",
@@ -198,7 +207,8 @@
         "Three reels, weighted symbols, fun coins only.",
         "Quick spin, adjustable bet, achievements to chase."
       ],
-      "pushedAt": "2025-08-19"
+      "pushedAt": "2025-08-19",
+      "createdAt": "2025-08-19"
     },
     {
       "id": "fiver",
@@ -213,7 +223,8 @@
         "Five letters, validated against a local dictionary.",
         "A lightweight, static Wordle-style game."
       ],
-      "pushedAt": "2025-08-08"
+      "pushedAt": "2025-08-08",
+      "createdAt": "2025-08-08"
     },
     {
       "id": "logicpuzzles",
@@ -228,7 +239,8 @@
         "A beautiful, offline-first logic puzzle starter.",
         "One commit. Sometimes that is all it takes."
       ],
-      "pushedAt": "2025-08-08"
+      "pushedAt": "2025-08-08",
+      "createdAt": "2025-08-08"
     },
     {
       "id": "nasa",
@@ -243,7 +255,8 @@
         "NEO3D visualizes near-Earth objects and planetary orbits.",
         "Press W to toggle the Wow! Signal overlay from 1977."
       ],
-      "pushedAt": "2026-11-12"
+      "pushedAt": "2026-11-12",
+      "createdAt": "2025-10-17"
     },
     {
       "id": "nba",
@@ -258,7 +271,8 @@
         "907 commits of power tiers, injury intel, and tempo analytics.",
         "A season-preview radar for the 2025-26 NBA season."
       ],
-      "pushedAt": "2025-12-01"
+      "pushedAt": "2025-12-01",
+      "createdAt": "2025-09-26"
     },
     {
       "id": "ncaam",
@@ -273,7 +287,8 @@
         "All data flows through a Cloudflare Worker. No API keys in the browser.",
         "A fast multi-page hub for NCAA basketball."
       ],
-      "pushedAt": "2025-12-01"
+      "pushedAt": "2025-12-01",
+      "createdAt": "2025-10-28"
     },
     {
       "id": "gme",
@@ -288,7 +303,8 @@
         "Live quotes and minute candles over WebSocket.",
         "When the worker sleeps, demo mode replays the tape at 2x."
       ],
-      "pushedAt": "2025-10-02"
+      "pushedAt": "2025-10-02",
+      "createdAt": "2025-10-02"
     },
     {
       "id": "war",
@@ -303,7 +319,8 @@
         "Where does MLB talent come from? WAR archives × state populations.",
         "Maps, rankings, and a decade slider. All static, all instant."
       ],
-      "pushedAt": "2025-09-25"
+      "pushedAt": "2025-09-25",
+      "createdAt": "2025-09-25"
     },
     {
       "id": "air",
@@ -318,7 +335,8 @@
         "CDC chronic disease burdens vs PM2.5, county by county.",
         "Highlights the outliers so you do not have to hunt."
       ],
-      "pushedAt": "2025-09-26"
+      "pushedAt": "2025-09-26",
+      "createdAt": "2025-09-25"
     },
     {
       "id": "india",
@@ -333,7 +351,8 @@
         "Regional cuisine patterns vs cancer incidence, 2019–2022.",
         "Choropleths, scatterplots, correlations, residuals."
       ],
-      "pushedAt": "2025-09-26"
+      "pushedAt": "2025-09-26",
+      "createdAt": "2025-09-25"
     },
     {
       "id": "booze",
@@ -348,7 +367,8 @@
         "Five D3 views of New Zealand alcohol availability.",
         "Volumes, per-capita, beer strength, seasonality, spirits."
       ],
-      "pushedAt": "2025-09-26"
+      "pushedAt": "2025-09-26",
+      "createdAt": "2025-09-26"
     },
     {
       "id": "kevin",
@@ -363,7 +383,8 @@
         "Grid insights, dashboarded.",
         "Python under the hood, 44 commits on the meter."
       ],
-      "pushedAt": "2025-11-11"
+      "pushedAt": "2025-11-11",
+      "createdAt": "2025-11-10"
     },
     {
       "id": "8beat",
@@ -378,7 +399,8 @@
         "An 808-inspired drum machine in your browser.",
         "Chiptune loops, no install required."
       ],
-      "pushedAt": "2025-09-20"
+      "pushedAt": "2025-09-20",
+      "createdAt": "2025-08-07"
     },
     {
       "id": "art",
@@ -393,7 +415,8 @@
         "One search fans out to Harvard, Princeton, Dataverse, UBC, and arXiv.",
         "A Google for academic APIs, behind one Cloudflare Worker."
       ],
-      "pushedAt": "2026-04-28"
+      "pushedAt": "2026-04-28",
+      "createdAt": "2025-11-06"
     },
     {
       "id": "goblin",
@@ -408,7 +431,8 @@
         "Whimsical creature profiles: goblins, gremlins, trolls…",
         "…ogres, raccoons, and the occasional pigeon."
       ],
-      "pushedAt": "2026-05-02"
+      "pushedAt": "2026-05-02",
+      "createdAt": "2026-04-28"
     },
     {
       "id": "bee",
@@ -423,7 +447,8 @@
         "A vet from Persia runs a playful pet parlor.",
         "Seventeen commits of pure whimsy."
       ],
-      "pushedAt": "2026-07-10"
+      "pushedAt": "2026-07-10",
+      "createdAt": "2026-05-21"
     },
     {
       "id": "pevs",
@@ -438,7 +463,8 @@
         "Live Teamup data through a Cloudflare Worker proxy.",
         "A React scheduling calendar for the ECC."
       ],
-      "pushedAt": "2026-09-03"
+      "pushedAt": "2026-09-03",
+      "createdAt": "2026-02-22"
     },
     {
       "id": "food-roulette",
@@ -453,7 +479,8 @@
         "Cannot decide on dinner? Spin the wheel.",
         "Fate is a surprisingly good cook."
       ],
-      "pushedAt": "2025-08-19"
+      "pushedAt": "2025-08-19",
+      "createdAt": "2025-08-19"
     },
     {
       "id": "envisirad",
@@ -468,7 +495,8 @@
         "Radiology IT: Fortinet, Intelerad, secure imaging.",
         "The day job, in website form."
       ],
-      "pushedAt": "2025-08-04"
+      "pushedAt": "2025-08-04",
+      "createdAt": "2025-08-04"
     },
     {
       "id": "nothanks",
@@ -483,7 +511,8 @@
         "Why free-website cold calls get a polite no.",
         "All set, thanks."
       ],
-      "pushedAt": "2025-09-01"
+      "pushedAt": "2025-09-01",
+      "createdAt": "2025-09-01"
     },
     {
       "id": "persian-strike",
@@ -516,7 +545,8 @@
         "Grapnels fly and the hulls are hauled together."
       ],
       "pushedAt": "2026-11-11",
-      "estimated": true
+      "estimated": true,
+      "createdAt": "2026-11-02"
     },
     {
       "id": "galaxybrain",
@@ -548,7 +578,8 @@
         "Consecutive correct answers build a streak multiplier."
       ],
       "pushedAt": "2026-08-20",
-      "estimated": true
+      "estimated": true,
+      "createdAt": "2026-08-17"
     },
     {
       "id": "vet-jeopardy",
@@ -564,7 +595,8 @@
         "Six categories, 30 clues, a Clinical Double, and a Final Case."
       ],
       "pushedAt": "2026-08-28",
-      "estimated": true
+      "estimated": true,
+      "createdAt": "2026-08-28"
     },
     {
       "id": "mysty",
@@ -580,7 +612,8 @@
         "Check the field notes."
       ],
       "pushedAt": "2026-07-09",
-      "estimated": true
+      "estimated": true,
+      "createdAt": "2026-07-08"
     },
     {
       "id": "jacobian",
@@ -597,7 +630,8 @@
         "Still undergoing community review."
       ],
       "pushedAt": "2026-07-20",
-      "estimated": true
+      "estimated": true,
+      "createdAt": "2026-07-20"
     },
     {
       "id": "reformatgames",
@@ -613,7 +647,8 @@
         "Three games and counting."
       ],
       "pushedAt": "2026-11-10",
-      "estimated": true
+      "estimated": true,
+      "createdAt": "2026-07-23"
     },
     {
       "id": "hammeredboilers",
@@ -629,7 +664,8 @@
         "Boiler Up. Bottoms Up."
       ],
       "pushedAt": "2026-11-08",
-      "estimated": true
+      "estimated": true,
+      "createdAt": "2026-10-09"
     },
     {
       "id": "it-consulting",
@@ -644,7 +680,8 @@
         "A demo website for a made-up IT consulting business."
       ],
       "pushedAt": "2026-10-13",
-      "estimated": true
+      "estimated": true,
+      "createdAt": "2026-10-13"
     },
     {
       "id": "acupuncture",
@@ -658,7 +695,8 @@
         "A static site for an acupuncture practice."
       ],
       "pushedAt": "2026-09-11",
-      "estimated": true
+      "estimated": true,
+      "createdAt": "2026-09-11"
     }
   ]
 }

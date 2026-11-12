@@ -30,6 +30,8 @@ export interface Project {
   quotes: string[];
   /** Last push date (ISO). Recently active projects get a construction site. */
   pushedAt: string;
+  /** When the repo was created (ISO): the order the town was built in. */
+  createdAt?: string;
   /** Commit count is a placeholder until the next stats refresh. */
   estimated?: boolean;
   /** Entry was drafted automatically from the repo's README. */

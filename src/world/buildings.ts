@@ -4,7 +4,7 @@ import { tierOf, isUnderConstruction } from '../data';
 import { rngFor } from './rng';
 import { facadeTextures, houseWindowTexture, billboardTexture, labelSprite, type Facade } from './textures';
 import { posterUrl } from '../art';
-import { weather } from './surface';
+import { growable, weather } from './surface';
 
 export interface BuildingHandle {
   project: Project;
@@ -341,13 +341,15 @@ function buildHouse(group: THREE.Group, rand: () => number): number {
 
   // Windows with shutters (warm-lit), front + sides.
   const glass = houseWindowTexture(rand);
-  const glassMat = new THREE.MeshStandardMaterial({
-    map: glass,
-    emissiveMap: glass,
-    emissive: 0xffffff,
-    emissiveIntensity: 1,
-    roughness: 0.6
-  });
+  const glassMat = growable(
+    new THREE.MeshStandardMaterial({
+      map: glass,
+      emissiveMap: glass,
+      emissive: 0xffffff,
+      emissiveIntensity: 1,
+      roughness: 0.6
+    })
+  );
   const shutterMat = mat(0x3a4a5a);
   const frameMat = trimWhite;
   for (const wx of [-w * 0.3, w * 0.3]) {
@@ -456,9 +458,9 @@ function buildLargeHouse(group: THREE.Group, rand: () => number): number {
   const bay = block(group, siding, 1.4, 1.6, 0.5, -w * 0.28, floor1 * 0.55 + 0.2, d / 2 + 0.25);
   void bay;
   const glass = houseWindowTexture(rand);
-  const glassMat = new THREE.MeshStandardMaterial({
-    map: glass, emissiveMap: glass, emissive: 0xffffff, emissiveIntensity: 1, roughness: 0.6
-  });
+  const glassMat = growable(
+    new THREE.MeshStandardMaterial({ map: glass, emissiveMap: glass, emissive: 0xffffff, emissiveIntensity: 1, roughness: 0.6 })
+  );
   const shutterMat = mat(0x2f3a2f);
   // Upper-floor windows across the front.
   for (const wx of [-w * 0.28, 0, w * 0.28]) {
@@ -564,7 +566,9 @@ function buildCommercial(
   const bladeTex = billboardTexture(project.title, project.lang, district.color, `${project.commits} commits`);
   const blade = new THREE.Mesh(
     new THREE.PlaneGeometry(1.1, 2.2),
-    new THREE.MeshStandardMaterial({ map: bladeTex, emissive: 0xffffff, emissiveMap: bladeTex, emissiveIntensity: 1.2, side: THREE.DoubleSide, roughness: 0.6 })
+    growable(
+      new THREE.MeshStandardMaterial({ map: bladeTex, emissive: 0xffffff, emissiveMap: bladeTex, emissiveIntensity: 1.2, side: THREE.DoubleSide, roughness: 0.6 })
+    )
   );
   blade.rotation.y = Math.PI / 2;
   blade.position.set(w / 2 + 0.15, groundH + floorH, d / 2 - 1);
@@ -853,9 +857,9 @@ function buildSkyscraper(
       `${project.commits.toLocaleString()} commits and counting`,
       posterUrl(project.id)
     );
-    const bmat = new THREE.MeshStandardMaterial({
-      map: texture, emissive: 0xffffff, emissiveMap: texture, emissiveIntensity: 1.25, roughness: 0.6
-    });
+    const bmat = growable(
+      new THREE.MeshStandardMaterial({ map: texture, emissive: 0xffffff, emissiveMap: texture, emissiveIntensity: 1.25, roughness: 0.6 })
+    );
     bmat.userData.poster = Boolean(posterUrl(project.id));
     if (bmat.userData.poster) {
       // Matte paper: no sheen from the sky or the lights next door.
@@ -927,9 +931,9 @@ function buildConstructionSite(
 
     beaconMat = new THREE.MeshStandardMaterial({ color: 0xff5040, emissive: 0xff3020, emissiveIntensity: 2, roughness: 0.4 });
     const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), beaconMat);
-    beacon.position.set(cx, mastHeight + 0.5, cz);
-    beacon.userData.keep = true; // blinks on its own material
-    group.add(beacon);
+    // On the jib's own axis, so it turns in place and is hidden with the crane until its building is up.
+    beacon.position.set(0, 0.5, 0);
+    jib.add(beacon);
   }
 
   // Scaffolding up one side wall: poles, a few decks, cross rails.

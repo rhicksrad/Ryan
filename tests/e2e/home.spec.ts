@@ -107,6 +107,8 @@ test('the directory filters as you type, and the keyboard drives the town', asyn
   const visible = page.locator('.list-row:visible');
   await expect(visible.first()).toContainText(wanted.title);
   expect(await visible.count()).toBeLessThan(projects.length);
+  // While filtering, a district says how many of its projects match, not its full count.
+  await expect(page.locator('.list-district:visible h3 small').first()).toHaveText(/^\d+ of \d+$/);
   await filter.press('Enter');
   await expect(page.locator('#list-overlay')).toBeHidden();
   await expect(page.locator('#panel h2')).toHaveText(wanted.title);
@@ -152,6 +154,13 @@ test('the directory filters as you type, and the keyboard drives the town', asyn
   await expect(page.locator('#btn-tour')).toHaveAttribute('aria-pressed', 'false');
   await page.keyboard.press('h');
   await expect(page.locator('#panel')).toBeHidden();
+
+  // B replays the town going up: the sign counts projects by date, then goes back to its totals.
+  const stats = page.locator('#brand-stats');
+  const resting = await stats.textContent();
+  await page.keyboard.press('b');
+  await expect(stats).toHaveText(/^[A-Z][a-z]{2} \d{4} · \d+ of \d+ projects built$/, { timeout: 10_000 });
+  await expect(stats).toHaveText(resting!, { timeout: 40_000 });
 
   // Arrow keys step through projects from the biggest down; N flips night and day.
   await page.keyboard.press('ArrowRight');

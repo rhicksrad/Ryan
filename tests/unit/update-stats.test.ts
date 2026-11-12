@@ -14,6 +14,13 @@ const repo = (over: Record<string, unknown>) => ({
 });
 
 describe('repo discovery', () => {
+  it('records when a repo was founded, falling back to its last push', () => {
+    const readme = ['# Thing', '', 'A thing that does a thing.'].join('\n');
+    const founded = draftProject(repo({ name: 'Old', created_at: '2024-03-05T09:00:00Z' }), readme, 3);
+    expect(founded.createdAt).toBe('2024-03-05');
+    expect(draftProject(repo({ name: 'New' }), readme, 3).createdAt).toBe('2026-11-01');
+  });
+
   it('honours exact names and prefix patterns in the ignore list', () => {
     const ignore = ['shahanshah-voice-*', 'ryana'];
     expect(isIgnored('shahanshah-voice-fr', ignore)).toBe(true);

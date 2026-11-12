@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { weather } from './surface';
+import { growDepthMaterial, patchGrow, weather } from './surface';
 
 /**
  * Static batching. The city is modelled the readable way — thousands of little
@@ -67,7 +67,10 @@ function plainMaterial(bucket: Bucket, weathered: boolean): THREE.MeshStandardMa
     // The town's flat colors get world-space grain, weathering, darker wall bases, and roof courses.
     weather(material, { blotch: 0.16, blotchSize: 26, grain: 0.1, grainSize: 2.4, ground: 0.24, roofs: true }, glow, 'baked-glow');
   } else {
-    material.onBeforeCompile = glow;
+    material.onBeforeCompile = (shader) => {
+      glow(shader);
+      patchGrow(shader);
+    };
     material.customProgramCacheKey = () => 'baked-glow';
   }
   plainMaterials.set(key, material);
@@ -78,6 +81,8 @@ function plainMaterial(bucket: Bucket, weathered: boolean): THREE.MeshStandardMa
 interface Piece {
   mesh: THREE.Mesh;
   material: THREE.Material;
+  /** When this piece's building rises (0 = always standing). */
+  grow: number;
   /** Vertex range in the un-indexed geometry; null means all of it. */
   range: { start: number; count: number } | null;
 }
@@ -97,6 +102,8 @@ function prepare(piece: Piece, toRoot: THREE.Matrix4, keepUv: boolean): THREE.Bu
   }
   flat.dispose();
   geo.applyMatrix4(new THREE.Matrix4().multiplyMatrices(toRoot, piece.mesh.matrixWorld));
+  const count = geo.getAttribute('position').count;
+  geo.setAttribute('grow', new THREE.BufferAttribute(new Float32Array(count).fill(piece.grow), 1));
   return geo;
 }
 
@@ -113,8 +120,9 @@ export function bakeStatic(root: THREE.Object3D, weathered = false): void {
   const toRoot = root.matrixWorld.clone().invert();
 
   const pieces: Piece[] = [];
-  const walk = (node: THREE.Object3D) => {
+  const walk = (node: THREE.Object3D, inherited = 0) => {
     if (node.userData.dynamic) return;
+    const grow = (node.userData.grow as number | undefined) ?? inherited;
     if (
       node instanceof THREE.Mesh &&
       !(node instanceof THREE.InstancedMesh) &&
@@ -126,13 +134,13 @@ export function bakeStatic(root: THREE.Object3D, weathered = false): void {
         // A box with a facade on its sides and a roof on top: bake each group with its own material.
         for (const group of node.geometry.groups) {
           const material = node.material[group.materialIndex ?? 0];
-          if (material) pieces.push({ mesh: node, material, range: { start: group.start, count: group.count } });
+          if (material) pieces.push({ mesh: node, material, grow, range: { start: group.start, count: group.count } });
         }
       } else {
-        pieces.push({ mesh: node, material: node.material, range: null });
+        pieces.push({ mesh: node, material: node.material, grow, range: null });
       }
     }
-    node.children.forEach(walk);
+    node.children.forEach((child) => walk(child, grow));
   };
   walk(root);
 
@@ -176,14 +184,16 @@ export function bakeStatic(root: THREE.Object3D, weathered = false): void {
     bucket.geometries.forEach((g) => g.dispose());
     if (!merged) continue;
     const mesh = new THREE.Mesh(merged, plainMaterial(bucket, weathered));
+    if (weathered) mesh.customDepthMaterial = growDepthMaterial();
     mesh.userData.noCast = bucket.noCast;
     mesh.userData.keep = true;
     root.add(mesh);
   }
 
   for (const [material, entry] of shared) {
-    // A lone single-material mesh is already one draw call: leave it be.
-    if (entry.meshes.length < 2 && !entry.meshes[0].range) {
+    // A lone single-material mesh is already one draw call: leave it be, unless it
+    // belongs to a building that rises, which needs it in root space with `grow`.
+    if (entry.meshes.length < 2 && !entry.meshes[0].range && entry.meshes[0].grow === 0) {
       kept.add(entry.meshes[0].mesh);
       continue;
     }
@@ -206,6 +216,7 @@ export function bakeStatic(root: THREE.Object3D, weathered = false): void {
       continue;
     }
     const mesh = new THREE.Mesh(merged, material);
+    if (weathered) mesh.customDepthMaterial = growDepthMaterial();
     mesh.userData.noCast = entry.noCast;
     mesh.userData.keep = true;
     mesh.renderOrder = used[0].renderOrder;

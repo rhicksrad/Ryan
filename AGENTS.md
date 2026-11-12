@@ -81,6 +81,11 @@ screenshots can be stale; `scripts/probe.mjs` is the reliable way to look.
   (`rangeOver` in `environment.ts`), and the terrain fades into the fog color
   before its edge. The sky dome is drawn last (`renderOrder`) so covered pixels
   are skipped; keep it that way, the sky shader is the costliest per pixel.
+- Growth: every baked vertex carries a `grow` attribute (0 for the standing town,
+  otherwise when its project was created along the town's history) and the shared
+  `growClock` in `surface.ts` raises buildings as it passes. Any new material used
+  on a project building must be weathered or wrapped in `growable()`, or it will
+  float while the building is still flat. `CityWorld.playGrowth` runs the clock.
 - `src/world/surface.ts`: `weather(material, opts)` gives any standard material
   world-space grain, patches, darker wall bases, and roof courses from one shared
   noise tile. Use it instead of adding textures. Not for things that move.

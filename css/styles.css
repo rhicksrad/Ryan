@@ -437,6 +437,16 @@ svg.icon {
   border-color: var(--paper);
 }
 
+.btn-growth {
+  appearance: none;
+  width: 100%;
+  justify-content: center;
+  margin-bottom: 8px;
+  background: none;
+  cursor: pointer;
+  font-family: var(--sans);
+}
+
 .btn-primary {
   background: var(--paint);
   border-color: var(--paint);

@@ -34,6 +34,7 @@ import { createPerson, updatePerson, citizenCount, type Person } from './people'
 import { createTraffic, type Traffic } from './cars';
 import { bubbleSprite } from './textures';
 import { bakeStatic, bakedGlow } from './bake';
+import { growClock, GROW_RISE } from './surface';
 
 /** Everything that changes between night and day, lerped by a single mix factor. */
 const NIGHT = {
@@ -55,7 +56,7 @@ const NIGHT = {
   waterDeep: new THREE.Color(0x1d3f78),
   waterZenith: new THREE.Color(0x3a5ea8),
   waterHorizon: new THREE.Color(0x7f9fdc),
-  glint: 0.9,
+  glint: 0.3,
   exposure: 1.15
 };
 // A clear late afternoon: low warm sun, long shadows, cream haze on the horizon.
@@ -101,6 +102,9 @@ interface CameraTween {
 const OVERVIEW_TARGET = new THREE.Vector3(0, 30, 0);
 /** The opening view looks northeast across downtown from this compass bearing off due south. */
 const OVERVIEW_BEARING = THREE.MathUtils.degToRad(-33);
+// Where on the growth clock the first and the last project go up. Anything at 0 is always standing.
+const GROW_START = 0.08;
+const GROW_END = 0.92;
 const LABEL_NEAR = 45;
 const LABEL_FAR = 110;
 
@@ -125,6 +129,10 @@ export class CityWorld {
   private pickMeshes: THREE.Mesh[] = [];
   /** Every building as a box in world space, for finding a clear line of sight. */
   private headliners = new Set<string>();
+  /** When each project's building rises along the town's history (see surface.ts). */
+  private growAt = new Map<string, number>();
+  private history = { from: 0, to: 1 };
+  private growth: { start: number; duration: number; onTick?: (date: Date, built: number) => void; onDone?: () => void } | null = null;
   /** Seconds spent resting at the overview; drives a slow sway so the opening view is never a still. */
   private idle = 0;
   private obstacles: { id: string; x: number; z: number; hw: number; hd: number; h: number }[] = [];
@@ -300,6 +308,8 @@ export class CityWorld {
     }
 
     if (!this.reducedMotion) {
+      this.growth = { start: performance.now() + 500, duration: 3400 };
+      growClock.value = GROW_START - 0.02;
       this.tween = {
         fromPos: this.camera.position.clone(),
         toPos: this.overviewPos.clone(),
@@ -452,8 +462,16 @@ export class CityWorld {
 
     // Buildings and their citizens.
     const centroids = new Map<string, { sum: THREE.Vector3; n: number }>();
+    // The town's history runs from the first repo's creation to the last one's.
+    const founded = (p: Project) => new Date(`${p.createdAt ?? p.pushedAt}T00:00:00Z`).getTime();
+    const dates = this.data.projects.map(founded);
+    this.history = { from: Math.min(...dates), to: Math.max(...dates) };
+    const span = Math.max(this.history.to - this.history.from, 1);
     for (const placement of this.plan.placements) {
       const handle = createBuilding(placement.project, placement.district, placement.towerRank, placement.rotationY);
+      const growAt = GROW_START + (GROW_END - GROW_START) * ((founded(placement.project) - this.history.from) / span);
+      this.growAt.set(placement.project.id, growAt);
+      handle.group.userData.grow = growAt;
       handle.group.position.set(placement.lot.x, 0.18, placement.lot.z);
       this.city.add(handle.group);
       this.buildings.set(placement.project.id, handle);
@@ -764,6 +782,20 @@ export class CityWorld {
     this.startTween(toPos, toTarget);
   }
 
+  /**
+   * Raise the town in the order its repos were created. `onTick` reports the
+   * date the clock has reached and how many projects stand; used by the opening
+   * and by the replay in the town hall panel.
+   */
+  playGrowth(duration: number, onTick?: (date: Date, built: number) => void, onDone?: () => void): void {
+    if (this.reducedMotion) {
+      onDone?.();
+      return;
+    }
+    this.growth = { start: performance.now(), duration, onTick, onDone };
+    growClock.value = GROW_START - 0.02;
+  }
+
   focusOverview(): void {
     this.startTween(this.overviewPos.clone(), OVERVIEW_TARGET.clone());
     this.atOverview = true;
@@ -830,7 +862,7 @@ export class CityWorld {
       THREE.MathUtils.lerp(NIGHT.glint, DAY.glint, k)
     );
 
-    setTownGlow(0.5 * night, this.plan.core.minZ - this.plan.center.z, this.plan.core.maxZ - this.plan.center.z);
+    setTownGlow(0.3 * night, this.plan.core.minZ - this.plan.center.z, this.plan.core.maxZ - this.plan.center.z);
 
     this.lampBulbMaterial.emissiveIntensity = 3.4 * night + 0.1;
     for (const glow of this.lampGlowMaterials) {
@@ -928,6 +960,7 @@ export class CityWorld {
       // A plate is either up or down: a half-faded sign reads as a glitch.
       let target = forced || near > 0.04 ? 1 : 0;
       if (ndc.z > 1) target = 0;
+      if (growClock.value < (this.growAt.get(box.id) ?? 0) + GROW_RISE) target = 0; // not built yet
       // Sprite scale is in view-height units; convert to NDC half-extents.
       const halfW = box.halfW / aspect / tan;
       const halfH = box.halfH / tan;
@@ -990,6 +1023,28 @@ export class CityWorld {
         if (progress >= 1) this.tween = null;
       }
 
+      // The town going up: the growth clock runs along its history and the shadows follow.
+      if (this.growth) {
+        const f = THREE.MathUtils.clamp((performance.now() - this.growth.start) / this.growth.duration, 0, 1);
+        growClock.value = GROW_START - 0.02 + (GROW_END + GROW_RISE + 0.02 - (GROW_START - 0.02)) * f;
+        // Shadows follow the rising buildings, but redrawing the map every frame would
+        // halve the frame rate on integrated graphics; every third frame is plenty.
+        if (this.frame % 3 === 0) this.shadowRefresh = Math.max(this.shadowRefresh, 1);
+        if (this.growth.onTick) {
+          const along = THREE.MathUtils.clamp((growClock.value - GROW_START) / (GROW_END - GROW_START), 0, 1);
+          let built = 0;
+          for (const at of this.growAt.values()) if (growClock.value >= at) built += 1;
+          this.growth.onTick(new Date(this.history.from + (this.history.to - this.history.from) * along), built);
+        }
+        if (f >= 1) {
+          const done = this.growth.onDone;
+          this.growth = null;
+          growClock.value = 2;
+          this.shadowRefresh = 3;
+          done?.();
+        }
+      }
+
       // At rest on the overview the camera sways a few degrees either way, slowly:
       // enough parallax to show this is a place, never enough to lose the sunlit side.
       if (this.atOverview && !this.tween && !this.reducedMotion) {
@@ -1013,6 +1068,7 @@ export class CityWorld {
         this.applyAtmosphere();
       }
 
+      if (!this.reducedMotion) this.skyDomeMaterial.uniforms.drift.value = t * 0.00045;
       // Sky brightness tracks day/night even when motion is reduced.
       this.skyUpdate(t, this.dayMix, !this.reducedMotion);
 
@@ -1027,6 +1083,7 @@ export class CityWorld {
         for (const handle of this.buildings.values()) {
           if (handle.craneJib) {
             handle.craneJib.rotation.y = t * 0.16 + handle.height;
+            handle.craneJib.visible = growClock.value >= (this.growAt.get(handle.project.id) ?? 0) + GROW_RISE;
           }
           if (handle.craneBeacon) {
             handle.craneBeacon.emissiveIntensity = Math.sin(t * 4) > 0 ? 2.2 : 0.25;
