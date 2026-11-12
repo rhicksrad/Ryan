@@ -75,6 +75,8 @@ export interface CityPlan {
   placements: Placement[];
   /** The unnamed town around the projects. */
   fillers: Filler[];
+  /** Cars parked at the kerb. `along` is true when the car points down the x axis. */
+  parked: { x: number; z: number; along: boolean }[];
   blocks: PlanBlock[];
   /** Grass patches: house lawns and unbuilt lots. */
   lawns: Lot[];
@@ -342,6 +344,20 @@ export function buildCityPlan(data: WorldData): CityPlan {
     }
   }
 
+  // --- Parked cars: kerbs fill up downtown and thin out in the neighbourhoods. ---
+  const parked: CityPlan['parked'] = [];
+  for (const b of blocks) {
+    if (b.kind === 'plaza') continue;
+    const kerb = BLOCK / 2 + 0.62;
+    for (const t of [-6, -2.2, 2.2, 6]) {
+      for (const side of [-1, 1]) {
+        const busy = b.paved ? 0.5 : b.kind === 'park' ? 0.3 : 0.14;
+        if (rand() < busy) parked.push({ x: b.x + t + (rand() - 0.5) * 0.8, z: b.z + side * kerb, along: true });
+        if (rand() < busy) parked.push({ x: b.x + side * kerb, z: b.z + t + (rand() - 0.5) * 0.8, along: false });
+      }
+    }
+  }
+
   // --- The unnamed town. Downtown towers get neighbours at their back corners. ---
   for (const b of towerBlocks) {
     for (const side of [-1, 1]) {
@@ -372,13 +388,14 @@ export function buildCityPlan(data: WorldData): CityPlan {
         if (rand() < 0.12) continue;
         const w = 6.4 + rand() * 2;
         const d = 6.4 + rand() * 2;
-        const office = rand() < 0.35;
+        const office = rand() < 0.3;
         fillers.push({
           x: b.x + qx * 0.94,
           z: b.z + qz * 0.94,
           w,
           d,
-          h: office ? 9 + Math.floor(rand() * 5) * 1.5 : 5 + Math.floor(rand() * 4) * 1.4,
+          // Kept lower than the project mid-rises so the named buildings own the skyline.
+          h: office ? 7.2 + Math.floor(rand() * 3) * 1.5 : 4.5 + Math.floor(rand() * 3) * 1.4,
           rotationY: 0,
           kind: office ? 'office' : 'walkup',
           style: Math.floor(rand() * 8)
@@ -447,6 +464,7 @@ export function buildCityPlan(data: WorldData): CityPlan {
   return {
     placements,
     fillers,
+    parked: parked.filter((c) => Math.abs(c.x - riverX) > RIVER_WIDTH / 2 + 4),
     blocks,
     lawns,
     roads,

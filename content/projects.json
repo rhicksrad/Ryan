@@ -2,8 +2,8 @@
   "profile": {
     "name": "Ryan Hicks",
     "github": "https://github.com/rhicksrad",
-    "tagline": "A town where every building is one of my GitHub projects and its height is the commit count.",
-    "about": "Every building in this city is a real project from my GitHub. Most were designed, built, and shipped with AI-assisted engineering. Click any building to visit the live demo or read the source.",
+    "tagline": "A town where every named building is one of my GitHub projects and its height is the commit count.",
+    "about": "Every building with a name plate is a real project from my GitHub, sized by its commit count. The quiet buildings around them are just the town. Most projects were designed, built, and shipped with AI-assisted engineering. Click one to visit the live demo or read the source.",
     "linkedin": "https://www.linkedin.com/in/ryan-hicks-10790a206/",
     "email": "hicksrch@gmail.com"
   },

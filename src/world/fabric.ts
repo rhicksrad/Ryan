@@ -34,14 +34,17 @@ export function createFabric(plan: CityPlan): { group: THREE.Group; windowMateri
     return { facade, material, trim, floor, bay };
   };
   const walkups = [
-    skin('punched', '#52647a', '#a3775e', 0x7d5846, 0.22, 1.4, 1.3),
-    skin('punched', '#566a80', '#cfc6b3', 0xa59c8a, 0.2, 1.4, 1.3),
-    skin('punched', '#4d5f74', '#b7b4ad', 0x8c8a85, 0.2, 1.4, 1.3)
+    skin('punched', '#52647a', '#a3775e', 0x7d5846, 0.22, 1.4, 1.3), // red brick
+    skin('punched', '#566a80', '#cfc6b3', 0xa59c8a, 0.2, 1.4, 1.3), // limestone
+    skin('punched', '#4d5f74', '#8f8a86', 0x6f6b68, 0.2, 1.4, 1.3), // grey brick
+    skin('punched', '#4f6276', '#b9a084', 0x8f7a62, 0.22, 1.4, 1.3), // buff brick
+    skin('punched', '#50606c', '#7c5a50', 0x5e443c, 0.2, 1.4, 1.3) // dark brick
   ];
   const offices = [
     skin('curtain', '#7f9cb4', '#465060', 0x535d6c, 0.12, 1.5, 1.25),
-    skin('punched', '#5a7088', '#d8d2c4', 0xaaa497, 0.16, 1.5, 1.2),
-    skin('curtain', '#8fa7a5', '#59605c', 0x5f6763, 0.12, 1.5, 1.25)
+    skin('punched', '#5a7088', '#c4beb0', 0x9a9488, 0.16, 1.5, 1.2),
+    skin('curtain', '#8fa7a5', '#59605c', 0x5f6763, 0.12, 1.5, 1.25),
+    skin('curtain', '#9aa8b4', '#6a6f78', 0x6f747c, 0.12, 1.5, 1.25)
   ];
 
   const roofMat = mat(0x5d5f64, { roughness: 0.9 });
@@ -57,7 +60,8 @@ export function createFabric(plan: CityPlan): { group: THREE.Group; windowMateri
     return trimMats.get(color)!;
   };
 
-  const tall = (f: Filler, g: THREE.Group) => {
+  const tall = (site: Filler, g: THREE.Group) => {
+    let f = site;
     const set = f.kind === 'office' ? offices : walkups;
     const s = set[f.style % set.length];
     const groundH = 1.7;
@@ -68,13 +72,28 @@ export function createFabric(plan: CityPlan): { group: THREE.Group; windowMateri
       block(g, shopGlass, f.w * 0.78, groundH * 0.58, 0.06, 0, groundH * 0.5, side * (f.d / 2 + 0.1));
       block(g, shopGlass, 0.06, groundH * 0.58, f.d * 0.78, side * (f.w / 2 + 0.1), groundH * 0.5, 0);
     }
-    facadeBox(g, s.material, roofMat, s.facade, f.w, upper, f.d, 0, groundH + upper / 2, 0, s.bay, s.floor);
-    const top = groundH + upper;
-    // Parapet with a recessed roof, then whatever the landlord bolted up there.
-    for (const side of [-1, 1]) {
-      block(g, trimMat(s.trim), f.w + 0.24, 0.42, 0.22, 0, top + 0.18, side * (f.d / 2));
-      block(g, trimMat(s.trim), 0.22, 0.42, f.d + 0.24, side * (f.w / 2), top + 0.18, 0);
+    // Every third building steps back for its top floors, so the street is not a row of plain boxes.
+    const stepped = f.style % 3 === 0 && upper > s.floor * 4;
+    const lower = stepped ? Math.round((upper * 0.68) / s.floor) * s.floor : upper;
+    facadeBox(g, s.material, roofMat, s.facade, f.w, lower, f.d, 0, groundH + lower / 2, 0, s.bay, s.floor);
+    let top = groundH + lower;
+    let w = f.w;
+    let d = f.d;
+    const parapet = () => {
+      for (const side of [-1, 1]) {
+        block(g, trimMat(s.trim), w + 0.24, 0.42, 0.22, 0, top + 0.18, side * (d / 2));
+        block(g, trimMat(s.trim), 0.22, 0.42, d + 0.24, side * (w / 2), top + 0.18, 0);
+      }
+    };
+    parapet();
+    if (stepped) {
+      w = f.w - 2 * s.bay;
+      d = f.d - 2 * s.bay;
+      facadeBox(g, s.material, roofMat, s.facade, w, upper - lower, d, 0, top + (upper - lower) / 2, 0, s.bay, s.floor);
+      top = groundH + upper;
+      parapet();
     }
+    f = { ...f, w, d };
     const units = 1 + Math.floor(rand() * 3);
     for (let i = 0; i < units; i += 1) {
       const uw = 0.8 + rand() * 0.8;
@@ -112,6 +131,22 @@ export function createFabric(plan: CityPlan): { group: THREE.Group; windowMateri
       for (const side of [-1, 1]) block(g, houseGlass, 0.06, 0.72, 0.62, side * (f.w / 2 + 0.02), y, 0);
     }
   };
+
+  // Parked cars: a body, a cabin, and a dark slab underneath standing in for a contact shadow.
+  const paints = [0x8a2f3c, 0x2f4c8a, 0x3c6b4a, 0x6b7078, 0xc9c6bd, 0x23262c, 0x8a7a2f, 0xa9b4c0].map((c) =>
+    mat(c, { roughness: 0.45, metalness: 0.4 })
+  );
+  const cabin = mat(0x1a2030, { roughness: 0.3, metalness: 0.5 });
+  const under = mat(0x08090c, { roughness: 1 });
+  for (const car of plan.parked) {
+    const g = new THREE.Group();
+    g.position.set(car.x, 0.05, car.z);
+    g.rotation.y = (car.along ? 0 : Math.PI / 2) + (rand() < 0.5 ? Math.PI : 0);
+    block(g, under, 1.62, 0.03, 0.84, 0.05, 0.0, 0.03).userData.noCast = true;
+    block(g, paints[Math.floor(rand() * paints.length)], 1.5, 0.4, 0.7, 0, 0.32, 0);
+    block(g, cabin, 0.75, 0.3, 0.62, -0.1, 0.62, 0);
+    group.add(g);
+  }
 
   for (const f of plan.fillers) {
     const g = new THREE.Group();

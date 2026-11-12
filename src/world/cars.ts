@@ -26,6 +26,7 @@ const CAR_CABIN = new THREE.BoxGeometry(0.75, 0.32, 0.62);
 const CAR_HEAD = new THREE.BoxGeometry(0.08, 0.1, 0.14);
 const CAR_TAIL = new THREE.BoxGeometry(0.06, 0.09, 0.13);
 const cabinMat = new THREE.MeshStandardMaterial({ color: 0x1a2030, roughness: 0.3, metalness: 0.5 });
+const shadowMat = new THREE.MeshStandardMaterial({ color: 0x08090c, roughness: 1 });
 const bodyMats = new Map<number, THREE.MeshStandardMaterial>();
 
 function createCar(
@@ -44,6 +45,11 @@ function createCar(
   const body = new THREE.Mesh(CAR_BODY, bodyMat);
   body.position.y = 0.32;
   group.add(body);
+  // A dark slab underneath stands in for the contact shadow moving things do not cast.
+  const under = new THREE.Mesh(CAR_BODY, shadowMat);
+  under.scale.set(1.08, 0.06, 1.2);
+  under.position.set(0.05, 0.02, 0.03);
+  group.add(under);
 
   const cabin = new THREE.Mesh(CAR_CABIN, cabinMat);
   cabin.position.set(-0.1, 0.62, 0);

@@ -765,6 +765,13 @@ export function createRiver(plan: CityPlan): {
     const deck = new THREE.Mesh(new THREE.BoxGeometry(span, 0.5, ROAD + 1.8), deckMat);
     deck.position.set(riverX, 0.28, bridge.z);
     group.add(deck);
+    // The road carries on across the deck.
+    const lane = new THREE.Mesh(roadStrip(ROAD, span), roadMaterial());
+    lane.rotation.x = -Math.PI / 2;
+    lane.rotation.z = Math.PI / 2;
+    lane.position.set(riverX, 0.535, bridge.z);
+    lane.userData.noCast = true;
+    group.add(lane);
     for (const px of [-RIVER_WIDTH / 4.4, RIVER_WIDTH / 4.4]) {
       const pier = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.7, ROAD + 2.6), deckMat);
       pier.position.set(riverX + px, -0.05, bridge.z);
@@ -1509,7 +1516,7 @@ export function createSpire(): {
 }
 
 const CLOUD_NIGHT = new THREE.Color(0x232c48);
-const CLOUD_DAY = new THREE.Color(0xffffff);
+const CLOUD_DAY = new THREE.Color(0xfff6e6);
 
 /**
  * The living sky: soft clouds drifting on the wind and a few flocks of birds
@@ -1570,6 +1577,25 @@ export function createSky(): {
     );
     group.add(container);
     clouds.push({ container, speed: 3 + rand() * 4, spanX: SPAN });
+  }
+
+  // A bank of long, flat clouds far off, so the horizon is never a blank band.
+  for (let i = 0; i < 14; i += 1) {
+    const container = new THREE.Group();
+    const angle = rand() * Math.PI * 2;
+    const radius = 720 + rand() * 380;
+    const scale = 150 + rand() * 170;
+    const puffs = 4 + Math.floor(rand() * 3);
+    for (let p = 0; p < puffs; p += 1) {
+      const s = new THREE.Sprite(cloudMats[0]);
+      const w = scale * (0.6 + rand() * 0.6);
+      s.scale.set(w, w * (0.2 + rand() * 0.1), 1);
+      s.position.set((rand() - 0.5) * scale * 1.6, (rand() - 0.5) * scale * 0.08, (rand() - 0.5) * 40);
+      container.add(s);
+    }
+    container.position.set(Math.cos(angle) * radius, 95 + rand() * 120, Math.sin(angle) * radius);
+    group.add(container);
+    clouds.push({ container, speed: 1 + rand() * 1.5, spanX: 2400 });
   }
 
   // Birds: small dark chevrons that flap, gathered into flocks on circular paths.
