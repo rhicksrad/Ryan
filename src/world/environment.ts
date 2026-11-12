@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { mulberry32 } from './rng';
 import { signTexture, vacancyTexture } from './textures';
 import { emblemUrl } from '../art';
+import skyDayUrl from '../assets/sky/sky-day.webp?url';
+import skyNightUrl from '../assets/sky/sky-night.webp?url';
 import { BLOCK, ROAD, RIVER_WIDTH, type CityPlan } from './cityplan';
 
 const BOX_GEO = new THREE.BoxGeometry(1, 1, 1);
@@ -66,41 +68,118 @@ const SKY_VERTEX = `
   }
 `;
 
-/** Gradient sky dome with horizon haze and a sun (or moon) glow. Colors are lerped between night and day. */
+/**
+ * The painted sky. Two panoramas from Ryan's own game PERSIAN STRIKE (the Gulf
+ * afternoon cumulus and the Caspian night clearing) wrap the dome: azimuth across, elevation
+ * +90 degrees at the top row down to -10 at the bottom, turned so the painted
+ * glow sits under the real sun. As in the games, the painting never lights
+ * the scene; it meets the terrain through a band of haze in the fog color,
+ * and the stars and moon are drawn crisp on top rather than painted in.
+ */
 export function createSkyDome(): { mesh: THREE.Mesh; material: THREE.ShaderMaterial } {
+  const loader = new THREE.TextureLoader();
   const material = new THREE.ShaderMaterial({
     side: THREE.BackSide,
     depthWrite: false,
     fog: false,
     uniforms: {
+      dayMap: { value: null as THREE.Texture | null },
+      nightMap: { value: null as THREE.Texture | null },
+      loaded: { value: 0 },
+      day: { value: 0 },
       topColor: { value: new THREE.Color(0x05070f) },
       bottomColor: { value: new THREE.Color(0x10162c) },
       sunColor: { value: new THREE.Color(0xfff0d0) },
       sunDir: { value: SUN_DIR.clone() },
-      sunDisc: { value: 4 }
+      sunAzimuth: { value: Math.atan2(SUN_DIR.x, SUN_DIR.z) },
+      dayEnergy: { value: 1.25 },
+      nightEnergy: { value: 2.4 }
     },
     vertexShader: SKY_VERTEX,
     fragmentShader: `
+      uniform sampler2D dayMap;
+      uniform sampler2D nightMap;
+      uniform float loaded;
+      uniform float day;
       uniform vec3 topColor;
       uniform vec3 bottomColor;
       uniform vec3 sunColor;
       uniform vec3 sunDir;
-      uniform float sunDisc;
+      uniform float sunAzimuth;
+      uniform float dayEnergy;
+      uniform float nightEnergy;
       varying vec3 vDir;
+
+      float hash(vec2 p) {
+        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+      }
+
+      // Stars on a grid of directions: each cell holds at most one, cool or warm.
+      vec3 stars(vec3 d) {
+        vec2 grid = vec2(atan(d.x, d.z) / 6.2831853 + 0.5, d.y * 0.5 + 0.5) * vec2(700.0, 230.0);
+        vec2 cell = floor(grid);
+        vec2 offset = (vec2(hash(cell + vec2(17.3, 41.9)), hash(cell + vec2(73.1, 11.7))) - 0.5) * 0.4;
+        vec2 point = (fract(grid) - 0.5 - offset) * vec2(1.0, 3.0 * max(sqrt(1.0 - d.y * d.y), 0.05));
+        float seed = hash(cell + vec2(5.2, 93.7));
+        float variant = hash(cell + vec2(53.8, 29.4));
+        float radius = mix(0.09, 0.2, variant);
+        float core = 1.0 - smoothstep(radius * 0.25, radius, length(point));
+        vec3 tint = mix(vec3(0.72, 0.82, 1.0), vec3(1.0, 0.88, 0.7), hash(cell + vec2(19.6, 67.2)) * 0.42);
+        return tint * step(0.985, seed) * core * mix(0.6, 1.6, variant);
+      }
+
       void main() {
         vec3 dir = normalize(vDir);
-        float h = max(dir.y, 0.0);
-        // Zenith to horizon, with a dense haze band hugging the horizon line.
-        vec3 col = mix(bottomColor, topColor, pow(h, 0.55));
-        col = mix(col, bottomColor, exp(-h * 9.0) * 0.75);
-        float d = max(dot(dir, sunDir), 0.0);
-        col += sunColor * (pow(d, 6.0) * 0.16 + pow(d, 48.0) * 0.3);
-        col += sunColor * smoothstep(0.9994, 0.9998, d) * sunDisc;
-        gl_FragColor = vec4(col, 1.0);
+        float azimuth = atan(dir.x, dir.z);
+        float elev = degrees(asin(clamp(dir.y, -1.0, 1.0)));
+        // A backdrop painter's cheat: the low sky is stretched so the cloud
+        // banks stand just above the hills, where this camera actually looks.
+        float painted = elev > 0.0 ? elev * (2.3 - 1.3 * smoothstep(0.0, 60.0, elev)) : elev;
+        // Turned a fifth of a circle off the sun so the tall cumulus stands behind the skyline.
+        vec2 uv = vec2(fract((sunAzimuth - azimuth) / 6.2831853 + 0.72), 1.0 - clamp((90.0 - painted) / 100.0, 0.002, 0.998));
+        // The night painting is turned so its last glow on the horizon sits
+        // behind the skyline, like the town's own light on the clouds.
+        float paintedNightElev = elev > 0.0 ? elev * (2.3 - 1.3 * smoothstep(0.0, 60.0, elev)) : elev;
+        vec2 uvNight = vec2(fract((sunAzimuth - azimuth) / 6.2831853 + 0.083), 1.0 - clamp((90.0 - paintedNightElev) / 100.0, 0.002, 0.998));
+
+        vec3 gradient = mix(bottomColor, topColor, pow(max(dir.y, 0.0), 0.55));
+        vec3 paintedDay = texture2D(dayMap, uv).rgb * dayEnergy;
+        vec3 paintedNight = texture2D(nightMap, uvNight).rgb * nightEnergy;
+        vec3 col = mix(gradient, mix(paintedNight, paintedDay, day), loaded);
+
+        float night = 1.0 - day;
+        float above = smoothstep(0.0, 0.07, dir.y);
+        col += stars(dir) * night * above * 2.0 * (1.0 - smoothstep(0.25, 0.6, dot(paintedNight, vec3(0.333))));
+
+        // The moon rides where the sun does by day: one light, one set of shadows.
+        float toMoon = dot(dir, sunDir);
+        float disc = smoothstep(0.99962, 0.99974, toMoon);
+        vec2 face = (dir.xy - sunDir.xy) * 60.0;
+        float maria = 0.82 + 0.18 * hash(floor(face * 3.0));
+        col += vec3(0.86, 0.9, 1.0) * disc * maria * 2.6 * night;
+        col += sunColor * (pow(max(toMoon, 0.0), 500.0) * 0.5 + pow(max(toMoon, 0.0), 30.0) * 0.1) * night;
+        // By day the painted glow is the sun; a little bloom keeps it warm at any exposure.
+        col += sunColor * pow(max(dot(normalize(vec3(dir.x, 0.0, dir.z)), normalize(vec3(sunDir.x, 0.0, sunDir.z))), 0.0), 10.0)
+          * (1.0 - smoothstep(0.0, 0.3, dir.y)) * 0.1 * day;
+
+        // The horizon band dissolves into the haze; below it the sky is haze.
+        float band = mix(0.05, 0.085, day);
+        float fog = 0.9 * (1.0 - smoothstep(0.0, band, dir.y)) + 0.1 * (1.0 - smoothstep(-0.05, 0.0, dir.y));
+        gl_FragColor = vec4(mix(col, bottomColor, fog), 1.0);
       }
     `
   });
-  const mesh = new THREE.Mesh(new THREE.SphereGeometry(1500, 32, 16), material);
+  const finish = (name: 'dayMap' | 'nightMap') => (texture: THREE.Texture) => {
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.minFilter = THREE.LinearFilter; // no mips: the wrap seam would show as a line
+    texture.generateMipmaps = false;
+    material.uniforms[name].value = texture;
+    if (material.uniforms.dayMap.value && material.uniforms.nightMap.value) material.uniforms.loaded.value = 1;
+  };
+  loader.load(skyDayUrl, finish('dayMap'));
+  loader.load(skyNightUrl, finish('nightMap'));
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(1500, 48, 24), material);
   mesh.renderOrder = -1;
   return { mesh, material };
 }
@@ -144,40 +223,6 @@ export function createSkyEnvScene(
   });
   scene.add(new THREE.Mesh(new THREE.SphereGeometry(10, 24, 12), material));
   return scene;
-}
-
-/** Star dome as a point cloud. */
-export function createStars(): { points: THREE.Points; material: THREE.PointsMaterial } {
-  const rand = mulberry32(1337);
-  const count = 1100;
-  const positions = new Float32Array(count * 3);
-  const colors = new Float32Array(count * 3);
-  const tints = [new THREE.Color('#cdd8ff'), new THREE.Color('#ffffff'), new THREE.Color('#ffd9c0')];
-  for (let i = 0; i < count; i += 1) {
-    const theta = rand() * Math.PI * 2;
-    const phi = Math.acos(0.03 + rand() * 0.95); // upper dome only, beyond the farthest hills
-    const r = 1380 + rand() * 60;
-    positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-    positions[i * 3 + 1] = r * Math.cos(phi);
-    positions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
-    const tint = tints[Math.floor(rand() * tints.length)].clone().multiplyScalar(0.5 + rand() * 0.5);
-    colors[i * 3] = tint.r;
-    colors[i * 3 + 1] = tint.g;
-    colors[i * 3 + 2] = tint.b;
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  const mat = new THREE.PointsMaterial({
-    size: 5.5,
-    vertexColors: true,
-    transparent: true,
-    opacity: 0.95,
-    sizeAttenuation: true,
-    depthWrite: false,
-    fog: false
-  });
-  return { points: new THREE.Points(geo, mat), material: mat };
 }
 
 /** Sizes shared by the terrain painting and the countryside built on top of it. */
@@ -1515,13 +1560,9 @@ export function createSpire(): {
   return { group, pickMeshes: [hit], tick: clock.draw, faceMaterial: faceMat };
 }
 
-const CLOUD_NIGHT = new THREE.Color(0x232c48);
-const CLOUD_DAY = new THREE.Color(0xfff6e6);
-
 /**
- * The living sky: soft clouds drifting on the wind and a few flocks of birds
- * wheeling overhead. `update(t, dayMix, moving)` drifts them and fades clouds
- * between a bright daytime and a dim night.
+ * Life in the sky: a few flocks of birds wheeling overhead. The clouds are in
+ * the painted sky; `update(t, dayMix, moving)` only flies the birds.
  */
 export function createSky(): {
   group: THREE.Group;
@@ -1529,74 +1570,6 @@ export function createSky(): {
 } {
   const group = new THREE.Group();
   const rand = mulberry32(31337);
-
-  // Soft round cloud texture.
-  const cloudTex = (() => {
-    const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = 128;
-    const ctx = canvas.getContext('2d')!;
-    const g = ctx.createRadialGradient(64, 64, 6, 64, 64, 64);
-    g.addColorStop(0, 'rgba(255,255,255,0.95)');
-    g.addColorStop(0.5, 'rgba(255,255,255,0.5)');
-    g.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, 128, 128);
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    return tex;
-  })();
-
-  interface Cloud { container: THREE.Group; speed: number; spanX: number }
-  const clouds: Cloud[] = [];
-  const cloudMats: THREE.SpriteMaterial[] = [];
-  const SPAN = 900;
-  for (let i = 0; i < 16; i += 1) {
-    // Each cloud is a clump of 3–5 overlapping puffs sharing one material.
-    const container = new THREE.Group();
-    const cmat = cloudMats[0] ?? new THREE.SpriteMaterial({
-      map: cloudTex,
-      transparent: true,
-      opacity: 0.8,
-      depthWrite: false,
-      fog: false
-    });
-    if (cloudMats.length === 0) cloudMats.push(cmat);
-    const puffs = 3 + Math.floor(rand() * 3);
-    const scale = 40 + rand() * 60;
-    for (let p = 0; p < puffs; p += 1) {
-      const s = new THREE.Sprite(cmat);
-      const w = scale * (0.7 + rand() * 0.6);
-      s.scale.set(w, w * (0.5 + rand() * 0.2), 1);
-      s.position.set((rand() - 0.5) * scale * 1.4, (rand() - 0.5) * scale * 0.25, 0);
-      container.add(s);
-    }
-    container.position.set(
-      (rand() - 0.5) * SPAN,
-      95 + rand() * 70,
-      (rand() - 0.5) * SPAN
-    );
-    group.add(container);
-    clouds.push({ container, speed: 3 + rand() * 4, spanX: SPAN });
-  }
-
-  // A bank of long, flat clouds far off, so the horizon is never a blank band.
-  for (let i = 0; i < 14; i += 1) {
-    const container = new THREE.Group();
-    const angle = rand() * Math.PI * 2;
-    const radius = 720 + rand() * 380;
-    const scale = 150 + rand() * 170;
-    const puffs = 4 + Math.floor(rand() * 3);
-    for (let p = 0; p < puffs; p += 1) {
-      const s = new THREE.Sprite(cloudMats[0]);
-      const w = scale * (0.6 + rand() * 0.6);
-      s.scale.set(w, w * (0.2 + rand() * 0.1), 1);
-      s.position.set((rand() - 0.5) * scale * 1.6, (rand() - 0.5) * scale * 0.08, (rand() - 0.5) * 40);
-      container.add(s);
-    }
-    container.position.set(Math.cos(angle) * radius, 95 + rand() * 120, Math.sin(angle) * radius);
-    group.add(container);
-    clouds.push({ container, speed: 1 + rand() * 1.5, spanX: 2400 });
-  }
 
   // Birds: small dark chevrons that flap, gathered into flocks on circular paths.
   const birdMat = new THREE.MeshStandardMaterial({
@@ -1611,6 +1584,7 @@ export function createSky(): {
   const flocks: Flock[] = [];
   for (let f = 0; f < 4; f += 1) {
     const flock = new THREE.Group();
+    flock.userData.dynamic = true;
     const wings: THREE.Mesh[] = [];
     const n = 5 + Math.floor(rand() * 4);
     for (let b = 0; b < n; b += 1) {
@@ -1640,19 +1614,8 @@ export function createSky(): {
     });
   }
 
-  const update = (t: number, dayMix: number, moving: boolean) => {
-    // Clouds bright and white by day, dim and sparse-feeling by night.
-    const cloudOpacity = 0.28 + dayMix * 0.55;
-    for (const cmat of cloudMats) {
-      cmat.opacity = cloudOpacity;
-      cmat.color.lerpColors(CLOUD_NIGHT, CLOUD_DAY, dayMix);
-    }
-
+  const update = (t: number, _dayMix: number, moving: boolean) => {
     if (!moving) return;
-    for (const cloud of clouds) {
-      cloud.container.position.x += cloud.speed * 0.016;
-      if (cloud.container.position.x > cloud.spanX / 2) cloud.container.position.x -= cloud.spanX;
-    }
     for (const flock of flocks) {
       const a = flock.phase + t * flock.speed;
       flock.group.position.set(Math.cos(a) * flock.radius, flock.y, Math.sin(a) * flock.radius);

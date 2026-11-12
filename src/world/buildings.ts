@@ -302,9 +302,19 @@ function buildHouse(group: THREE.Group, rand: () => number): number {
 
   // Gable roof with overhang.
   const peak = 1.5 + rand() * 0.3;
-  const roof = gableRoof(w + 0.6, d + 0.6, peak, roofMat);
+  // Three roof plans, so a street of houses is not one model repeated: gable end
+  // to the street, ridge along the street, or ridge along the street with a dormer.
+  const plan = Math.floor(rand() * 3);
+  const roof = plan === 0 ? gableRoof(w + 0.6, d + 0.6, peak, roofMat) : gableRoof(d + 0.6, w + 0.6, peak, roofMat);
+  if (plan !== 0) roof.rotation.y = Math.PI / 2;
   roof.position.y = h + 0.2;
   group.add(roof);
+  if (plan === 2) {
+    const dormer = gableRoof(1.5, d * 0.5 + 0.5, 0.9, roofMat);
+    dormer.position.set(-w * 0.18, h + 0.45, d * 0.25);
+    group.add(dormer);
+    block(group, trimWhite, 1.1, 0.7, 0.08, -w * 0.18, h + 0.6, d * 0.5 + 0.22);
+  }
   // fascia trim under the eaves
   block(group, trimWhite, w + 0.6, 0.12, d + 0.6, 0, h + 0.22, 0);
 
@@ -408,10 +418,14 @@ function buildLargeHouse(group: THREE.Group, rand: () => number): number {
   mainRoof.position.y = bodyTop;
   group.add(mainRoof);
   block(group, trimWhite, w + 0.7, 0.12, d + 0.7, 0, bodyTop + 0.02, 0);
-  const dormer = gableRoof(w * 0.42, d * 0.6, peak * 0.8, roofMat);
-  dormer.rotation.y = Math.PI / 2;
-  dormer.position.set(0, bodyTop, d * 0.28);
-  group.add(dormer);
+  // The front gable sits over the door, off to one side, or is doubled.
+  const gables = [[0], [-w * 0.24], [-w * 0.26, w * 0.26]][Math.floor(rand() * 3)];
+  for (const gx of gables) {
+    const dormer = gableRoof(w * (gables.length > 1 ? 0.3 : 0.42), d * 0.6, peak * (gables.length > 1 ? 0.62 : 0.8), roofMat);
+    dormer.rotation.y = Math.PI / 2;
+    dormer.position.set(gx, bodyTop, d * 0.28);
+    group.add(dormer);
+  }
 
   // Two chimneys.
   for (const cx of [-w * 0.35, w * 0.4]) {

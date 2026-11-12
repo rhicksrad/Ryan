@@ -9,7 +9,6 @@ import { FXAAShader } from 'three/examples/jsm/shaders/FXAAShader.js';
 import { tierOf, type WorldData, type Project } from '../data';
 import { createBuilding, type BuildingHandle } from './buildings';
 import {
-  createStars,
   createTerrain,
   createBlocks,
   createRoads,
@@ -35,10 +34,10 @@ import { bakeStatic, bakedGlow } from './bake';
 
 /** Everything that changes between night and day, lerped by a single mix factor. */
 const NIGHT = {
-  skyTop: new THREE.Color('#040714'),
-  skyBottom: new THREE.Color('#222c52'),
-  skySun: new THREE.Color('#5a6aa8'),
-  sunDisc: 2.2,
+  // Sampled from the night painting: zenith and the haze it meets the land in.
+  skyTop: new THREE.Color('#101a2e'),
+  skyBottom: new THREE.Color('#3b3649'),
+  skySun: new THREE.Color('#8fa4e0'),
   bloom: 0.6,
   bloomThreshold: 0.9,
   fog: 0.5, // fog density × overview distance, so haze scales with the town
@@ -49,16 +48,18 @@ const NIGHT = {
   hemiIntensity: 1.5,
   sun: new THREE.Color(0xa8b8ff),
   sunIntensity: 1.5,
-  waterDeep: new THREE.Color(0x1b3a6e),
+  waterDeep: new THREE.Color(0x1d3f78),
+  waterZenith: new THREE.Color(0x3a5ea8),
+  waterHorizon: new THREE.Color(0x7f9fdc),
   glint: 0.9,
   exposure: 1.15
 };
 // A clear late afternoon: low warm sun, long shadows, cream haze on the horizon.
 const DAY = {
-  skyTop: new THREE.Color('#2a6ccb'),
-  skyBottom: new THREE.Color('#cfe0ec'),
-  skySun: new THREE.Color('#fff0d2'),
-  sunDisc: 6,
+  // Sampled from the afternoon painting: zenith blue and the warm haze on its horizon.
+  skyTop: new THREE.Color('#4f7db4'),
+  skyBottom: new THREE.Color('#dcc7a6'),
+  skySun: new THREE.Color('#ffe9c4'),
   bloom: 0.16,
   bloomThreshold: 1.0,
   fog: 0.2,
@@ -91,7 +92,8 @@ interface CameraTween {
   duration: number;
 }
 
-const OVERVIEW_TARGET = new THREE.Vector3(0, 7, 0);
+// Aimed above the rooftops, so the town sits in the lower two thirds and the painted sky gets the rest.
+const OVERVIEW_TARGET = new THREE.Vector3(0, 30, 0);
 /** The opening view looks northeast across downtown from this compass bearing off due south. */
 const OVERVIEW_BEARING = THREE.MathUtils.degToRad(-33);
 const LABEL_NEAR = 45;
@@ -129,7 +131,6 @@ export class CityWorld {
   private ambientLight!: THREE.AmbientLight;
   private hemiLight!: THREE.HemisphereLight;
   private sunLight!: THREE.DirectionalLight;
-  private starsMaterial!: THREE.PointsMaterial;
   private skyDomeMaterial!: THREE.ShaderMaterial;
   private bloomPass!: UnrealBloomPass;
   private composer!: EffectComposer;
@@ -189,8 +190,9 @@ export class CityWorld {
     // Image-based lighting from the town's own sky, so glass and metal reflect what is overhead.
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     // Kept dim: it is there for reflections, not to flood the shadows with fill light.
-    this.envDay = pmrem.fromScene(createSkyEnvScene('#1c3a66', '#6f7478', '#2c2a22', '#8a7a5a'), 0.02).texture;
-    this.envNight = pmrem.fromScene(createSkyEnvScene('#050a18', '#111830', '#05060a', '#1c2238'), 0.02).texture;
+    // Its colors follow the painted sky (blue zenith over warm haze; navy over slate).
+    this.envDay = pmrem.fromScene(createSkyEnvScene('#22395a', '#7a6e5c', '#2c2a22', '#8a7a5a'), 0.02).texture;
+    this.envNight = pmrem.fromScene(createSkyEnvScene('#070c18', '#1a2233', '#05060a', '#262e44'), 0.02).texture;
     pmrem.dispose();
     this.scene.environment = this.envNight;
 
@@ -308,14 +310,14 @@ export class CityWorld {
     // A tall screen looks down the town's long axis from the west instead.
     const portrait = this.camera.aspect < 1;
     const bearing = portrait ? THREE.MathUtils.degToRad(-78) : OVERVIEW_BEARING;
-    const pitch = THREE.MathUtils.degToRad(portrait ? 24 : 17);
+    const pitch = THREE.MathUtils.degToRad(portrait ? 22 : 13.5);
     const dir = new THREE.Vector3(Math.sin(bearing) * Math.cos(pitch), Math.sin(pitch), Math.cos(bearing) * Math.cos(pitch));
     const target = OVERVIEW_TARGET.clone().setX((core.minX + core.maxX) / 2 - center.x).setZ((core.minZ + core.maxZ) / 2 - center.z);
     OVERVIEW_TARGET.copy(target);
     const corners: THREE.Vector3[] = [];
     for (const x of [core.minX - center.x, core.maxX - center.x]) {
       for (const z of [core.minZ - center.z, core.maxZ - center.z]) {
-        for (const y of [0, 34]) corners.push(new THREE.Vector3(x, y, z));
+        for (const y of [0, 30]) corners.push(new THREE.Vector3(x, y, z));
       }
     }
     const probe = this.camera.clone();
@@ -325,7 +327,7 @@ export class CityWorld {
       probe.updateMatrixWorld(true);
       return corners.every((corner) => {
         const ndc = corner.clone().project(probe);
-        return Math.abs(ndc.x) < (portrait ? 0.9 : 0.97) && ndc.y < (portrait ? 0.7 : 0.62) && ndc.y > (portrait ? -0.7 : -0.86);
+        return Math.abs(ndc.x) < (portrait ? 0.9 : 0.97) && ndc.y < (portrait ? 0.4 : 0.3) && ndc.y > (portrait ? -0.86 : -0.92);
       });
     };
     let lo = 40;
@@ -368,10 +370,6 @@ export class CityWorld {
     skyDome.mesh.userData.skipShadow = true;
     this.scene.add(skyDome.mesh);
     this.skyDomeMaterial = skyDome.material;
-
-    const stars = createStars();
-    this.scene.add(stars.points);
-    this.starsMaterial = stars.material;
 
     this.city.position.set(-this.plan.center.x, 0, -this.plan.center.z);
     this.scene.add(this.city);
@@ -699,7 +697,7 @@ export class CityWorld {
     fog.color.lerpColors(NIGHT.skyBottom, DAY.skyBottom, k);
     fog.density = THREE.MathUtils.lerp(NIGHT.fog, DAY.fog, k) / this.overviewDistance();
     this.skyDomeMaterial.uniforms.sunColor.value.lerpColors(NIGHT.skySun, DAY.skySun, k);
-    this.skyDomeMaterial.uniforms.sunDisc.value = THREE.MathUtils.lerp(NIGHT.sunDisc, DAY.sunDisc, k);
+    this.skyDomeMaterial.uniforms.day.value = k;
     this.scene.environment = k > 0.5 ? this.envDay : this.envNight;
     this.renderer.toneMappingExposure = THREE.MathUtils.lerp(NIGHT.exposure, DAY.exposure, k);
 
@@ -715,13 +713,14 @@ export class CityWorld {
     this.sunLight.color.lerpColors(NIGHT.sun, DAY.sun, k);
     this.sunLight.intensity = THREE.MathUtils.lerp(NIGHT.sunIntensity, DAY.sunIntensity, k);
 
-    this.starsMaterial.opacity = 0.95 * night;
     applyTints(k);
     bakedGlow.value = 1 - 0.8 * k;
+    // At night the water mirrors a moonlit sky brighter than the real one, so the
+    // river reads as a pale ribbon through the dark town instead of vanishing.
     setWaterLook(
       NIGHT.waterDeep.clone().lerp(DAY.waterDeep, k),
-      this.skyDomeMaterial.uniforms.topColor.value,
-      this.skyDomeMaterial.uniforms.bottomColor.value,
+      NIGHT.waterZenith.clone().lerp(DAY.skyTop, k),
+      NIGHT.waterHorizon.clone().lerp(DAY.skyBottom, k),
       this.skyDomeMaterial.uniforms.sunColor.value,
       THREE.MathUtils.lerp(NIGHT.glint, DAY.glint, k)
     );
