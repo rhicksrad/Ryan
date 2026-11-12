@@ -68,7 +68,7 @@ jobs:
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ${{ vars.CI_RUNNER == 'local' && vars.CI_RUNNER_E2E == 'local'
       && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-      && fromJSON('["self-hosted","web-trusted","playwright"]')
+      && fromJSON('["self-hosted","web-trusted","playwright","e2e"]')
       || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
