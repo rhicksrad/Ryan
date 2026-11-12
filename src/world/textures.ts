@@ -111,11 +111,23 @@ export function facadeTextures(style: FacadeStyle, rand: () => number): Facade {
       }
 
       if (rand() < floorLit) {
+        // A lit room, not a lit square: brightest under the ceiling lights,
+        // split by its mullion, sometimes half hidden by a blind, and most rooms
+        // are dim with only a few blazing.
         const pick = rand();
         const base = (pick < 0.62 ? warm : pick < 0.86 ? cool : accent).clone();
-        base.multiplyScalar(0.5 + rand() * 0.5);
-        night.ctx.fillStyle = hex(base);
-        night.ctx.fillRect(px + 1, py + 1, pw - 2, ph - 2);
+        const level = 0.22 + Math.pow(rand(), 2.2) * 0.78;
+        const top = base.clone().multiplyScalar(level);
+        const bottom = base.clone().multiplyScalar(level * (0.35 + rand() * 0.35));
+        const glow = night.ctx.createLinearGradient(0, py, 0, py + ph);
+        glow.addColorStop(0, hex(top));
+        glow.addColorStop(1, hex(bottom));
+        night.ctx.fillStyle = glow;
+        const blind = rand() < 0.2 ? ph * (0.3 + rand() * 0.4) : 0;
+        night.ctx.fillRect(px + 1.5, py + 1.5 + blind, pw - 3, ph - 3 - blind);
+        night.ctx.fillStyle = '#000000';
+        night.ctx.fillRect(px + pw / 2 - 0.75, py, 1.5, ph);
+        if (rand() < 0.25) night.ctx.fillRect(px + (rand() < 0.5 ? 0 : pw / 2), py, pw / 2, ph);
       }
     }
   }

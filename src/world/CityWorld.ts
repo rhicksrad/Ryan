@@ -810,6 +810,8 @@ export class CityWorld {
     }
     for (const { mat, base, dim } of this.nightWindows) mat.emissiveIntensity = base * (1 - dim * k);
     for (const { mat, base } of this.headlights) mat.emissiveIntensity = base * (1 - 0.7 * k);
+    // Name plates are lit by the day; after dark they dim like any unlit sign.
+    for (const box of this.labelBoxes) box.label.material.color.setScalar(0.62 + 0.38 * k);
   }
 
   focusAbout(): void {

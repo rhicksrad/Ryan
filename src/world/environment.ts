@@ -24,6 +24,7 @@ function tint<T extends THREE.MeshStandardMaterial>(material: T, night: number, 
 
 export function applyTints(dayMix: number): void {
   for (const t of tints) t.color.lerpColors(t.night, t.day, dayMix);
+  for (const mat of [sharedRoadMat, ...streetGlow]) if (mat) mat.emissiveIntensity = 0.048 * (1 - dayMix);
 }
 
 // Shared wind clock; trees read it in their vertex shaders. Updated each frame.
@@ -654,10 +655,17 @@ function roadStrip(width: number, length: number): THREE.PlaneGeometry {
 }
 
 let sharedRoadMat: THREE.MeshStandardMaterial | null = null;
+/** Other paving that takes the same faint lamp spill as the roads at night. */
+const streetGlow: THREE.MeshStandardMaterial[] = [];
 function roadMaterial(): THREE.MeshStandardMaterial {
   // Patched and sun-bleached in places, like any road that has been dug up and relaid.
   sharedRoadMat ??= tint(
-    weather(new THREE.MeshStandardMaterial({ map: asphaltTexture(true), roughness: 0.93 }), { blotch: 0.3, blotchSize: 21, grain: 0.1, grainSize: 3 }),
+    weather(
+      // The warm emissive is the spill of the street lamps: off by day, faint at night,
+      // so the street grid reads as lit ribbons rather than disappearing.
+      new THREE.MeshStandardMaterial({ map: asphaltTexture(true), roughness: 0.93, emissive: 0xffb469, emissiveIntensity: 0 }),
+      { blotch: 0.3, blotchSize: 21, grain: 0.1, grainSize: 3 }
+    ),
     ASPHALT_NIGHT,
     ASPHALT_DAY
   );
@@ -678,10 +686,11 @@ export function createRoads(plan: CityPlan): THREE.Group {
   }
 
   const crossMat = tint(
-    new THREE.MeshStandardMaterial({ map: intersectionTexture(), roughness: 0.93 }),
+    new THREE.MeshStandardMaterial({ map: intersectionTexture(), roughness: 0.93, emissive: 0xffb469, emissiveIntensity: 0 }),
     ASPHALT_NIGHT,
     ASPHALT_DAY
   );
+  streetGlow.push(crossMat);
   const crossGeo = new THREE.PlaneGeometry(ROAD, ROAD);
   crossGeo.rotateX(-Math.PI / 2);
   const crossings = new THREE.InstancedMesh(crossGeo, crossMat, plan.intersections.length);
@@ -1526,7 +1535,7 @@ export function createSpire(): {
   const stoneDark = new THREE.MeshStandardMaterial({ color: 0xb3a88f, roughness: 0.9 });
   const copper = new THREE.MeshStandardMaterial({ color: 0x5f9a88, roughness: 0.55, metalness: 0.35 });
   const gold = new THREE.MeshStandardMaterial({ color: 0xd9b24a, roughness: 0.35, metalness: 0.8, emissive: 0x6a4a10, emissiveIntensity: 0.5 });
-  const slit = new THREE.MeshStandardMaterial({ color: 0x2b3440, emissive: 0xffc97a, emissiveIntensity: 0.9, roughness: 0.4 });
+  const slit = new THREE.MeshStandardMaterial({ color: 0x1c232c, emissive: 0xffc97a, emissiveIntensity: 0.55, roughness: 0.3, metalness: 0.4 });
   const box = (m: THREE.Material, w: number, h: number, d: number, x: number, y: number, z: number) => {
     const mesh = new THREE.Mesh(BOX_GEO, m);
     mesh.scale.set(w, h, d);
@@ -1564,6 +1573,18 @@ export function createSpire(): {
       box(slit, 0.08, 1.5, 0.5, s * 1.62, 8 + i * 3.1, 0);
     }
   }
+  // Corner pilasters and belt courses, so the shaft is masonry and not a plain post.
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) box(stoneDark, 0.5, shaftH, 0.5, sx * 1.6, 5.4 + shaftH / 2, sz * 1.6);
+  }
+  for (const y of [9.2, 13, 16.8]) box(stoneDark, 3.5, 0.22, 3.5, 0, y, 0);
+  // A balustrade round the hall roof and a flag over the door.
+  for (const s of [-1, 1]) {
+    box(stone, 8.3, 0.5, 0.18, 0, 5.65, s * 4.1);
+    box(stone, 0.18, 0.5, 8.3, s * 4.1, 5.65, 0);
+  }
+  box(stoneDark, 0.08, 3.4, 0.08, 3.4, 7.1, 4);
+  box(new THREE.MeshStandardMaterial({ color: 0x0b5a3c, roughness: 0.8 }), 1.5, 0.9, 0.04, 4.2, 8.3, 4);
   const belfryY = 5.4 + shaftH;
   box(stoneDark, 3.9, 0.4, 3.9, 0, belfryY + 0.2, 0);
   box(stone, 3.6, 3.6, 3.6, 0, belfryY + 2.2, 0);
