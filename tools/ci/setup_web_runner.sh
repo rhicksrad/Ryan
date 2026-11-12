@@ -33,15 +33,32 @@ say() { printf '\n== %s\n' "$*"; }
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
 [ "$(id -u)" -ne 0 ] || die "run as your own user, not root; the script calls sudo where it must"
-command -v gh >/dev/null || die "gh is not installed"
 command -v sudo >/dev/null || die "sudo is not available"
 [ "$(uname -s)" = Linux ] || die "Linux only (on Windows, run inside WSL Ubuntu)"
 if [ "$HOST" = darkhelmet ] && [ "${FORCE:-}" != 1 ]; then
   die "DarkHelmet is the perf-timing box and takes no web jobs (FORCE=1 overrides)"
 fi
 
+# Under WSL, Windows tools sit on PATH (/mnt/c/...). Windows' gh is fine to
+# borrow (it carries the login); Windows' node is not (it can't install Linux
+# libraries), so only a Linux npx counts.
+linux_cmd() { case "$(command -v "$1" 2>/dev/null)" in ''|/mnt/*) return 1 ;; esac; }
+if ! linux_cmd npx || ! command -v curl >/dev/null || ! command -v python3 >/dev/null; then
+  say "Installing prerequisites (curl, python3, nodejs, npm)"
+  sudo apt-get update -qq
+  sudo apt-get install -y -qq curl python3 nodejs npm
+fi
+GH=gh
+if ! command -v gh >/dev/null; then
+  command -v gh.exe >/dev/null || die "gh is not installed (sudo apt-get install gh, then gh auth login)"
+  GH=gh.exe
+fi
+# gh.exe ends lines with CRLF; strip it so tokens and statuses compare cleanly.
+gh() { command "$GH" "$@" | tr -d '\r'; }
+
 say "Checking admin access to $REPO"
 TOKEN=$(gh api -X POST "repos/$REPO/actions/runners/registration-token" --jq .token) \
+  && [ -n "$TOKEN" ] \
   || die "could not get a registration token; gh needs admin on $REPO"
 
 say "User $RUNNER_USER"
@@ -50,6 +67,9 @@ if ! id "$RUNNER_USER" >/dev/null 2>&1; then
 fi
 sudo loginctl enable-linger "$RUNNER_USER"
 RUNNER_UID=$(id -u "$RUNNER_USER")
+# Linger starts the user's systemd a moment later; wait for its bus.
+for _ in $(seq 1 30); do sudo test -S "/run/user/$RUNNER_UID/bus" && break; sleep 1; done
+sudo test -S "/run/user/$RUNNER_UID/bus" || die "systemd user manager for $RUNNER_USER did not start"
 RUNNER_HOME=$(getent passwd "$RUNNER_USER" | cut -d: -f6)
 if sudo -u "$RUNNER_USER" test -r "$HOME" 2>/dev/null; then
   echo "WARNING: $RUNNER_USER can read $HOME. Close it with: chmod 750 $HOME"
@@ -58,10 +78,10 @@ fi
 LABELS="web,web-trusted,$HOST"
 if [ "${NO_PLAYWRIGHT:-}" != 1 ]; then
   say "Chromium system libraries"
-  if command -v npx >/dev/null && sudo env "PATH=$PATH" npx --yes playwright@latest install-deps chromium; then
+  if linux_cmd npx && sudo env "PATH=$PATH" "$(command -v npx)" --yes playwright@latest install-deps chromium; then
     LABELS="$LABELS,playwright"
   else
-    echo "Skipped: no npx here, or Playwright does not support this OS."
+    echo "Skipped: no Linux npx here, or Playwright does not support this OS."
     echo "This runner will not take browser jobs (no 'playwright' label)."
   fi
 fi
