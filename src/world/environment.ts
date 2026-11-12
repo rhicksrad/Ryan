@@ -899,7 +899,8 @@ function waterMaterial(): THREE.ShaderMaterial {
         // reflections of lamps, not glitter.
         float streak = texture2D(uNoise, vec2(p.x * 0.11 + slope.x * 1.2, p.y * 0.006 + uTime * 0.003)).r;
         float shimmer = texture2D(uNoise, vec2(p.x * 0.04, p.y * 0.09 - uTime * 0.02)).r;
-        col += vec3(1.0, 0.74, 0.44) * smoothstep(0.55, 0.95, streak) * (0.35 + 0.65 * shimmer) * inTown * uTownGlow;
+        // Sodium amber, the color of the lamps on the quays, never brighter than the lamps themselves.
+        col += vec3(1.0, 0.58, 0.22) * smoothstep(0.55, 0.95, streak) * (0.35 + 0.65 * shimmer) * inTown * uTownGlow;
         gl_FragColor = vec4(col, 1.0);
         #include <fog_fragment>
       }

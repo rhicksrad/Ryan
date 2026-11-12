@@ -825,15 +825,35 @@ body.no-webgl #legend {
     font-size: 11.5px;
   }
 
+  /* A bottom sheet. The district chips step aside while it is up, so nothing sits on its buttons. */
   #panel {
     top: auto;
-    bottom: 56px;
+    bottom: 10px;
     right: 10px;
     left: 10px;
     width: auto;
-    max-height: 48vh;
+    max-height: 52vh;
     overflow-y: auto;
-    padding: 14px 16px 16px;
+    padding: 14px 16px 12px;
+  }
+
+  body.has-panel #legend {
+    display: none;
+  }
+
+  .panel-poster {
+    aspect-ratio: 4 / 1;
+    margin-bottom: 10px;
+  }
+
+  .panel-blurb {
+    margin-bottom: 12px;
+    font-size: 14px;
+  }
+
+  .panel-step {
+    margin-top: 12px;
+    padding-top: 8px;
   }
 
   #panel h2 {

@@ -320,6 +320,7 @@ export class UI {
     this.panel.append(step);
 
     this.panel.hidden = false;
+    document.body.classList.add('has-panel');
     this.hint.classList.add('hint-hidden');
   }
 
@@ -356,11 +357,13 @@ export class UI {
     );
     this.panel.append(buttons);
     this.panel.hidden = false;
+    document.body.classList.add('has-panel');
     this.hint.classList.add('hint-hidden');
   }
 
   hidePanel(): void {
     this.panel.hidden = true;
+    document.body.classList.remove('has-panel');
   }
 
   hideLoader(): void {
