@@ -55,7 +55,7 @@ const NIGHT = {
   waterDeep: new THREE.Color(0x1d3f78),
   waterZenith: new THREE.Color(0x3a5ea8),
   waterHorizon: new THREE.Color(0x7f9fdc),
-  glint: 0.9,
+  glint: 0.3,
   exposure: 1.15
 };
 // A clear late afternoon: low warm sun, long shadows, cream haze on the horizon.
@@ -830,7 +830,7 @@ export class CityWorld {
       THREE.MathUtils.lerp(NIGHT.glint, DAY.glint, k)
     );
 
-    setTownGlow(0.5 * night, this.plan.core.minZ - this.plan.center.z, this.plan.core.maxZ - this.plan.center.z);
+    setTownGlow(0.3 * night, this.plan.core.minZ - this.plan.center.z, this.plan.core.maxZ - this.plan.center.z);
 
     this.lampBulbMaterial.emissiveIntensity = 3.4 * night + 0.1;
     for (const glow of this.lampGlowMaterials) {
@@ -1013,6 +1013,7 @@ export class CityWorld {
         this.applyAtmosphere();
       }
 
+      if (!this.reducedMotion) this.skyDomeMaterial.uniforms.drift.value = t * 0.00045;
       // Sky brightness tracks day/night even when motion is reduced.
       this.skyUpdate(t, this.dayMix, !this.reducedMotion);
 

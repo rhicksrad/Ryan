@@ -99,7 +99,9 @@ export function createSkyDome(onPainted?: (day: THREE.Texture, night: THREE.Text
       sunAzimuth: { value: Math.atan2(SUN_DIR.x, SUN_DIR.z) },
       dayEnergy: { value: 1.25 },
       nightEnergy: { value: 2.4 },
-      rangeColor: { value: new THREE.Color(0x60705a) }
+      rangeColor: { value: new THREE.Color(0x60705a) },
+      // The painting turns very slowly, so the clouds drift across the hills.
+      drift: { value: 0 }
     },
     vertexShader: SKY_VERTEX,
     fragmentShader: `
@@ -115,6 +117,7 @@ export function createSkyDome(onPainted?: (day: THREE.Texture, night: THREE.Text
       uniform float dayEnergy;
       uniform float nightEnergy;
       uniform vec3 rangeColor;
+      uniform float drift;
       varying vec3 vDir;
 
       float hash(vec2 p) {
@@ -182,11 +185,11 @@ export function createSkyDome(onPainted?: (day: THREE.Texture, night: THREE.Text
         // banks stand just above the hills, where this camera actually looks.
         float painted = elev > 0.0 ? elev * (2.3 - 1.3 * smoothstep(0.0, 60.0, elev)) : elev;
         // Turned a fifth of a circle off the sun so the tall cumulus stands behind the skyline.
-        vec2 uv = vec2(fract((sunAzimuth - azimuth) / 6.2831853 + 0.72), 1.0 - clamp((90.0 - painted) / 100.0, 0.002, 0.998));
+        vec2 uv = vec2(fract((sunAzimuth - azimuth) / 6.2831853 + 0.72 + drift), 1.0 - clamp((90.0 - painted) / 100.0, 0.002, 0.998));
         // The night painting is turned so its last glow on the horizon sits
         // behind the skyline, like the town's own light on the clouds.
         float paintedNightElev = elev > 0.0 ? elev * (2.3 - 1.3 * smoothstep(0.0, 60.0, elev)) : elev;
-        vec2 uvNight = vec2(fract((sunAzimuth - azimuth) / 6.2831853 + 0.083), 1.0 - clamp((90.0 - paintedNightElev) / 100.0, 0.002, 0.998));
+        vec2 uvNight = vec2(fract((sunAzimuth - azimuth) / 6.2831853 + 0.083 + drift), 1.0 - clamp((90.0 - paintedNightElev) / 100.0, 0.002, 0.998));
 
         vec3 gradient = mix(bottomColor, topColor, pow(max(dir.y, 0.0), 0.55));
         vec3 paintedDay = texture2D(dayMap, uv).rgb * dayEnergy;
@@ -474,7 +477,7 @@ export function createTerrain(plan: CityPlan): THREE.Group {
     new THREE.PlaneGeometry(9000, 9000),
     tint(
       weather(new THREE.MeshStandardMaterial({ map: far, roughness: 1, metalness: 0 }), { ...grain, blotch: 0.3, blotchSize: 70 }),
-      0x4d5e94,
+      0x5c6ea6,
       0xffffff
     )
   );
@@ -499,7 +502,7 @@ export function createTerrain(plan: CityPlan): THREE.Group {
       },
       'meadow-edge'
     ),
-    0x4d5e94,
+    0x5c6ea6,
     0xffffff
   );
   const sheet = new THREE.Mesh(new THREE.PlaneGeometry(TERRAIN_SPAN, TERRAIN_SPAN), material);
@@ -892,9 +895,11 @@ function waterMaterial(): THREE.ShaderMaterial {
         col += uSunColor * pow(max(dot(r, uSunDir), 0.0), 220.0) * uGlint;
         // Lit windows and street lamps along the quays, smeared into long wavering streaks.
         float inTown = smoothstep(uTownSpan.x - 20.0, uTownSpan.x + 10.0, p.y) * (1.0 - smoothstep(uTownSpan.y - 10.0, uTownSpan.y + 20.0, p.y));
-        float streak = texture2D(uNoise, vec2(p.x * 0.31 + slope.x * 2.0, p.y * 0.012 + uTime * 0.004)).g;
-        float shimmer = texture2D(uNoise, vec2(p.x * 0.05, p.y * 0.21 - uTime * 0.03)).r;
-        col += vec3(1.0, 0.76, 0.46) * smoothstep(0.52, 0.86, streak) * (0.45 + shimmer) * inTown * uTownGlow;
+        // Long in the direction of the current, narrow across it, and soft-edged:
+        // reflections of lamps, not glitter.
+        float streak = texture2D(uNoise, vec2(p.x * 0.11 + slope.x * 1.2, p.y * 0.006 + uTime * 0.003)).r;
+        float shimmer = texture2D(uNoise, vec2(p.x * 0.04, p.y * 0.09 - uTime * 0.02)).r;
+        col += vec3(1.0, 0.74, 0.44) * smoothstep(0.55, 0.95, streak) * (0.35 + 0.65 * shimmer) * inTown * uTownGlow;
         gl_FragColor = vec4(col, 1.0);
         #include <fog_fragment>
       }
@@ -1258,7 +1263,7 @@ export function createOutskirts(plan: CityPlan): {
 
   // --- Far lights: farmhouse windows and yard lamps scattered to the horizon, so
   // the night countryside is lived in and not one dark slab. ---
-  const farCount = 320;
+  const farCount = 560;
   const farPositions = new Float32Array(farCount * 3);
   const farColors = new Float32Array(farCount * 3);
   const warm = new THREE.Color();
@@ -1275,14 +1280,14 @@ export function createOutskirts(plan: CityPlan): {
       ],
       i * 3
     );
-    warm.setHSL(0.08 + rand() * 0.05, 0.85, 0.5 + rand() * 0.25);
+    warm.setHSL(0.08 + rand() * 0.05, 0.9, 0.58 + rand() * 0.27);
     farColors.set([warm.r, warm.g, warm.b], i * 3);
   }
   const farGeo = new THREE.BufferGeometry();
   farGeo.setAttribute('position', new THREE.BufferAttribute(farPositions, 3));
   farGeo.setAttribute('color', new THREE.BufferAttribute(farColors, 3));
   const farMat = new THREE.PointsMaterial({
-    size: 2.6,
+    size: 3.4,
     sizeAttenuation: false,
     vertexColors: true,
     transparent: true,

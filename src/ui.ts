@@ -161,6 +161,7 @@ export class UI {
     const empty = el('p', 'list-empty', 'No project matches. Every lot here is still for sale.');
     empty.hidden = true;
     const rows: { row: HTMLElement; section: HTMLElement; text: string }[] = [];
+    const tallies: { section: HTMLElement; tally: HTMLElement; total: number }[] = [];
     // Type to narrow the list; Enter flies to the first match.
     filter.addEventListener('input', () => {
       const words = filter.value.toLowerCase().split(/\s+/).filter(Boolean);
@@ -171,6 +172,11 @@ export class UI {
         if (match) shown.add(entry.section);
       }
       for (const entry of rows) entry.section.hidden = !shown.has(entry.section);
+      // While filtering, each district says how many of its projects match.
+      for (const { section, tally, total } of tallies) {
+        const matches = rows.filter((entry) => entry.section === section && !entry.row.hidden).length;
+        tally.textContent = words.length > 0 ? `${matches} of ${total}` : `${total} projects`;
+      }
       empty.hidden = shown.size > 0;
     });
     filter.addEventListener('keydown', (e) => {
@@ -187,7 +193,9 @@ export class UI {
       const section = el('section', 'list-district');
       section.style.setProperty('--district', district.color);
       const title = el('h3', undefined, district.name);
-      title.append(el('small', undefined, `${projects.length} projects`));
+      const tally = el('small', undefined, `${projects.length} projects`);
+      title.append(tally);
+      tallies.push({ section, tally, total: projects.length });
       section.append(title);
 
       for (const project of projects) {

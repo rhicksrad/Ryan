@@ -107,6 +107,8 @@ test('the directory filters as you type, and the keyboard drives the town', asyn
   const visible = page.locator('.list-row:visible');
   await expect(visible.first()).toContainText(wanted.title);
   expect(await visible.count()).toBeLessThan(projects.length);
+  // While filtering, a district says how many of its projects match, not its full count.
+  await expect(page.locator('.list-district:visible h3 small').first()).toHaveText(/^\d+ of \d+$/);
   await filter.press('Enter');
   await expect(page.locator('#list-overlay')).toBeHidden();
   await expect(page.locator('#panel h2')).toHaveText(wanted.title);

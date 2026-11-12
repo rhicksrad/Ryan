@@ -11,6 +11,8 @@ interface Car {
   speed: number;
   /** +1 or -1 travel direction; picks the lane. */
   direction: number;
+  /** Trams run down the middle of the street. */
+  centered?: boolean;
 }
 
 export interface Traffic {
@@ -98,7 +100,7 @@ export function createTraffic(plan: CityPlan): Traffic {
   const cars: Car[] = [];
 
   for (const road of plan.roads) {
-    const count = 2 + Math.floor(rand() * 2);
+    const count = 3 + Math.floor(rand() * 3);
     for (let i = 0; i < count; i += 1) {
       const car = createCar(rand, headMat, tailMat);
       const entry: Car = {
@@ -113,12 +115,43 @@ export function createTraffic(plan: CityPlan): Traffic {
     }
   }
 
+  // Trams: two-car sets in the town's green and cream, one up the main street
+  // and one up the main avenue. The first thing that moves on purpose.
+  const tramGreen = new THREE.MeshStandardMaterial({ color: 0x0b5a3c, roughness: 0.5, metalness: 0.3 });
+  const tramCream = new THREE.MeshStandardMaterial({ color: 0xf0ead8, roughness: 0.6 });
+  const tramGlass = new THREE.MeshStandardMaterial({ color: 0x1c2630, emissive: 0xffd9a0, emissiveIntensity: 1.5, roughness: 0.3 });
+  headlightMaterials.push(tramGlass);
+  const lines = [
+    plan.roads.find((r) => r.horizontal && r.z === plan.mainStreetZ),
+    plan.roads.find((r) => !r.horizontal && r.x === plan.mainAvenueX)
+  ];
+  lines.forEach((road, line) => {
+    if (!road) return;
+    const start = rand() * road.length;
+    for (let carriage = 0; carriage < 2; carriage += 1) {
+      const tram = new THREE.Group();
+      const add = (geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, z: number) => {
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(x, y, z);
+        tram.add(mesh);
+      };
+      add(new THREE.BoxGeometry(3.7, 0.5, 0.92), tramGreen, 0, 0.45, 0);
+      add(new THREE.BoxGeometry(3.7, 0.5, 0.92), tramCream, 0, 0.95, 0);
+      add(new THREE.BoxGeometry(3.3, 0.34, 0.95), tramGlass, 0, 0.93, 0);
+      add(new THREE.BoxGeometry(3.5, 0.1, 0.8), tramGreen, 0, 1.25, 0);
+      add(new THREE.BoxGeometry(3.9, 0.05, 1.1), shadowMat, 0.05, 0.02, 0.03);
+      bakeStatic(tram);
+      group.add(tram);
+      cars.push({ group: tram, road, distance: start + carriage * 3.95, speed: 4.2, direction: line === 0 ? 1 : -1, centered: true });
+    }
+  });
+
   const update = (dt: number) => {
     for (const car of cars) {
       car.distance += car.speed * dt;
       if (car.distance > car.road.length) car.distance -= car.road.length;
       const along = car.distance - car.road.length / 2;
-      const lane = car.direction * ROAD / 4;
+      const lane = car.centered ? 0 : (car.direction * ROAD) / 4;
       if (car.road.horizontal) {
         const x = car.road.x + along * car.direction;
         car.group.position.set(x, roadHeightAt(car.road, x, plan.riverX), car.road.z + lane);
