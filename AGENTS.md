@@ -9,7 +9,9 @@ frame rate and look at screenshots instead of assuming.
 
 ## Standing rules
 
-- CI is yours. Keep `.github/workflows/ci.yml` green and fix what breaks.
+- CI is yours. Keep `.github/workflows/ci.yml` green and fix what breaks. It runs
+  on Ryan's PCs when the repo variable `CI_RUNNER` is `local`, otherwise on
+  GitHub's machines. Read `tools/ci/README.md` before touching a workflow.
 - Merge on green. Merging to `main` deploys the site.
 - Never skip or disable a test to get green.
 - Avoid the generic "AI look": no glass blur, gradient text, pill buttons, neon
@@ -28,7 +30,7 @@ npm install
 npm run dev          # http://127.0.0.1:5173
 ```
 
-## Checks (all run in CI on every pull request)
+## Checks (all run in CI on every pull request: `gate` then `e2e`)
 
 ```bash
 npm run typecheck    # tsc --noEmit
@@ -59,6 +61,8 @@ Chromium, set `PW_CHROMIUM` to its path.
 - `src/world/CityWorld.ts`: renderer, camera, day and night, labels, picking,
   adaptive resolution.
 - `src/ui.ts`, `css/styles.css`, `index.html`: the signage interface.
+- `tools/ci/`: runner setup script, the hook that refuses fork pull requests,
+  and the CI manual.
 - `src/assets/art/`: `poster-<project id>.webp` appears on that tower's billboards
   and panel; `emblem-<district id>.webp` appears on district signs and chips. Files
   are found by name, no code change needed.

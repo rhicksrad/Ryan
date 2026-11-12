@@ -80,7 +80,8 @@ npm run test:e2e   # Playwright on desktop and phone (npx playwright install chr
 npm run stats      # refresh projects.json from the GitHub API
 ```
 
-Every pull request runs all of the above in [`ci.yml`](.github/workflows/ci.yml).
+Every pull request runs all of the above in [`ci.yml`](.github/workflows/ci.yml),
+on self-hosted runners when they are switched on. See [`tools/ci/README.md`](tools/ci/README.md).
 
 ## Adding a project
 
