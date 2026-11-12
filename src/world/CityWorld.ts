@@ -71,7 +71,7 @@ const DAY = {
   sunIntensity: 3.6,
   waterDeep: new THREE.Color(0x20566e),
   glint: 1.8,
-  exposure: 1.0
+  exposure: 1.06
 };
 
 export const ABOUT_ID = '__about__';

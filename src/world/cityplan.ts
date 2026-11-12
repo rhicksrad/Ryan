@@ -388,13 +388,14 @@ export function buildCityPlan(data: WorldData): CityPlan {
         if (rand() < 0.12) continue;
         const w = 6.4 + rand() * 2;
         const d = 6.4 + rand() * 2;
-        const office = rand() < 0.35;
+        const office = rand() < 0.3;
         fillers.push({
           x: b.x + qx * 0.94,
           z: b.z + qz * 0.94,
           w,
           d,
-          h: office ? 9 + Math.floor(rand() * 5) * 1.5 : 5 + Math.floor(rand() * 4) * 1.4,
+          // Kept lower than the project mid-rises so the named buildings own the skyline.
+          h: office ? 7.2 + Math.floor(rand() * 3) * 1.5 : 4.5 + Math.floor(rand() * 3) * 1.4,
           rotationY: 0,
           kind: office ? 'office' : 'walkup',
           style: Math.floor(rand() * 8)
