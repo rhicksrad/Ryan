@@ -49,6 +49,8 @@ export interface Filler {
   kind: 'house' | 'walkup' | 'office';
   /** Picks a finish from that kind's small palette. */
   style: number;
+  /** Houses: how far the lawn runs from the house's center to the pavement in front. */
+  yard?: number;
 }
 
 export interface RoadStrip {
@@ -438,7 +440,9 @@ export function buildCityPlan(data: WorldData): CityPlan {
         h: rand() < 0.3 ? 4.6 : 2.6,
         rotationY,
         kind: 'house',
-        style: Math.floor(rand() * 8)
+        style: Math.floor(rand() * 8),
+        // The lawn inside the pavement runs to (BLOCK - 3) / 2 either side of the block's center.
+        yard: (BLOCK - 3) / 2 - (Math.abs(Math.sin(rotationY)) > 0.5 ? Math.abs(sx) : Math.abs(sz))
       });
     }
     // Back gardens.

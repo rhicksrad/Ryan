@@ -140,7 +140,7 @@ export class CityWorld {
   private clockTick: () => void = () => {};
   private clockMinute = -1;
   private riverUpdate: (t: number) => void = () => {};
-  private outskirtsUpdate: (t: number) => void = () => {};
+  private outskirtsUpdate: (t: number, eyeX: number, eyeZ: number) => void = () => {};
   private skyUpdate: (t: number, dayMix: number, moving: boolean) => void = () => {};
   private districtCenters = new Map<string, THREE.Vector3>();
 
@@ -432,7 +432,7 @@ export class CityWorld {
       });
     }
     for (const mat of fabric.windowMaterials) {
-      this.nightWindows.push({ mat, base: mat.emissiveIntensity, dim: 0.97 });
+      this.nightWindows.push({ mat, base: mat.emissiveIntensity, dim: (mat.userData.dayDim as number) ?? 0.97 });
     }
     this.city.add(createTrees(this.plan));
 
@@ -442,7 +442,7 @@ export class CityWorld {
 
     const lampField = createLampField([...this.plan.lamps, ...outskirts.lamps]);
     this.lampBulbMaterial = lampField.bulbMaterial;
-    this.lampGlowMaterials = [...lampField.glowMaterials, outskirts.glow];
+    this.lampGlowMaterials = [...lampField.glowMaterials, ...outskirts.glows];
     this.city.add(lampField.group);
 
     this.city.add(createSigns(this.plan));
@@ -495,7 +495,8 @@ export class CityWorld {
             mat === handle.craneBeacon ||
             handle.billboards.includes(mat) ||
             handle.glowMaterials.includes(mat);
-          if (isWindow && !excluded) {
+          // Shared glass (every house's windows are one material) is registered once.
+          if (isWindow && !excluded && !this.nightWindows.some((w) => w.mat === mat)) {
             this.nightWindows.push({ mat, base: mat.emissiveIntensity, dim: (mat.userData.dayDim as number) ?? 0.78 });
           }
         }
@@ -1133,7 +1134,8 @@ export class CityWorld {
 
       if (!this.reducedMotion) {
         this.riverUpdate(t);
-        this.outskirtsUpdate(t);
+        // The outskirts live in town coordinates; the town is shifted to center on the origin.
+        this.outskirtsUpdate(t, this.camera.position.x - this.city.position.x, this.camera.position.z - this.city.position.z);
         this.traffic?.update(dt);
         this.walkersUpdate(t);
         for (const person of this.people) {

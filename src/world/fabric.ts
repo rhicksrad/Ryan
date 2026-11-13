@@ -3,7 +3,8 @@ import { BLOCK, type CityPlan, type Filler } from './cityplan';
 import { tierOf } from '../data';
 import { mulberry32 } from './rng';
 import { facadeTextures, type Facade } from './textures';
-import { block, facadeBox, facadeMaterial, gableRoof, mat } from './buildings';
+import { facadeBox, facadeMaterial } from './buildings';
+import { DECK_TOP, block, chimney, gableRoof, glazing, hipRoof, houseGlass, mat, porch, shrub, warmGlass, windowCell, type Sash } from './homes';
 
 /**
  * The unnamed town: houses, walk-ups, and small offices that are nobody's
@@ -52,7 +53,6 @@ export function createFabric(plan: CityPlan): { group: THREE.Group; windowMateri
   const unitMat = mat(0x9a9da2, { roughness: 0.6, metalness: 0.3 });
   const baseMat = mat(0x3d4148, { roughness: 0.7 });
   const shopGlass = new THREE.MeshStandardMaterial({ color: 0x2a3644, emissive: 0xffd49a, emissiveIntensity: 0.55, roughness: 0.3, metalness: 0.4 });
-  const houseGlass = new THREE.MeshStandardMaterial({ color: 0x3a4854, emissive: 0xffc77a, emissiveIntensity: 0.7, roughness: 0.4 });
   const doorMat = mat(0x3a2f2a, { roughness: 0.7 });
   const porchMat = mat(0xe9e5da, { roughness: 0.9 });
   const awnings = [0x8f3b34, 0x2f5d4a, 0x2f4668, 0xb08a3a, 0x6a3d5a, 0xd8d2c0].map((c) => mat(c, { roughness: 0.85 }));
@@ -128,40 +128,143 @@ export function createFabric(plan: CityPlan): { group: THREE.Group; windowMateri
     if (rand() < 0.6) block(g, trimMat(s.trim), 1.5, 1.1, 1.5, (rand() - 0.5) * (f.w - 2.6), top + 0.55, (rand() - 0.5) * (f.d - 2.6));
   };
 
-  const house = (f: Filler, g: THREE.Group) => {
+  // Houses: four kinds in the town's quiet colors, from the same parts as the
+  // project homes. A colonial with a door hood and its chimney up the gable end,
+  // a front-gabled house behind a full porch, a hipped bungalow, and a side
+  // gable with a wing stepping forward. Windows on every side, half of them lit,
+  // and every other front door has its porch light on.
+  const houseRand = mulberry32(4242);
+  const sash: Sash = { frame: porchMat };
+  const shutterMats = [0x3b4640, 0x3d4652, 0x4a3d38].map((c) => mat(c, { roughness: 0.85 }));
+  const brick = mat(0x7a5a4a, { roughness: 0.9 });
+  const stone = mat(0x8d877c, { roughness: 0.95 });
+  const deck = mat(0x8a857c, { roughness: 0.9 });
+  const walk = mat(0x9a948a, { roughness: 0.95 });
+  const porchLight = warmGlass(2);
+  const lampCap = mat(0x2a2c30, { roughness: 0.6, metalness: 0.4 });
+  const house = (f: Filler, plot: THREE.Group) => {
+    const r = houseRand;
+    // The house stands a little back on its plot, so a porch and its steps fit in front.
+    const g = new THREE.Group();
+    g.position.z = -0.25;
+    plot.add(g);
+    const w = f.w;
+    const d = f.d - 0.5;
+    const h = f.h;
+    const front = (f.yard ?? f.d / 2 + 1.2) + 0.25;
     const wall = wallMats[f.style % wallMats.length];
     const roofM = roofMats[(f.style * 3 + 1) % roofMats.length];
-    block(g, wall, f.w, f.h, f.d, 0, f.h / 2, 0);
-    const peak = 1.1 + (f.style % 3) * 0.2;
-    const roof = gableRoof(f.w + 0.5, f.d + 0.5, peak, roofM);
-    // Half the street runs its ridges the other way.
-    if (f.style % 2 === 0) {
-      roof.geometry.dispose();
-      const turned = gableRoof(f.d + 0.5, f.w + 0.5, peak, roofM);
-      turned.rotation.y = Math.PI / 2;
-      turned.position.y = f.h;
-      g.add(turned);
+    const form = f.style % 4;
+    const storeys = h > 3 ? 2 : 1;
+    const floorH = h / storeys;
+    const over = 0.25;
+    const peak = 1.1 + (f.style % 3) * 0.2 + (storeys - 1) * 0.15;
+    const cell = () => windowCell(r, 0.5);
+    const street: Sash = form === 0 ? { frame: porchMat, shutters: shutterMats[f.style % shutterMats.length] } : sash;
+
+    block(g, stone, w + 0.16, 0.24, d + 0.16, 0, 0.12, 0);
+    block(g, wall, w, h, d, 0, h / 2, 0);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) block(g, porchMat, 0.1, h, 0.1, sx * (w / 2 - 0.02), h / 2, sz * (d / 2 - 0.02));
+    const alongZ = form === 1;
+    const roof =
+      form === 2
+        ? hipRoof(w + 2 * over, d + 2 * over, peak * 0.8, roofM)
+        : alongZ
+          ? gableRoof(w + 2 * over, d + 2 * over, peak, roofM)
+          : gableRoof(d + 2 * over, w + 2 * over, peak, roofM);
+    if (form === 0 || form === 3) roof.rotation.y = Math.PI / 2;
+    roof.position.y = h;
+    g.add(roof);
+    block(g, porchMat, w + 2 * over, 0.1, d + 2 * over, 0, h - 0.02, 0);
+
+    let doorX = 0;
+    let steps = d / 2 + 0.6;
+    const wingW = w * 0.44;
+    let wingFace = 0;
+    if (form === 0) {
+      const hood = gableRoof(1.15, 0.55, 0.3, roofM);
+      hood.position.set(0, DECK_TOP + 1.66, d / 2 + 0.25);
+      g.add(hood);
+      block(g, porchMat, 1.15, 0.07, 0.55, 0, DECK_TOP + 1.63, d / 2 + 0.25);
+      block(g, stone, 1.1, DECK_TOP, 0.55, 0, DECK_TOP / 2, d / 2 + 0.27);
+      chimney(g, brick, -(w / 2 + 0.22), 0, 0, h + peak + 0.4, 0.48);
+      steps = d / 2 + 0.55;
+    } else if (form === 1) {
+      const depth = THREE.MathUtils.clamp(front - d / 2 - 0.62, 0.6, 1.0);
+      porch(g, { deck, post: porchMat, roof: roofM, trim: porchMat }, {
+        x: 0, width: w + 0.06, depth, wall: d / 2, roofAt: Math.min(floorH - 0.25, 2.4), fall: 0.2, posts: 4, steps: 0, rail: 'plain'
+      });
+      chimney(g, brick, w * 0.26, -d * 0.15, h, h + peak * 0.75 + 0.3, 0.42);
+      steps = d / 2 + depth + 0.57;
+    } else if (form === 2) {
+      doorX = -w * 0.25;
+      porch(g, { deck, post: porchMat, roof: roofM, trim: porchMat }, {
+        x: doorX, width: 1.5, depth: 0.8, wall: d / 2, roofAt: Math.min(floorH - 0.3, 2.3), fall: 0.18, posts: 2, steps: doorX, rail: null
+      });
+      chimney(g, brick, w * 0.22, -d * 0.12, h, h + peak * 0.62 + 0.35, 0.42);
+      steps = d / 2 + 0.8 + 0.57;
     } else {
-      roof.position.y = f.h;
-      g.add(roof);
+      const proj = THREE.MathUtils.clamp(front - d / 2 - 0.6, 0.4, 0.75);
+      const wx = w / 2 - wingW / 2;
+      wingFace = d / 2 + proj / 2;
+      block(g, wall, wingW, h, proj + 0.1, wx, h / 2, d / 2 + proj / 2 - 0.05);
+      block(g, stone, wingW + 0.16, 0.24, proj, wx, 0.12, d / 2 + proj / 2);
+      const depth = d / 2 + proj + over;
+      const wing = gableRoof(wingW + 2 * over, depth, peak * 0.85, roofM);
+      wing.position.set(wx, h, depth / 2);
+      g.add(wing);
+      block(g, porchMat, wingW + 2 * over, 0.1, depth, wx, h - 0.02, depth / 2);
+      for (let s = 0; s < storeys; s += 1) glazing(g, sash, 0.62, 0.75, wx, s * floorH + floorH * 0.58, d / 2 + proj, 0, cell());
+      glazing(g, sash, 0.36, 0.4, wx, h + peak * 0.85 * 0.33, depth - 0.02, 0, cell());
+      doorX = w / 2 - wingW - 0.5;
+      const hood = block(g, roofM, 1.1, 0.08, 0.6, doorX, DECK_TOP + 1.62, d / 2 + 0.28);
+      hood.rotation.x = 0.2;
+      block(g, stone, 1.0, DECK_TOP, 0.5, doorX, DECK_TOP / 2, d / 2 + 0.25);
+      chimney(g, brick, -w * 0.26, -d * 0.15, h, h + peak * 0.8 + 0.3, 0.42);
+      steps = d / 2 + 0.55;
     }
-    block(g, mat(0x7a5a4a, { roughness: 0.9 }), 0.45, 1, 0.45, f.w * 0.26, f.h + peak * 0.7, -f.d * 0.15);
-    // A stoop under a small porch roof, white trim under the eaves, and a foundation course.
-    block(g, mat(0x8d877c, { roughness: 0.95 }), f.w + 0.16, 0.24, f.d + 0.16, 0, 0.12, 0);
-    block(g, porchMat, f.w + 0.36, 0.1, f.d + 0.36, 0, f.h - 0.02, 0);
-    block(g, porchMat, 1.5, 0.08, 0.8, 0, 1.42, f.d / 2 + 0.4);
-    for (const px of [-0.66, 0.66]) block(g, porchMat, 0.09, 1.2, 0.09, px, 0.8, f.d / 2 + 0.72);
-    block(g, mat(0x9a948a, { roughness: 0.95 }), 1.3, 0.16, 0.7, 0, 0.16, f.d / 2 + 0.4);
-    // Door and windows on the street side, one window on each flank.
-    block(g, mat(0x4f4238, { roughness: 0.8 }), 0.6, 1.2, 0.06, 0, 0.6, f.d / 2 + 0.02);
-    for (let storey = 0; storey < Math.round(f.h / 2.4); storey += 1) {
-      const y = 1.35 + storey * 2.1;
-      for (const wx of [-f.w * 0.3, f.w * 0.3]) {
-        if (storey === 0 && Math.abs(wx) < 0.5) continue;
-        block(g, houseGlass, 0.62, 0.72, 0.06, wx, y, f.d / 2 + 0.02);
+    block(g, doorMat, 0.62, 1.3, 0.06, doorX, DECK_TOP + 0.65, d / 2 + 0.02);
+    block(g, porchMat, 0.8, 1.42, 0.04, doorX, DECK_TOP + 0.68, d / 2 + 0.005);
+    if (r() < 0.5) {
+      if (form === 0) {
+        // The colonial's lantern hangs under its door hood, clear of the shutters.
+        block(g, porchLight, 0.12, 0.14, 0.12, 0, DECK_TOP + 1.5, d / 2 + 0.3);
+        block(g, lampCap, 0.03, 0.06, 0.03, 0, DECK_TOP + 1.6, d / 2 + 0.3);
+      } else if (form === 3) {
+        // On the side wall of the wing, beside the door it steps out past.
+        const lx = w / 2 - wingW - 0.06;
+        block(g, porchLight, 0.1, 0.18, 0.12, lx, DECK_TOP + 1.22, wingFace);
+        block(g, lampCap, 0.13, 0.04, 0.16, lx - 0.01, DECK_TOP + 1.33, wingFace);
+      } else {
+        block(g, porchLight, 0.12, 0.18, 0.1, doorX + 0.55, DECK_TOP + 1.22, d / 2 + 0.07);
+        block(g, lampCap, 0.16, 0.04, 0.13, doorX + 0.55, DECK_TOP + 1.33, d / 2 + 0.07);
       }
-      for (const side of [-1, 1]) block(g, houseGlass, 0.06, 0.72, 0.62, side * (f.w / 2 + 0.02), y, 0);
     }
+    if (front - steps > 0.15) block(g, walk, 0.6, 0.04, front - steps, doorX, 0.02, (steps + front) / 2);
+
+    // Two windows to the street on each floor, two at the back, one or two down each flank, and the attic.
+    const flank = d > 3.4 ? [-d * 0.24, d * 0.24] : [0];
+    for (let s = 0; s < storeys; s += 1) {
+      const y = s * floorH + floorH * 0.58;
+      const across = s === 0 && form === 2 ? [w * 0.06, w * 0.3] : [-w * 0.3, w * 0.3];
+      for (const wx of across) {
+        if (s === 0 && Math.abs(wx - doorX) < 0.7) continue;
+        if (form === 3 && wx > w / 2 - wingW - 0.2) continue;
+        glazing(g, street, 0.62, 0.78, wx, y, d / 2, 0, cell());
+      }
+      for (const wx of [-w * 0.3, w * 0.3]) glazing(g, sash, 0.6, 0.75, wx, y, -d / 2, 2, cell());
+      for (const fz of form === 0 ? [-d * 0.27, d * 0.27] : flank) glazing(g, sash, 0.58, 0.75, -w / 2, y, fz, 3, cell());
+      for (const fz of flank) glazing(g, sash, 0.58, 0.75, w / 2, y, fz, 1, cell());
+    }
+    const gableY = h + peak * 0.32;
+    if (form === 1) {
+      glazing(g, sash, 0.42, 0.46, 0, gableY, d / 2 + over - 0.02, 0, cell());
+      glazing(g, sash, 0.42, 0.46, 0, gableY, -d / 2 - over + 0.02, 2, cell());
+    } else if (form !== 2) {
+      glazing(g, sash, 0.4, 0.44, w / 2 + over - 0.02, gableY, 0, 1, cell());
+      if (form !== 0) glazing(g, sash, 0.4, 0.44, -w / 2 - over + 0.02, gableY, 0, 3, cell());
+    }
+    if (form !== 1) for (const side of [-1, 1]) shrub(g, doorX + side * 0.95, d / 2 + 0.38, 0.27, r);
   };
 
   // Parked cars: a body, a cabin, and a dark slab underneath standing in for a contact shadow.
@@ -245,5 +348,5 @@ export function createFabric(plan: CityPlan): { group: THREE.Group; windowMateri
     group.add(g);
   }
 
-  return { group, windowMaterials: [...walkups, ...offices].map((s) => s.material) };
+  return { group, windowMaterials: [...walkups, ...offices].map((s) => s.material).concat(houseGlass()) };
 }

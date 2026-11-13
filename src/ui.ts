@@ -213,7 +213,7 @@ export class UI {
           this.toggleList(false);
           this.actions.onSelectProject(project.id);
         });
-        rows.push({ row, section, text: `${project.title} ${project.blurb} ${project.lang} ${district.name}`.toLowerCase() });
+        rows.push({ row, section, text: `${project.title} ${project.blurb} ${project.lang ?? ''} ${district.name}`.toLowerCase() });
         section.append(row);
       }
       sheet.append(section);
@@ -292,7 +292,7 @@ export class UI {
     this.panel.append(el('h2', undefined, project.title));
     this.panel.append(
       facts([
-        ['Built', `${project.estimated ? '~' : ''}${project.commits.toLocaleString()} commit${project.commits === 1 ? '' : 's'} of ${project.lang}`],
+        ['Built', `${project.estimated ? '~' : ''}${project.commits.toLocaleString()} commit${project.commits === 1 ? '' : 's'}${project.lang ? ` of ${project.lang}` : ''}`],
         ['Zoning', `${TIER_NAMES[tierOf(project.commits)]}${isUnderConstruction(project) ? ', under construction' : ''}`],
         ['Last push', shortDate(project.pushedAt)],
         ['Deed', `${data.profile.github.replace('https://', '')}/${project.repo}`]

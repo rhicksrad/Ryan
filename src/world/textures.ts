@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mulberry32 } from './rng';
 
 /** Everything painted to canvas uses the same road-sign face as the HTML interface. */
 const SIGN_FONT = '"Overpass Variable", "Overpass", system-ui, sans-serif';
@@ -146,29 +147,143 @@ export function facadeTextures(style: FacadeStyle, rand: () => number): Facade {
   return { map: finish(day.canvas), emissiveMap: finish(night.canvas), cols: FACADE_COLS, rows: FACADE_ROWS };
 }
 
-/** Cozy warm-window texture for houses and mansions. */
-export function houseWindowTexture(rand: () => number): THREE.CanvasTexture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 64;
-  canvas.height = 48;
-  const ctx = canvas.getContext('2d')!;
-  ctx.fillStyle = '#0a0a12';
-  ctx.fillRect(0, 0, 64, 48);
-  for (let x = 0; x < 3; x += 1) {
-    if (rand() < 0.75) {
-      ctx.fillStyle = rand() < 0.7 ? '#ffcf87' : '#ffe9c4';
-      ctx.fillRect(6 + x * 20, 14, 12, 18);
-      ctx.strokeStyle = '#0a0a12';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(6 + x * 20 + 5, 14, 2, 18);
-      ctx.strokeRect(6 + x * 20, 22, 12, 2);
+/** House windows: an atlas of panes, GLASS_COLS across and GLASS_ROWS down. */
+export const GLASS_COLS = 4;
+export const GLASS_ROWS = 3;
+/** Cells [0, GLASS_LIT) glow warm at night, the next GLASS_TV flicker blue, the rest stay dark. */
+export const GLASS_LIT = 6;
+export const GLASS_TV = 2;
+export const GLASS_CELLS = GLASS_COLS * GLASS_ROWS;
+
+/**
+ * House glass as two matched atlases. By day a pane is dark glass with the sky
+ * in its top and someone's curtains or blind behind it; by night the same room
+ * is lit through the same curtains, or blue from a television, or dark. The
+ * sash bars are painted, so a window is one box and the frame around it.
+ */
+export function houseGlassTextures(): { map: THREE.CanvasTexture; emissiveMap: THREE.CanvasTexture } {
+  const cw = 64;
+  const ch = 80;
+  const make = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = cw * GLASS_COLS;
+    canvas.height = ch * GLASS_ROWS;
+    return { canvas, ctx: canvas.getContext('2d')! };
+  };
+  const day = make();
+  const night = make();
+  const fabrics = ['#e9e0cf', '#f1ede4', '#c8cfb5', '#dcc0b3', '#b9c4ce', '#e4d4aa', '#d7d0c4', '#c9b9a3'];
+  const rand = mulberry32(4417);
+
+  for (let i = 0; i < GLASS_CELLS; i += 1) {
+    const ox = (i % GLASS_COLS) * cw;
+    const oy = Math.floor(i / GLASS_COLS) * ch;
+    const fabric = fabrics[(i * 3) % fabrics.length];
+    const drape = i % 4; // 0 tied back, 1 drawn halfway, 2 roller blind, 3 sheers
+    const light = i < GLASS_LIT ? 'warm' : i < GLASS_LIT + GLASS_TV ? 'tv' : 'off';
+    for (const [layer, isDay] of [[day, true], [night, false]] as const) {
+      const ctx = layer.ctx;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(ox, oy, cw, ch);
+      ctx.clip();
+      if (isDay) {
+        // Dark glass with the sky caught in its upper part, and a soft sheen across it.
+        const g = ctx.createLinearGradient(0, oy, 0, oy + ch);
+        g.addColorStop(0, '#8698aa');
+        g.addColorStop(0.42, '#46566a');
+        g.addColorStop(1, '#273240');
+        ctx.fillStyle = g;
+        ctx.fillRect(ox, oy, cw, ch);
+        ctx.globalAlpha = 0.1;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.moveTo(ox + cw * 0.2, oy);
+        ctx.lineTo(ox + cw * 0.55, oy);
+        ctx.lineTo(ox + cw * 0.1, oy + ch);
+        ctx.lineTo(ox - cw * 0.25, oy + ch);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      } else if (light === 'warm') {
+        // A lamp-lit room: brightest a little below the middle, warmer toward the edges.
+        const level = 0.78 + rand() * 0.22;
+        const g = ctx.createRadialGradient(ox + cw * 0.5, oy + ch * 0.62, 4, ox + cw * 0.5, oy + ch * 0.55, ch * 0.7);
+        g.addColorStop(0, `rgba(${255 * level}, ${226 * level}, ${170 * level}, 1)`);
+        g.addColorStop(1, `rgba(${236 * level}, ${150 * level}, ${70 * level}, 1)`);
+        ctx.fillStyle = g;
+        ctx.fillRect(ox, oy, cw, ch);
+      } else {
+        ctx.fillStyle = light === 'tv' ? '#2c4470' : '#000000';
+        ctx.fillRect(ox, oy, cw, ch);
+        if (light === 'tv') {
+          const g = ctx.createRadialGradient(ox + cw * 0.4, oy + ch * 0.6, 2, ox + cw * 0.4, oy + ch * 0.6, ch * 0.55);
+          g.addColorStop(0, '#7f9fd8');
+          g.addColorStop(1, 'rgba(60, 90, 150, 0)');
+          ctx.fillStyle = g;
+          ctx.fillRect(ox, oy, cw, ch);
+        }
+      }
+
+      // The curtains: by day the cloth itself, by night the light coming through it.
+      const cloth = isDay ? fabric : light === 'warm' ? '#ffe2b0' : light === 'tv' ? '#36507e' : '#000000';
+      const folds = isDay ? 'rgba(0, 0, 0, 0.12)' : light === 'off' ? 'rgba(0,0,0,0)' : 'rgba(0, 0, 0, 0.22)';
+      ctx.fillStyle = cloth;
+      const panel = (x0: number, x1: number, top: number, bottom: number) => {
+        ctx.fillRect(x0, top, x1 - x0, bottom - top);
+        ctx.fillStyle = folds;
+        for (let x = x0 + 3; x < x1 - 1; x += 4) ctx.fillRect(x, top, 1, bottom - top);
+        ctx.fillStyle = cloth;
+      };
+      if (drape === 0) {
+        // Tied back: full at the rail, gathered at the tie, falling loose to the sill.
+        for (const side of [-1, 1]) {
+          const edge = side < 0 ? ox : ox + cw;
+          ctx.beginPath();
+          ctx.moveTo(edge, oy);
+          ctx.lineTo(edge - side * 19, oy);
+          ctx.quadraticCurveTo(edge - side * 13, oy + ch * 0.4, edge - side * 7, oy + ch * 0.56);
+          ctx.quadraticCurveTo(edge - side * 11, oy + ch * 0.8, edge - side * 13, oy + ch);
+          ctx.lineTo(edge, oy + ch);
+          ctx.closePath();
+          ctx.fill();
+        }
+      } else if (drape === 1) {
+        panel(ox, ox + 22, oy, oy + ch);
+        panel(ox + cw - 22, ox + cw, oy, oy + ch);
+      } else if (drape === 2) {
+        const drop = ch * (0.28 + (i % 3) * 0.12);
+        panel(ox, ox + cw, oy, oy + drop);
+        ctx.fillStyle = isDay ? 'rgba(0, 0, 0, 0.25)' : light === 'off' ? '#000' : 'rgba(0, 0, 0, 0.45)';
+        ctx.fillRect(ox, oy + drop - 2, cw, 2);
+      } else {
+        ctx.globalAlpha = isDay ? 0.42 : 0.3;
+        ctx.fillRect(ox, oy, cw, ch);
+        ctx.globalAlpha = 1;
+        panel(ox, ox + 8, oy, oy + ch);
+        panel(ox + cw - 8, ox + cw, oy, oy + ch);
+      }
+
+      // Sash: painted bars by day, dark glazing bars against the light at night.
+      ctx.fillStyle = isDay ? '#ebe8de' : '#000000';
+      ctx.fillRect(ox, oy + ch / 2 - 2.5, cw, 5);
+      ctx.fillRect(ox + cw / 2 - 1.5, oy, 3, ch);
+      ctx.fillRect(ox, oy, cw, 3);
+      ctx.fillRect(ox, oy + ch - 3, cw, 3);
+      ctx.fillRect(ox, oy, 3, ch);
+      ctx.fillRect(ox + cw - 3, oy, 3, ch);
+      ctx.restore();
     }
   }
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.magFilter = THREE.NearestFilter;
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
+
+  const finish = (canvas: HTMLCanvasElement) => {
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 4;
+    return texture;
+  };
+  return { map: finish(day.canvas), emissiveMap: finish(night.canvas) };
 }
+
 
 /**
  * Billboard advertising a project. With `art` it is a printed poster with the
