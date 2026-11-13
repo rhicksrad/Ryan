@@ -21,7 +21,8 @@ export interface Project {
   title: string;
   repo: string;
   district: string;
-  lang: string;
+  /** GitHub's main language for the repo; missing when GitHub detects none. */
+  lang?: string;
   /** Real commit count — drives the building's size in the world. */
   commits: number;
   blurb: string;

@@ -226,4 +226,12 @@ export function bakeStatic(root: THREE.Object3D, weathered = false): void {
 
   // A mesh any of whose pieces could not be merged stays whole (and is drawn twice at worst).
   for (const mesh of baked) if (!kept.has(mesh)) mesh.removeFromParent();
+
+  // Wrapper groups marked `prunable` (one per window, hundreds of them) are empty
+  // once their meshes are baked; drop them so the render loop stops walking them.
+  const empty: THREE.Object3D[] = [];
+  root.traverse((node) => {
+    if (node.userData.prunable && node.children.length === 0) empty.push(node);
+  });
+  for (const node of empty) node.removeFromParent();
 }

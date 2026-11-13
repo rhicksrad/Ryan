@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { mulberry32 } from './rng';
 import { signTexture, vacancyTexture } from './textures';
 import { emblemUrl } from '../art';
@@ -330,6 +331,9 @@ export function countryMetrics(plan: CityPlan): { ring: number; reach: number; h
 }
 
 const HW_WIDTH = 11;
+/** Bearings, from the town's center, of the two country roads that run out from the beltway. */
+const COUNTRY_ROADS = [0.62, 3.9];
+const COUNTRY_ROAD_WIDTH = 6;
 const TERRAIN_SPAN = 1700;
 
 /**
@@ -419,6 +423,27 @@ function terrainTexture(plan: CityPlan): THREE.CanvasTexture {
     }
   }
   ctx.globalAlpha = 1;
+
+  // The two country roads, out from the beltway across the fields: a gravel
+  // verge, the asphalt, and a dashed center line.
+  for (const bearing of COUNTRY_ROADS) {
+    const from = ring + HW_WIDTH / 2;
+    ctx.beginPath();
+    ctx.moveTo(px(Math.cos(bearing) * from), px(Math.sin(bearing) * from));
+    ctx.lineTo(px(Math.cos(bearing) * 900), px(Math.sin(bearing) * 900));
+    ctx.lineCap = 'butt';
+    ctx.strokeStyle = 'rgba(150, 144, 128, 0.85)';
+    ctx.lineWidth = (COUNTRY_ROAD_WIDTH + 3) * k;
+    ctx.stroke();
+    ctx.strokeStyle = '#4f5257';
+    ctx.lineWidth = COUNTRY_ROAD_WIDTH * k;
+    ctx.stroke();
+    ctx.setLineDash([3 * k, 5 * k]);
+    ctx.strokeStyle = 'rgba(214, 186, 92, 0.75)';
+    ctx.lineWidth = 0.45 * k;
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
 
   // Finer grain over everything so nothing reads as a flat fill.
   for (let i = 0; i < 9000; i += 1) {
@@ -1037,9 +1062,10 @@ export function createTrees(plan: CityPlan): THREE.Group {
 export function createOutskirts(plan: CityPlan): {
   group: THREE.Group;
   lamps: LampSpec[];
-  /** Far farm lights; opacity follows the night like the street lamps' glow. */
-  glow: { material: THREE.Material; base: number };
-  update: (t: number) => void;
+  /** Night-only lights out in the country; their opacity follows the night like the street lamps' glow. */
+  glows: { material: THREE.Material; base: number }[];
+  /** Advance wind, traffic and beacons to time `t`; the eye is the camera in town coordinates. */
+  update: (t: number, eyeX: number, eyeZ: number) => void;
 } {
   const group = new THREE.Group();
   const lamps: LampSpec[] = [];
@@ -1125,6 +1151,14 @@ export function createOutskirts(plan: CityPlan): {
   const onRiver = (x: number, z: number) => Math.abs(x - plan.riverX) < RIVER_WIDTH / 2 + 5 && (z < minZ || z > maxZ);
   const blocked = (x: number, z: number, pad: number) =>
     inCity(x, z, pad) || onHighway(x, z) || onRing(x, z) || onRiver(x, z);
+  // The country roads are painted on the terrain; nothing grows or gets built on them.
+  const onCountryRoad = (x: number, z: number, half = COUNTRY_ROAD_WIDTH / 2 + 3) =>
+    COUNTRY_ROADS.some((bearing) => {
+      const dx = x - centerX;
+      const dz = z - centerZ;
+      const along = dx * Math.cos(bearing) + dz * Math.sin(bearing);
+      return along > R_RING && Math.abs(dz * Math.cos(bearing) - dx * Math.sin(bearing)) < half;
+    });
 
   // --- Woods: most trees gather into a few real forests; the rest are copses between fields. ---
   interface T { x: number; z: number; s: number; pine: boolean; autumn: boolean }
@@ -1143,7 +1177,7 @@ export function createOutskirts(plan: CityPlan): {
       const d = Math.sqrt(rand()) * wood.r;
       const x = wood.x + Math.cos(a) * d * 1.3;
       const z = wood.z + Math.sin(a) * d;
-      if (blocked(x, z, belt)) continue;
+      if (blocked(x, z, belt) || onCountryRoad(x, z)) continue;
       trees.push({ x, z, s: 1.2 + rand() * 1.5, pine: rand() < (wood.pine ? 0.8 : 0.2), autumn: rand() < 0.08 });
     }
   }
@@ -1156,7 +1190,7 @@ export function createOutskirts(plan: CityPlan): {
     for (let i = 0; i < clusterSize; i += 1) {
       const x = cxp + (rand() - 0.5) * 12;
       const z = czp + (rand() - 0.5) * 12;
-      if (blocked(x, z, belt)) continue;
+      if (blocked(x, z, belt) || onCountryRoad(x, z)) continue;
       trees.push({ x, z, s: 1.2 + rand() * 1.4, pine: rand() < 0.4, autumn: rand() < 0.12 });
     }
   }
@@ -1204,7 +1238,7 @@ export function createOutskirts(plan: CityPlan): {
     const radius = inner + 26 + rand() * (REACH - inner - 40);
     const x = centerX + Math.cos(angle) * radius;
     const z = centerZ + Math.sin(angle) * radius;
-    if (blocked(x, z, 22)) continue;
+    if (blocked(x, z, 22) || onCountryRoad(x, z, 16)) continue;
     const farm = new THREE.Group();
     farm.position.set(x, 0, z);
     farm.rotation.y = 0.21 + Math.floor(rand() * 4) * (Math.PI / 2);
@@ -1274,17 +1308,25 @@ export function createOutskirts(plan: CityPlan): {
     [centerX + halfX * 0.55, centerZ - halfZ - 44, 30],
     [centerX - halfX * 0.4, centerZ - halfZ - 70, 24]
   ];
-  const openFarmland = (x: number, z: number) =>
+  const openFarmland = (x: number, z: number, road = true) =>
     !blocked(x, z, 18) &&
+    !(road && onCountryRoad(x, z, 8)) &&
     Math.abs(x - plan.riverX) > RIVER_WIDTH / 2 + 10 &&
     !woods.some((w) => Math.hypot((x - w.x) / 1.3, z - w.z) < w.r + 8) &&
     !ponds.some(([px, pz, pr]) => Math.hypot(x - px, z - pz) < pr);
-  const light = (x: number, z: number, y: number, hue: number, level: number) => {
+  const light = (x: number, z: number, y: number, hue: number, level: number): number => {
     // Dimmer the farther out it is: the haze takes it.
     const fade = THREE.MathUtils.clamp(1.15 - Math.hypot(x - centerX, z - centerZ) / 1500, 0.12, 1);
     warm.setHSL(hue, 0.92, 0.5).multiplyScalar(level * fade * 2.2);
     farPositions.push(x, y, z);
     farColors.push(warm.r, warm.g, warm.b);
+    return farPositions.length / 3 - 1;
+  };
+  // Windows, which go dark and light again as the evening goes on.
+  const windowLights: { index: number; r: number; g: number; b: number }[] = [];
+  const windowLight = (x: number, z: number, y: number, hue: number, level: number) => {
+    const index = light(x, z, y, hue, level);
+    windowLights.push({ index, r: farColors[index * 3], g: farColors[index * 3 + 1], b: farColors[index * 3 + 2] });
   };
   // Farmsteads: a yard lamp and a lit window or two, close together.
   for (let i = 0; i < 80; i += 1) {
@@ -1296,16 +1338,52 @@ export function createOutskirts(plan: CityPlan): {
     light(fx, fz, 3.2, 0.075, 1); // sodium yard lamp
     const windows = 1 + Math.floor(rand() * 2);
     for (let wdw = 0; wdw < windows; wdw += 1) {
-      light(fx + (rand() - 0.5) * 9, fz + (rand() - 0.5) * 9, 1.6, 0.1, 0.55); // tungsten window
+      windowLight(fx + (rand() - 0.5) * 9, fz + (rand() - 0.5) * 9, 1.6, 0.1, 0.55); // tungsten window
     }
   }
-  // Two country roads running out from the beltway, a lamp every so often.
-  for (const bearing of [0.62, 3.9]) {
+  // The country roads, a lamp on the verge every so often.
+  for (const bearing of COUNTRY_ROADS) {
     for (let d = R_RING + 30; d < R_RING + 620; d += 34 + rand() * 10) {
-      const rx = centerX + Math.cos(bearing) * d;
-      const rz = centerZ + Math.sin(bearing) * d;
-      if (openFarmland(rx, rz)) light(rx, rz, 4.5, 0.075, 0.7);
+      const verge = COUNTRY_ROAD_WIDTH / 2 + 1.5;
+      const rx = centerX + Math.cos(bearing) * d - Math.sin(bearing) * verge;
+      const rz = centerZ + Math.sin(bearing) * d + Math.cos(bearing) * verge;
+      if (openFarmland(rx, rz, false)) light(rx, rz, 4.5, 0.075, 0.7);
     }
+  }
+  // Villages out on the horizon: a main street of sodium lamps and a cross
+  // street, windows either side, a lit steeple, and the glow they throw up
+  // into the haze. Two lie beyond downtown in the opening view; one behind it.
+  const domeMat = new THREE.SpriteMaterial({
+    map: hazeDomeTexture(),
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    fog: false,
+    blending: THREE.AdditiveBlending
+  });
+  for (const [angle, radius, size] of [[-1.2, 1000, 1], [-0.52, 1220, 0.8], [2.3, 1060, 0.9]] as const) {
+    const vx = centerX + Math.cos(angle) * radius;
+    const vz = centerZ + Math.sin(angle) * radius;
+    const street = angle + Math.PI / 2 + (rand() - 0.5) * 0.7;
+    const sx = Math.cos(street);
+    const sz = Math.sin(street);
+    const span = Math.round(5 * size);
+    for (let i = -span; i <= span; i += 1) light(vx + sx * i * 13, vz + sz * i * 13, 5, 0.075, 1.1);
+    for (let i = -3; i <= 3; i += 1) if (i !== 0) light(vx - sz * i * 13, vz + sx * i * 13, 5, 0.075, 1);
+    for (let i = 0; i < 60 * size; i += 1) {
+      const along = (rand() - 0.5) * 26 * span;
+      const side = (rand() < 0.5 ? -1 : 1) * (7 + Math.pow(rand(), 1.5) * 34);
+      windowLight(vx + sx * along - sz * side, vz + sz * along + sx * side, 1.5 + rand() * 3, 0.085 + rand() * 0.04, 0.8 + rand() * 0.5);
+    }
+    light(vx + sx * 7, vz + sz * 7, 24, 0.12, 1.6); // the steeple
+    // The sprite stands on the village, so the glow rises from its lights and
+    // never dips below the ground in front of them.
+    const dome = new THREE.Sprite(domeMat);
+    dome.center.set(0.5, 0);
+    dome.position.set(vx, 0, vz);
+    dome.scale.set(300 * size, 78 * size, 1);
+    dome.renderOrder = -1;
+    group.add(dome);
   }
   const farGeo = new THREE.BufferGeometry();
   farGeo.setAttribute('position', new THREE.Float32BufferAttribute(farPositions, 3));
@@ -1325,15 +1403,231 @@ export function createOutskirts(plan: CityPlan): {
     fog: false,
     blending: THREE.AdditiveBlending
   });
+  // Sized for the horizon; up close a lamp stays a point instead of swelling into an orb.
+  farMat.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader.replace(
+      'if ( isPerspective ) gl_PointSize *= ( scale / - mvPosition.z );',
+      // `size` already carries the pixel ratio, so the cap is the same on every screen.
+      'if ( isPerspective ) gl_PointSize = min( gl_PointSize * ( scale / - mvPosition.z ), size * 0.8 );'
+    );
+  };
+  farMat.customProgramCacheKey = () => 'far-lights';
   const farLights = new THREE.Points(farGeo, farMat);
   farLights.frustumCulled = false;
   group.add(farLights);
+  // Now and then a window goes dark, or comes on: most stay lit.
+  const farColorAttr = farGeo.getAttribute('color') as THREE.BufferAttribute;
+  let nextFlip = 0;
+  const flipWindow = (t: number) => {
+    if (t < nextFlip || windowLights.length === 0) return;
+    nextFlip = t + 0.7 + rand() * 1.4;
+    const w = windowLights[Math.floor(rand() * windowLights.length)];
+    const lit = farColorAttr.getX(w.index) > 0;
+    if (lit && rand() > 0.3) return;
+    farColorAttr.setXYZ(w.index, lit ? 0 : w.r, lit ? 0 : w.g, lit ? 0 : w.b);
+    farColorAttr.needsUpdate = true;
+  };
+
+  // --- Radio masts on the skyline, painted in the orange and white bands of
+  // an aviation obstruction, their red beacons slowly blinking. ---
+  const mastBands = [0xc4472f, 0xe4e0d8].map((color) => new THREE.MeshStandardMaterial({ color, roughness: 0.8 }));
+  const beaconPositions: number[] = [];
+  const MAST_BANDS = 7;
+  const MAST_HEIGHT = 70;
+  const bandHeight = MAST_HEIGHT / MAST_BANDS;
+  const mastRadius = (y: number) => THREE.MathUtils.lerp(1, 0.3, y / MAST_HEIGHT);
+  for (const [angle, radius] of [[-0.86, 760], [1.95, 820]] as const) {
+    const mx = centerX + Math.cos(angle) * radius;
+    const mz = centerZ + Math.sin(angle) * radius;
+    for (let b = 0; b < MAST_BANDS; b += 1) {
+      const y0 = b * bandHeight;
+      const band = new THREE.Mesh(
+        new THREE.CylinderGeometry(mastRadius(y0 + bandHeight), mastRadius(y0), bandHeight, 4),
+        mastBands[b % 2]
+      );
+      band.position.set(mx, y0 + bandHeight / 2, mz);
+      band.userData.noCast = true;
+      group.add(band);
+    }
+    for (const y of [70.6, 47, 24]) beaconPositions.push(mx, y, mz);
+  }
+  const lampDot = radialTexture([
+    [0, 'rgba(255, 255, 255, 1)'],
+    [0.3, 'rgba(255, 255, 255, 0.5)'],
+    [1, 'rgba(255, 255, 255, 0)']
+  ]);
+  const dots = (count: number, size: number) => {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
+    // Fixed size on screen: a lamp is a point of light however far away it is.
+    const material = new THREE.PointsMaterial({
+      map: lampDot,
+      size,
+      sizeAttenuation: false,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      fog: false,
+      blending: THREE.AdditiveBlending
+    });
+    const points = new THREE.Points(geo, material);
+    points.frustumCulled = false;
+    points.userData.dynamic = true;
+    group.add(points);
+    return {
+      material,
+      position: geo.getAttribute('position') as THREE.BufferAttribute,
+      color: geo.getAttribute('color') as THREE.BufferAttribute
+    };
+  };
+  const beacons = dots(beaconPositions.length / 3, 4.5);
+  beacons.position.copyArray(beaconPositions);
+  const blink = (t: number) => {
+    for (let i = 0; i < beacons.color.count; i += 1) {
+      const on = (t * 0.6 + Math.floor(i / 3) * 0.37) % 1 < 0.45;
+      beacons.color.setXYZ(i, on ? 2.6 : 0.12, on ? 0.18 : 0.01, on ? 0.12 : 0.01);
+    }
+    beacons.color.needsUpdate = true;
+  };
+
+  // --- Country traffic: round the beltway, along the highways, and out the
+  // country roads, keeping right. Little painted cars by day; after dark just
+  // their lamps, white ahead and red behind, moving through the dark. ---
+  interface Lane {
+    length: number;
+    loop: boolean;
+    /** Position and heading (x, z, forward x, forward z) at distance s. */
+    at: (s: number) => [number, number, number, number];
+  }
+  const lanes: { lane: Lane; cars: number; speed: number }[] = [];
+  for (const dir of [1, -1]) {
+    const r = R_RING - (dir * HW_WIDTH) / 4;
+    lanes.push({
+      cars: 12,
+      speed: 15,
+      lane: {
+        length: Math.PI * 2 * r,
+        loop: true,
+        at: (s) => {
+          const a = (s / r) * dir;
+          return [centerX + Math.cos(a) * r, centerZ + Math.sin(a) * r, -Math.sin(a) * dir, Math.cos(a) * dir];
+        }
+      }
+    });
+  }
+  for (const hw of highways) {
+    for (const dir of [1, -1]) {
+      const off = (dir * HW_WIDTH) / 4;
+      const length = hw.to - hw.from;
+      lanes.push({
+        cars: 3,
+        speed: 17,
+        lane: {
+          length,
+          loop: false,
+          at: (s) => {
+            const along = dir > 0 ? hw.from + s : hw.to - s;
+            return hw.horizontal ? [along, hw.cz + off, dir, 0] : [hw.cx - off, along, 0, dir];
+          }
+        }
+      });
+    }
+  }
+  for (const bearing of COUNTRY_ROADS) {
+    const ux = Math.cos(bearing);
+    const uz = Math.sin(bearing);
+    const start = R_RING + HW_WIDTH / 2;
+    for (const dir of [1, -1]) {
+      const off = (dir * COUNTRY_ROAD_WIDTH) / 4;
+      lanes.push({
+        cars: 3,
+        speed: 12,
+        lane: {
+          length: 700,
+          loop: false,
+          at: (s) => {
+            const d = start + (dir > 0 ? s : 700 - s);
+            return [centerX + ux * d - uz * off, centerZ + uz * d + ux * off, ux * dir, uz * dir];
+          }
+        }
+      });
+    }
+  }
+  const body = new THREE.BoxGeometry(1.5, 0.42, 0.72).translate(0, 0.27, 0);
+  const cabin = new THREE.BoxGeometry(0.75, 0.3, 0.62).translate(-0.1, 0.62, 0);
+  const shade = (geo: THREE.BufferGeometry, c: number) => {
+    const count = geo.getAttribute('position').count;
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(new Array(count * 3).fill(c), 3));
+    return geo;
+  };
+  const carGeo = mergeGeometries([shade(body, 1), shade(cabin, 0.12)])!;
+  const cars: { lane: Lane; s0: number; speed: number }[] = [];
+  for (const { lane, cars: n, speed } of lanes) {
+    for (let i = 0; i < n; i += 1) cars.push({ lane, s0: ((i + rand() * 0.7) / n) * lane.length, speed: speed * (0.85 + rand() * 0.3) });
+  }
+  const bodies = new THREE.InstancedMesh(carGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.3 }), cars.length);
+  bodies.frustumCulled = false;
+  bodies.userData.dynamic = true;
+  const paint = new THREE.Color();
+  const paints = [0x8a2f3c, 0x2f4c8a, 0x3c6b4a, 0x6b7078, 0xc9c6bd, 0x23262c, 0x8a7a2f, 0xa9b4c0];
+  cars.forEach((_, i) => bodies.setColorAt(i, paint.setHex(paints[Math.floor(rand() * paints.length)])));
+  group.add(bodies);
+  const heads = dots(cars.length, 5);
+  const tails = dots(cars.length, 4);
+  const place = new THREE.Object3D();
+  /**
+   * Move every car to time `t`. A car coming toward the eye (in town
+   * coordinates) shows its headlamps and one going away its tail lamps, so the
+   * two directions read as a white stream and a red one.
+   */
+  const moveCars = (t: number, eyeX: number, eyeZ: number) => {
+    cars.forEach((car, i) => {
+      const s = (car.s0 + car.speed * t) % car.lane.length;
+      const [x, z, fx, fz] = car.lane.at(s);
+      // Cars on a road that ends ease in and out of sight where it meets the next one.
+      const ends = car.lane.loop ? 1 : THREE.MathUtils.clamp(Math.min(s, car.lane.length - s) / 6, 0, 1);
+      place.position.set(x, 0.05, z);
+      place.rotation.set(0, Math.atan2(-fz, fx), 0);
+      place.scale.setScalar(Math.max(ends, 0.001));
+      place.updateMatrix();
+      bodies.setMatrixAt(i, place.matrix);
+      const k = THREE.MathUtils.clamp(1.15 - Math.hypot(x - centerX, z - centerZ) / 1500, 0.12, 1) * ends;
+      const toEye = Math.hypot(eyeX - x, eyeZ - z) || 1;
+      const facing = (fx * (eyeX - x) + fz * (eyeZ - z)) / toEye;
+      const head = k * (0.1 + 0.9 * THREE.MathUtils.smoothstep(facing, -0.3, 0.45));
+      const tail = k * (0.1 + 0.9 * THREE.MathUtils.smoothstep(-facing, -0.3, 0.45));
+      heads.position.setXYZ(i, x + fx * 0.8, 0.4, z + fz * 0.8);
+      heads.color.setXYZ(i, 2.4 * head, 2.15 * head, 1.7 * head);
+      tails.position.setXYZ(i, x - fx * 0.8, 0.4, z - fz * 0.8);
+      tails.color.setXYZ(i, 2.0 * tail, 0.17 * tail, 0.08 * tail);
+    });
+    bodies.instanceMatrix.needsUpdate = true;
+    for (const set of [heads, tails]) {
+      set.position.needsUpdate = true;
+      set.color.needsUpdate = true;
+    }
+  };
+  moveCars(0, centerX, centerZ + 900);
+  blink(0);
 
   return {
     group,
     lamps,
-    glow: { material: farMat as THREE.Material, base: 0.9 },
-    update: (t: number) => setWindTime(t)
+    glows: [
+      { material: farMat, base: 0.9 },
+      { material: domeMat, base: 0.75 },
+      { material: beacons.material, base: 1 },
+      { material: heads.material, base: 1 },
+      { material: tails.material, base: 1 }
+    ],
+    update: (t: number, eyeX: number, eyeZ: number) => {
+      setWindTime(t);
+      moveCars(t, eyeX, eyeZ);
+      blink(t);
+      flipWindow(t);
+    }
   };
 }
 
@@ -1470,6 +1764,43 @@ export interface LampField {
   bulbMaterial: THREE.MeshStandardMaterial;
   /** Halo + ground-pool materials; opacity follows the night. */
   glowMaterials: { material: THREE.Material; base: number }[];
+}
+
+/**
+ * The glow a town throws up into the haze, for a sprite standing on its lights:
+ * a soft dome brightest along the horizon, with a thin band where the lamps
+ * are, fading up and out to nothing and softly at its foot. Built as raw
+ * pixels in a DataTexture: writing pixels into a 2D canvas (putImageData)
+ * makes Chrome slow down every canvas painted after it, the terrain included.
+ */
+function hazeDomeTexture(): THREE.DataTexture {
+  const w = 128;
+  const h = 48;
+  const data = new Uint8Array(w * h * 4);
+  const falloff = (r: number, k: number) => Math.max(0, (Math.exp(-k * r * r) - Math.exp(-k)) / (1 - Math.exp(-k)));
+  // Row 0 is the bottom of the texture (v = 0), the sprite's foot.
+  for (let y = 0; y < h; y += 1) {
+    const up = (y + 0.5) / h;
+    const foot = THREE.MathUtils.smoothstep(up, 0, 0.07);
+    for (let x = 0; x < w; x += 1) {
+      const across = ((x + 0.5) / w) * 2 - 1;
+      const dome = falloff(Math.hypot(across, up), 3.2);
+      const band = falloff(Math.abs(across) * 1.15, 2.5) * Math.exp(-up * 14);
+      const a = Math.min(1, (0.5 * dome + 0.5 * band) * foot);
+      const i = (y * w + x) * 4;
+      data[i] = Math.round(255 * a);
+      data[i + 1] = Math.round(184 * a);
+      data[i + 2] = Math.round(118 * a);
+      data[i + 3] = 255;
+    }
+  }
+  const texture = new THREE.DataTexture(data, w, h, THREE.RGBAFormat);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.magFilter = THREE.LinearFilter;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.generateMipmaps = true;
+  texture.needsUpdate = true;
+  return texture;
 }
 
 function radialTexture(stops: [number, string][]): THREE.CanvasTexture {

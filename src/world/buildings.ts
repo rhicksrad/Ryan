@@ -2,9 +2,10 @@ import * as THREE from 'three';
 import type { Project, District } from '../data';
 import { tierOf, isUnderConstruction } from '../data';
 import { rngFor } from './rng';
-import { facadeTextures, houseWindowTexture, billboardTexture, fasciaTexture, labelSprite, type Facade } from './textures';
+import { facadeTextures, billboardTexture, fasciaTexture, labelSprite, type Facade } from './textures';
 import { posterUrl } from '../art';
 import { growable, weather } from './surface';
+import { BOX, block, buildHouse, buildLargeHouse, buildShack, gableRoof, mat } from './homes';
 
 export interface BuildingHandle {
   project: Project;
@@ -29,16 +30,10 @@ export interface BuildingHandle {
   glass: THREE.MeshStandardMaterial[];
 }
 
-const BOX = new THREE.BoxGeometry(1, 1, 1);
-
 // ---------------------------------------------------------------------------
 // Shared material factories. Fresh instances per building so hover/day-night
 // tweaks never bleed between neighbors.
 // ---------------------------------------------------------------------------
-
-export function mat(color: number, opts: Partial<THREE.MeshStandardMaterialParameters> = {}) {
-  return new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0.05, ...opts });
-}
 
 function trimMaterial(accent: string): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({
@@ -47,15 +42,6 @@ function trimMaterial(accent: string): THREE.MeshStandardMaterial {
     emissiveIntensity: 1.4,
     roughness: 0.4,
     metalness: 0.1
-  });
-}
-
-function warmGlass(intensity = 1.3): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({
-    color: 0xffcf87,
-    emissive: 0xffb85e,
-    emissiveIntensity: intensity,
-    roughness: 0.5
   });
 }
 
@@ -118,391 +104,6 @@ export function facadeBox(
   mesh.position.set(x, y, z);
   group.add(mesh);
   return mesh;
-}
-
-/** Axis-aligned block. */
-export function block(
-  group: THREE.Group,
-  material: THREE.Material,
-  w: number,
-  h: number,
-  d: number,
-  x: number,
-  y: number,
-  z: number
-): THREE.Mesh {
-  const mesh = new THREE.Mesh(BOX, material);
-  mesh.scale.set(w, h, d);
-  mesh.position.set(x, y, z);
-  group.add(mesh);
-  return mesh;
-}
-
-/** A pitched gable roof (triangular prism); ridge runs along the depth axis. */
-export function gableRoof(
-  width: number,
-  depth: number,
-  peak: number,
-  material: THREE.Material
-): THREE.Mesh {
-  const shape = new THREE.Shape();
-  shape.moveTo(-width / 2, 0);
-  shape.lineTo(width / 2, 0);
-  shape.lineTo(0, peak);
-  shape.closePath();
-  const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false });
-  geo.translate(0, 0, -depth / 2);
-  return new THREE.Mesh(geo, material);
-}
-
-/** Framed, lit window with optional shutters. Returns a small group facing +Z. */
-function window(
-  frameMat: THREE.Material,
-  glassMat: THREE.Material,
-  w: number,
-  h: number,
-  shutters: THREE.Material | null
-): THREE.Group {
-  const g = new THREE.Group();
-  block(g, frameMat, w + 0.14, h + 0.14, 0.08, 0, 0, 0);
-  block(g, glassMat, w, h, 0.06, 0, 0, 0.04);
-  // muntin cross
-  block(g, frameMat, w, 0.05, 0.09, 0, 0, 0.05);
-  block(g, frameMat, 0.05, h, 0.09, 0, 0, 0.05);
-  if (shutters) {
-    block(g, shutters, 0.12, h + 0.1, 0.06, -(w / 2 + 0.12), 0, 0.02);
-    block(g, shutters, 0.12, h + 0.1, 0.06, w / 2 + 0.12, 0, 0.02);
-  }
-  return g;
-}
-
-/** Rounded shrub. */
-function shrub(group: THREE.Group, x: number, z: number, s: number, rand: () => number): void {
-  const bush = new THREE.Mesh(
-    new THREE.IcosahedronGeometry(s, 0),
-    mat(0x1f4b30, { roughness: 1, flatShading: true })
-  );
-  bush.position.set(x, s * 0.7, z);
-  bush.rotation.set(rand(), rand(), rand());
-  group.add(bush);
-}
-
-// ---------------------------------------------------------------------------
-// TIER 0 — dilapidated wooden shack.
-// ---------------------------------------------------------------------------
-
-function buildShack(group: THREE.Group, rand: () => number): number {
-  // Sun-bleached boards, not creosote: a shack should read as weathered wood from above, not as a dark hole.
-  const plankTones = [0x9a8468, 0x86725a, 0xa89274, 0x7a6850];
-  const plankMat = (i: number) => mat(plankTones[i % plankTones.length], { roughness: 1, flatShading: true });
-
-  const w = 2.6 + rand() * 0.6;
-  const d = 2.2 + rand() * 0.5;
-  const h = 1.8 + rand() * 0.4;
-  const lean = (rand() - 0.5) * 0.08;
-
-  const shell = new THREE.Group();
-  shell.rotation.z = lean; // the whole thing leans
-
-  // Ragged vertical-plank walls: each plank its own height and tiny gap.
-  const buildWall = (length: number, facing: 'x' | 'z', doorGap: boolean) => {
-    const planks = Math.max(4, Math.round(length / 0.34));
-    for (let i = 0; i < planks; i += 1) {
-      const t = i / (planks - 1) - 0.5;
-      const along = t * length;
-      const inDoor = doorGap && Math.abs(along) < 0.4;
-      if (inDoor) continue;
-      const ph = h * (0.82 + rand() * 0.25); // uneven tops
-      const pw = 0.3;
-      const m = new THREE.Mesh(BOX, plankMat(i));
-      if (facing === 'z') {
-        m.scale.set(pw, ph, 0.12);
-        m.position.set(along, ph / 2, d / 2);
-      } else {
-        m.scale.set(0.12, ph, pw);
-        m.position.set(w / 2, ph / 2, along);
-      }
-      m.rotation.z = (rand() - 0.5) * 0.05;
-      shell.add(m);
-    }
-  };
-  buildWall(w, 'z', true); // front (with door gap)
-  block(shell, plankMat(1), w, h, 0.12, 0, h / 2, -d / 2); // back (solid)
-  buildWall(d, 'x', false); // right
-  const leftWall = block(shell, plankMat(2), 0.12, h, d, -w / 2, h / 2, 0);
-  leftWall.rotation.x = (rand() - 0.5) * 0.04;
-
-  // Dark interior so the plank gaps read as gaps.
-  // Someone is home: a stove's glow shows through the gaps after dark, and a lantern hangs by the door.
-  block(shell, mat(0x0a0806, { roughness: 1, emissive: 0xff9a3c, emissiveIntensity: 0.2 }), w - 0.25, h - 0.2, d - 0.25, 0, h / 2, 0);
-  block(shell, warmGlass(2.2), 0.16, 0.2, 0.16, 0.62, h * 0.72, d / 2 + 0.14);
-  block(shell, mat(0x2a2620, { roughness: 0.8 }), 0.04, 0.04, 0.3, 0.62, h * 0.86, d / 2 + 0.06);
-
-  // Two mismatched, sagging roof boards leaving a gap.
-  const roofMat = mat(0x6a5a48, { roughness: 1, flatShading: true });
-  const r1 = block(shell, roofMat, w * 0.62, 0.12, d + 0.7, -w * 0.22, h + 0.15, 0);
-  r1.rotation.z = 0.12;
-  const r2 = block(shell, roofMat, w * 0.55, 0.12, d + 0.5, w * 0.28, h + 0.22, 0);
-  r2.rotation.z = -0.16;
-
-  // Crooked stovepipe.
-  const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 1.1, 6), mat(0x1c1c22, { metalness: 0.4 }));
-  pipe.position.set(w * 0.2, h + 0.7, -d * 0.2);
-  pipe.rotation.z = 0.2;
-  shell.add(pipe);
-
-  // Boarded-up window: two planks nailed over a dark hole on the right wall.
-  block(shell, mat(0x0a0806), 0.06, 0.5, 0.5, w / 2 + 0.02, h * 0.55, 0);
-  const b1 = block(shell, plankMat(0), 0.06, 0.14, 0.7, w / 2 + 0.05, h * 0.6, 0);
-  b1.rotation.x = 0.15;
-  const b2 = block(shell, plankMat(3), 0.06, 0.14, 0.7, w / 2 + 0.05, h * 0.45, 0);
-  b2.rotation.x = -0.1;
-
-  group.add(shell);
-
-  // A leaning support plank propping up the front.
-  const prop = new THREE.Mesh(BOX, plankMat(1));
-  prop.scale.set(0.1, h * 1.1, 0.1);
-  prop.position.set(-w * 0.4, h * 0.5, d / 2 + 0.35);
-  prop.rotation.x = 0.32;
-  group.add(prop);
-
-  // Junk in the yard.
-  if (rand() < 0.9) {
-    const crate = block(group, plankMat(2), 0.6, 0.6, 0.6, -w * 0.7, 0.3, d * 0.7);
-    crate.rotation.y = rand();
-  }
-  if (rand() < 0.6) {
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.3, 0.7, 8), mat(0x3a3a30, { metalness: 0.3 }));
-    barrel.position.set(w * 0.75, 0.35, d * 0.55);
-    group.add(barrel);
-  }
-  if (rand() < 0.5) {
-    const tire = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.11, 6, 12), mat(0x141414, { roughness: 1 }));
-    tire.rotation.x = Math.PI / 2;
-    tire.position.set(w * 0.5 + rand() * 0.5, 0.11, -d * 0.6);
-    group.add(tire);
-  }
-
-  return h + 1.2;
-}
-
-// ---------------------------------------------------------------------------
-// TIER 1 — modest suburban house with all the trimmings.
-// ---------------------------------------------------------------------------
-
-function buildHouse(group: THREE.Group, rand: () => number): number {
-  const sidings = [0xd8cfbb, 0xa9bdd0, 0xd3b3a4, 0xa9c9b0, 0xd9cc9c, 0xc7b8d0, 0xe3dccb, 0x9fb7b4];
-  const siding = mat(sidings[Math.floor(rand() * sidings.length)]);
-  const trimWhite = mat(0xf1efe6);
-  const roofs = [0x6a4338, 0x4c5560, 0x7a4f3a, 0x3f5148, 0x5a4a50];
-  const roofMat = mat(roofs[Math.floor(rand() * roofs.length)]);
-  const doorColors = [0x8a3b32, 0x2f5a44, 0x334a7a, 0x5a3c66];
-
-  const w = 3.6 + rand() * 0.6;
-  const d = 3 + rand() * 0.5;
-  const h = 2.5 + rand() * 0.3;
-
-  // Main body + foundation strip.
-  block(group, mat(0x6a6258), w + 0.2, 0.3, d + 0.2, 0, 0.15, 0);
-  block(group, siding, w, h, d, 0, h / 2 + 0.2, 0);
-
-  // Gable roof with overhang.
-  const peak = 1.5 + rand() * 0.3;
-  // Three roof plans, so a street of houses is not one model repeated: gable end
-  // to the street, ridge along the street, or ridge along the street with a dormer.
-  const plan = Math.floor(rand() * 3);
-  const roof = plan === 0 ? gableRoof(w + 0.6, d + 0.6, peak, roofMat) : gableRoof(d + 0.6, w + 0.6, peak, roofMat);
-  if (plan !== 0) roof.rotation.y = Math.PI / 2;
-  roof.position.y = h + 0.2;
-  group.add(roof);
-  if (plan === 2) {
-    const dormer = gableRoof(1.5, d * 0.5 + 0.5, 0.9, roofMat);
-    dormer.position.set(-w * 0.18, h + 0.45, d * 0.25);
-    group.add(dormer);
-    block(group, trimWhite, 1.1, 0.7, 0.08, -w * 0.18, h + 0.6, d * 0.5 + 0.22);
-  }
-  // fascia trim under the eaves
-  block(group, trimWhite, w + 0.6, 0.12, d + 0.6, 0, h + 0.22, 0);
-
-  // Brick chimney.
-  const chimney = block(group, mat(0x6e4038), 0.5, 1.3, 0.5, w * 0.28, h + 0.9, -d * 0.1);
-  block(group, mat(0x2a2a2a), 0.6, 0.12, 0.6, w * 0.28, h + 1.55, -d * 0.1);
-
-  // Front door with stoop + a warm porch light.
-  const door = block(group, mat(doorColors[Math.floor(rand() * doorColors.length)]), 0.7, 1.3, 0.1, 0, 0.85, d / 2 + 0.02);
-  door.userData.noLabel = true;
-  block(group, trimWhite, 0.9, 1.5, 0.06, 0, 0.95, d / 2 + 0.005); // door frame
-  block(group, mat(0x8a8378), 1.1, 0.12, 0.6, 0, 0.26, d / 2 + 0.3); // stoop
-  block(group, warmGlass(1.6), 0.12, 0.12, 0.12, 0.55, 1.5, d / 2 + 0.1); // porch light
-
-  // Little porch roof on two posts.
-  block(group, mat(0x8a8378), 0.1, 1.1, 0.1, -0.55, 0.75, d / 2 + 0.55);
-  block(group, mat(0x8a8378), 0.1, 1.1, 0.1, 0.55, 0.75, d / 2 + 0.55);
-  const porchRoof = block(group, roofMat, 1.6, 0.12, 0.8, 0, 1.35, d / 2 + 0.4);
-  porchRoof.rotation.x = -0.12;
-
-  // Windows with shutters (warm-lit), front + sides.
-  const glass = houseWindowTexture(rand);
-  const glassMat = growable(
-    new THREE.MeshStandardMaterial({
-      map: glass,
-      emissiveMap: glass,
-      emissive: 0xffffff,
-      emissiveIntensity: 1,
-      roughness: 0.6
-    })
-  );
-  const shutterMat = mat(0x3a4a5a);
-  const frameMat = trimWhite;
-  for (const wx of [-w * 0.3, w * 0.3]) {
-    const win = window(frameMat, glassMat, 0.7, 0.85, shutterMat);
-    win.position.set(wx, h * 0.62 + 0.2, d / 2 + 0.03);
-    group.add(win);
-  }
-  for (const side of [-1, 1]) {
-    const win = window(frameMat, glassMat, 0.6, 0.8, shutterMat);
-    win.rotation.y = side * Math.PI / 2;
-    win.position.set(side * (w / 2 + 0.03), h * 0.62 + 0.2, 0);
-    group.add(win);
-  }
-
-  // Attached single-car garage.
-  if (rand() < 0.6) {
-    const gw = 1.9;
-    const gh = 1.7;
-    const gd = 2.4;
-    const gx = w / 2 + gw / 2 - 0.1;
-    block(group, siding, gw, gh, gd, gx, gh / 2 + 0.2, d * 0.1);
-    const garageRoof = gableRoof(gw + 0.4, gd + 0.4, 0.8, roofMat);
-    garageRoof.position.set(gx, gh + 0.2, d * 0.1);
-    garageRoof.rotation.y = Math.PI / 2;
-    group.add(garageRoof);
-    // garage door with panel lines
-    block(group, mat(0xd8d4c8), gw * 0.85, gh * 0.75, 0.08, gx, gh * 0.42 + 0.2, d * 0.1 + gd / 2 + 0.02);
-    for (let i = 1; i < 3; i += 1) {
-      block(group, mat(0xb0aca0), gw * 0.85, 0.04, 0.1, gx, 0.2 + (gh * 0.75) * (i / 3), d * 0.1 + gd / 2 + 0.05);
-    }
-  }
-
-  // Yard: path, hedges, mailbox.
-  block(group, mat(0x8a8378), 0.7, 0.06, 1.6, 0, 0.24, d / 2 + 1.2); // path
-  shrub(group, -w * 0.45, d / 2 + 0.5, 0.35, rand);
-  shrub(group, w * 0.45, d / 2 + 0.5, 0.3, rand);
-  const mailPost = block(group, mat(0x4a3d2b), 0.08, 0.7, 0.08, -0.7, 0.35, d / 2 + 1.5);
-  void mailPost;
-  block(group, mat(0x3a4a5a), 0.3, 0.16, 0.18, -0.7, 0.72, d / 2 + 1.5);
-
-  return h + peak + 0.4;
-}
-
-// ---------------------------------------------------------------------------
-// TIER 2 — large two-story suburban house (the McMansion).
-// ---------------------------------------------------------------------------
-
-function buildLargeHouse(group: THREE.Group, rand: () => number): number {
-  const sidings = [0xd6ccb4, 0xb6c4d8, 0xdcc0b2, 0xc0d4be, 0xe4dcc8, 0xcfc1a0];
-  const siding = mat(sidings[Math.floor(rand() * sidings.length)]);
-  const bricks = [0xa06a52, 0x8c5a48, 0xb07c5e, 0x8a7468];
-  const brick = mat(bricks[Math.floor(rand() * bricks.length)]);
-  const trimWhite = mat(0xf3f1e8);
-  const roofs = [0x4f3a34, 0x444c58, 0x5c4638, 0x3c4a44];
-  const roofMat = mat(roofs[Math.floor(rand() * roofs.length)]);
-
-  const w = 5.4 + rand() * 0.8;
-  const d = 4.2 + rand() * 0.6;
-  const floor1 = 2.4;
-  const floor2 = 2.2;
-
-  block(group, mat(0x5f574d), w + 0.3, 0.3, d + 0.3, 0, 0.15, 0);
-  // Brick first floor, sided second floor.
-  block(group, brick, w, floor1, d, 0, floor1 / 2 + 0.2, 0);
-  block(group, siding, w * 0.96, floor2, d * 0.96, 0, floor1 + floor2 / 2 + 0.2, 0);
-
-  const bodyTop = floor1 + floor2 + 0.2;
-
-  // Main cross-gable roof + a front-facing gable dormer.
-  const peak = 1.8;
-  const mainRoof = gableRoof(w + 0.7, d + 0.7, peak, roofMat);
-  mainRoof.position.y = bodyTop;
-  group.add(mainRoof);
-  block(group, trimWhite, w + 0.7, 0.12, d + 0.7, 0, bodyTop + 0.02, 0);
-  // The front gable sits over the door, off to one side, or is doubled.
-  const gables = [[0], [-w * 0.24], [-w * 0.26, w * 0.26]][Math.floor(rand() * 3)];
-  for (const gx of gables) {
-    const dormer = gableRoof(w * (gables.length > 1 ? 0.3 : 0.42), d * 0.6, peak * (gables.length > 1 ? 0.62 : 0.8), roofMat);
-    dormer.rotation.y = Math.PI / 2;
-    dormer.position.set(gx, bodyTop, d * 0.28);
-    group.add(dormer);
-  }
-
-  // Two chimneys.
-  for (const cx of [-w * 0.35, w * 0.4]) {
-    block(group, brick, 0.5, 1.4, 0.5, cx, bodyTop + 0.9, -d * 0.2);
-    block(group, mat(0x2a2a2a), 0.6, 0.12, 0.6, cx, bodyTop + 1.6, -d * 0.2);
-  }
-
-  // Grand portico: pediment on four columns.
-  const colH = floor1 + 0.3;
-  for (const cx of [-1.3, -0.5, 0.5, 1.3]) {
-    const col = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.18, colH, 10), trimWhite);
-    col.position.set(cx, colH / 2 + 0.2, d / 2 + 1.1);
-    group.add(col);
-  }
-  block(group, trimWhite, 3.4, 0.3, 1.4, 0, colH + 0.35, d / 2 + 0.7); // entablature
-  const ped = gableRoof(3.4, 1.4, 0.7, trimWhite);
-  ped.position.set(0, colH + 0.5, d / 2 + 0.7);
-  group.add(ped);
-  // Double front door.
-  block(group, mat(0x3a2a22), 1.2, 1.8, 0.12, 0, 1.1, d / 2 + 0.02);
-  block(group, warmGlass(1.4), 0.16, 0.16, 0.14, 0, 2.1, d / 2 + 0.12); // entry lantern
-
-  // Bay window bumping out the front-left.
-  const bay = block(group, siding, 1.4, 1.6, 0.5, -w * 0.28, floor1 * 0.55 + 0.2, d / 2 + 0.25);
-  void bay;
-  const glass = houseWindowTexture(rand);
-  const glassMat = growable(
-    new THREE.MeshStandardMaterial({ map: glass, emissiveMap: glass, emissive: 0xffffff, emissiveIntensity: 1, roughness: 0.6 })
-  );
-  const shutterMat = mat(0x2f3a2f);
-  // Upper-floor windows across the front.
-  for (const wx of [-w * 0.28, 0, w * 0.28]) {
-    const win = window(trimWhite, glassMat, 0.7, 0.9, shutterMat);
-    win.position.set(wx, floor1 + floor2 * 0.55 + 0.2, d / 2 + 0.02);
-    group.add(win);
-  }
-  // Side windows.
-  for (const side of [-1, 1]) {
-    for (const wy of [floor1 * 0.55 + 0.2, floor1 + floor2 * 0.55 + 0.2]) {
-      const win = window(trimWhite, glassMat, 0.6, 0.8, shutterMat);
-      win.rotation.y = side * Math.PI / 2;
-      win.position.set(side * (w / 2 + 0.02), wy, d * 0.15);
-      group.add(win);
-    }
-  }
-
-  // Two-car garage wing.
-  const gw = 3.2;
-  const gh = 2.1;
-  const gd = 3.4;
-  const gx = w / 2 + gw / 2 - 0.2;
-  block(group, siding, gw, gh, gd, gx, gh / 2 + 0.2, -d * 0.05);
-  const garageRoof = gableRoof(gw + 0.4, gd + 0.4, 1, roofMat);
-  garageRoof.position.set(gx, gh + 0.2, -d * 0.05);
-  garageRoof.rotation.y = Math.PI / 2;
-  group.add(garageRoof);
-  for (const doorX of [gx - gw * 0.24, gx + gw * 0.24]) {
-    block(group, mat(0xdad6ca), gw * 0.4, gh * 0.7, 0.08, doorX, gh * 0.4 + 0.2, -d * 0.05 + gd / 2 + 0.02);
-  }
-
-  // Landscaping: driveway, hedges, lawn shrubs.
-  block(group, mat(0x555a63), 3, 0.06, 2.4, gx, 0.24, -d * 0.05 + gd / 2 + 1.2); // driveway
-  for (const hx of [-w * 0.4, -w * 0.15, w * 0.15]) {
-    shrub(group, hx, d / 2 + 0.6, 0.4, rand);
-  }
-  block(group, mat(0x9a948a), 1, 0.06, 2, 0, 0.24, d / 2 + 1.6); // walkway
-
-  return bodyTop + peak + 0.4;
 }
 
 // ---------------------------------------------------------------------------
@@ -1000,14 +601,17 @@ export function createBuilding(project: Project, district: District, towerRank =
   let top = 0;
   let roof = 0;
   let footprint = 4;
+  // Homes get gardens: the painted kerb takes in most of the quarter lot, so
+  // the porch, the drive, and the back yard all sit inside it.
+  const yard = [3.3, 4.1, 4.6][tier] ?? 0;
   if (tier === 0) {
-    top = buildShack(group, rand);
+    top = buildShack(group, rand, yard);
     footprint = 3.2;
   } else if (tier === 1) {
-    top = buildHouse(group, rand);
+    top = buildHouse(group, rand, yard);
     footprint = 4.8;
   } else if (tier === 2) {
-    top = buildLargeHouse(group, rand);
+    top = buildLargeHouse(group, rand, yard);
     footprint = 6.4;
   } else if (tier === 3) {
     top = buildCommercial(group, project, district, rand);
@@ -1027,14 +631,7 @@ export function createBuilding(project: Project, district: District, towerRank =
     emissiveIntensity: 0.12,
     roughness: 0.7
   });
-  const curbSize = tier === 4 ? footprint + 1.1 : footprint * 1.2 + 1;
-  if (tier === 1 || tier === 2) {
-    // Clipped hedges down the sides and across the back of the garden.
-    const hedge = mat(0x3d6b38, { roughness: 1 });
-    const reach = curbSize / 2 - 0.35;
-    block(group, hedge, curbSize - 0.7, 0.55, 0.4, 0, 0.3, -reach);
-    for (const side of [-1, 1]) block(group, hedge, 0.4, 0.55, curbSize * 0.62, side * reach, 0.3, -curbSize * 0.16);
-  }
+  const curbSize = tier === 4 ? footprint + 1.1 : tier === 3 ? footprint * 1.2 + 1 : yard * 2;
   for (const [dx, dz, cw, cd] of [
     [0, -curbSize / 2, curbSize, 0.14],
     [0, curbSize / 2, curbSize, 0.14],

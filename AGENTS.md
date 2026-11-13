@@ -91,6 +91,12 @@ screenshots can be stale; `scripts/probe.mjs` is the reliable way to look.
   grid (`plan.core`) is wrapped in one ring of `fabric` blocks, and `plan.fillers`
   lists every unnamed building.
 - `src/world/buildings.ts`: one builder per commit tier; towers have five crowns.
+- `src/world/homes.ts`: the three small tiers (shack, house, large house) and the
+  parts every house in town is made of: window glass from one curtained atlas
+  (`houseGlassTextures`, lit and dark cells, a TV's blue), porches, gable and hip
+  roofs, dormers, chimneys, fences, hedges, and back-yard props. The unnamed
+  houses in `fabric.ts` use the same parts. A builder gets its yard depth, the
+  distance from its front wall to the curb, and keeps everything inside it.
 - `src/world/fabric.ts`: the unnamed town, drawn from `plan.fillers` with a
   handful of shared materials.
 - `src/world/walkers.ts`: pedestrians lapping their block's sidewalk, one
@@ -114,6 +120,12 @@ screenshots can be stale; `scripts/probe.mjs` is the reliable way to look.
   only tower glass mirrors it.
 - `src/world/environment.ts`: painted sky dome, painted countryside, blocks, roads,
   water shader, trees, town hall, lamps. `textures.ts`: facades, posters, signs, labels.
+  `createOutskirts` is the country past the beltway: farms, woods, two country roads,
+  three villages on the horizon with the glow they throw into the haze, two banded
+  radio masts, and the traffic on the ring, highways, and country roads. After dark
+  a car is only its lamps, white toward the camera and red going away (`update`
+  takes the eye in town coordinates). Its night lights are in `glows`, faded with
+  the street lamps' glow.
 - `src/world/bake.ts`: merges static meshes into a few draw calls, including each
   material group of a multi-material mesh. Mark anything that moves with
   `userData.dynamic`; it is also kept out of the static shadow map.
