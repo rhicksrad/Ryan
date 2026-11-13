@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { Project, District } from '../data';
 import { tierOf, isUnderConstruction } from '../data';
 import { rngFor } from './rng';
-import { facadeTextures, houseWindowTexture, billboardTexture, labelSprite, type Facade } from './textures';
+import { facadeTextures, houseWindowTexture, billboardTexture, fasciaTexture, labelSprite, type Facade } from './textures';
 import { posterUrl } from '../art';
 import { growable, weather } from './surface';
 
@@ -233,7 +233,10 @@ function buildShack(group: THREE.Group, rand: () => number): number {
   leftWall.rotation.x = (rand() - 0.5) * 0.04;
 
   // Dark interior so the plank gaps read as gaps.
-  block(shell, mat(0x0a0806, { roughness: 1 }), w - 0.25, h - 0.2, d - 0.25, 0, h / 2, 0);
+  // Someone is home: a stove's glow shows through the gaps after dark, and a lantern hangs by the door.
+  block(shell, mat(0x0a0806, { roughness: 1, emissive: 0xff9a3c, emissiveIntensity: 0.2 }), w - 0.25, h - 0.2, d - 0.25, 0, h / 2, 0);
+  block(shell, warmGlass(2.2), 0.16, 0.2, 0.16, 0.62, h * 0.72, d / 2 + 0.14);
+  block(shell, mat(0x2a2620, { roughness: 0.8 }), 0.04, 0.04, 0.3, 0.62, h * 0.86, d / 2 + 0.06);
 
   // Two mismatched, sagging roof boards leaving a gap.
   const roofMat = mat(0x6a5a48, { roughness: 1, flatShading: true });
@@ -562,53 +565,76 @@ function buildCommercial(
   // striped awning
   const awning = block(group, mat(new THREE.Color(district.color).lerp(new THREE.Color(0x3a3a3a), 0.25).getHex(), { roughness: 0.8 }), w * 0.85, 0.14, 1.1, 0, groundH * 0.72, d / 2 + 0.55);
   awning.rotation.x = -0.18;
-  // projecting blade sign
-  const bladeTex = billboardTexture(project.title, project.lang, district.color, `${project.commits} commits`);
-  const blade = new THREE.Mesh(
-    new THREE.PlaneGeometry(1.1, 2.2),
-    growable(
-      new THREE.MeshStandardMaterial({ map: bladeTex, emissive: 0xffffff, emissiveMap: bladeTex, emissiveIntensity: 1.2, side: THREE.DoubleSide, roughness: 0.6 })
-    )
+  // The project's name on a painted fascia over the shopfront, front and side:
+  // a building should say what it is, legibly, from across the street.
+  const fasciaTex = fasciaTexture(project.title, district.color);
+  const fasciaMat = growable(
+    new THREE.MeshStandardMaterial({ map: fasciaTex, emissive: 0xffffff, emissiveMap: fasciaTex, emissiveIntensity: 0.45, roughness: 0.8 })
   );
-  blade.rotation.y = Math.PI / 2;
-  blade.position.set(w / 2 + 0.15, groundH + floorH, d / 2 - 1);
-  group.add(blade);
+  const fasciaW = Math.min(w * 0.9, 5.6);
+  const fasciaH = fasciaW / 6;
+  const front = new THREE.Mesh(new THREE.PlaneGeometry(fasciaW, fasciaH), fasciaMat);
+  front.position.set(0, groundH + fasciaH / 2 + 0.12, d / 2 + 0.07);
+  group.add(front);
+  block(group, brick, fasciaW + 0.16, fasciaH + 0.16, 0.08, 0, groundH + fasciaH / 2 + 0.12, d / 2 + 0.02);
+  const side = new THREE.Mesh(new THREE.PlaneGeometry(fasciaW * 0.86, fasciaH * 0.86), fasciaMat);
+  side.rotation.y = Math.PI / 2;
+  side.position.set(w / 2 + 0.07, groundH + fasciaH / 2 + 0.12, 0);
+  group.add(side);
 
   // Cornice + parapet.
   block(group, brick, w + 0.5, 0.5, d + 0.5, 0, bodyH + 0.05, 0); // cornice overhang
   block(group, brick, w, 0.7, d, 0, bodyH + 0.35, 0); // parapet
 
-  // Rooftop clutter: HVAC units, a water tower, a stair bulkhead.
-  const roofMat = mat(0x3a3f4c, { metalness: 0.3 });
+  // Rooftop plant in galvanised greys: cooling units, a water tower, a stair bulkhead.
+  const roofMat = mat(0x8d939c, { metalness: 0.4, roughness: 0.5 });
+  const legMat = mat(0x4b4f58, { metalness: 0.4, roughness: 0.6 });
   for (let i = 0; i < 3; i += 1) {
     block(group, roofMat, 0.9 + rand() * 0.5, 0.6, 0.9 + rand() * 0.4, (rand() - 0.5) * w * 0.6, bodyH + 0.7, (rand() - 0.5) * d * 0.6);
   }
   // water tower on legs
   const tankX = w * 0.28;
   const tankZ = -d * 0.25;
-  const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 1.1, 10), mat(0x4a3d2b, { roughness: 1 }));
+  const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 1.1, 10), mat(0x7a6248, { roughness: 1 }));
   tank.position.set(tankX, bodyH + 1.7, tankZ);
   group.add(tank);
-  const tankRoof = new THREE.Mesh(new THREE.ConeGeometry(0.8, 0.6, 10), mat(0x3a2f22));
+  const tankRoof = new THREE.Mesh(new THREE.ConeGeometry(0.8, 0.6, 10), mat(0x5a4a3a));
   tankRoof.position.set(tankX, bodyH + 2.5, tankZ);
   group.add(tankRoof);
   for (const lx of [-0.4, 0.4]) {
     for (const lz of [-0.4, 0.4]) {
-      block(group, roofMat, 0.08, 1.2, 0.08, tankX + lx, bodyH + 0.9, tankZ + lz);
+      block(group, legMat, 0.08, 1.2, 0.08, tankX + lx, bodyH + 0.9, tankZ + lz);
     }
   }
-  block(group, roofMat, 1.4, 1, 1.4, -w * 0.25, bodyH + 0.85, d * 0.2); // stair bulkhead
+  block(group, brick, 1.4, 1, 1.4, -w * 0.25, bodyH + 0.85, d * 0.2); // stair bulkhead
 
-  // Fire escape zigzagging down one side.
-  const feMat = mat(0x20242e, { metalness: 0.5, roughness: 0.6 });
-  const fz = d / 2 + 0.15;
+  // A fire escape in dark iron down the front, to one side of the door: a thin
+  // railed landing at each floor and a stair flight between them, switching back.
+  const iron = mat(0x2a2d33, { metalness: 0.5, roughness: 0.6 });
+  const fx = -w * 0.24;
+  const run = 1.5; // horizontal run of a flight
+  const wallZ = d / 2;
+  const landingY = (f: number) => groundH + (f - 1) * floorH + 0.5;
   for (let f = 1; f <= floors; f += 1) {
-    const y = groundH + f * floorH - floorH * 0.35;
-    block(group, feMat, 2.2, 0.08, 0.9, -w * 0.2, y, fz + 0.3); // platform
-    block(group, feMat, 2.2, 0.5, 0.05, -w * 0.2, y + 0.28, fz + 0.72); // railing
-    const ladder = block(group, feMat, 0.5, 0.06, floorH * 0.9, -w * 0.2 + (f % 2 ? 0.7 : -0.7), y - floorH * 0.5, fz + 0.3);
-    ladder.rotation.x = 0.5;
+    const y = landingY(f);
+    block(group, iron, 2.4, 0.05, 0.7, fx, y, wallZ + 0.4); // landing
+    block(group, iron, 2.4, 0.04, 0.04, fx, y + 0.6, wallZ + 0.74); // top rail
+    block(group, iron, 2.4, 0.03, 0.03, fx, y + 0.32, wallZ + 0.74); // mid rail
+    for (const px of [-1.2, -0.4, 0.4, 1.2]) block(group, iron, 0.04, 0.6, 0.04, fx + px, y + 0.3, wallZ + 0.74);
+    for (const end of [-1.2, 1.2]) block(group, iron, 0.04, 0.04, 0.7, fx + end, y + 0.6, wallZ + 0.4);
+    if (f === 1) continue;
+    // The flight down to the landing below, leaning the other way each floor.
+    const lean = f % 2 === 0 ? 1 : -1;
+    const length = Math.hypot(run, floorH);
+    const flight = block(group, iron, length, 0.05, 0.3, fx, y - floorH / 2, wallZ + 0.22);
+    flight.rotation.z = lean * Math.atan2(floorH, run);
+    const handrail = block(group, iron, length, 0.03, 0.03, fx, y - floorH / 2 + 0.5, wallZ + 0.36);
+    handrail.rotation.z = flight.rotation.z;
   }
+  // The drop ladder from the lowest landing, hung clear of the pavement.
+  block(group, iron, 0.04, 1.3, 0.04, fx + 0.75, landingY(1) - 0.65, wallZ + 0.4);
+  block(group, iron, 0.04, 1.3, 0.04, fx + 1.05, landingY(1) - 0.65, wallZ + 0.4);
+  for (let r = 0; r < 4; r += 1) block(group, iron, 0.3, 0.03, 0.03, fx + 0.9, landingY(1) - 0.2 - r * 0.3, wallZ + 0.4);
 
   return bodyH + 0.7;
 }

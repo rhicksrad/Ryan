@@ -252,6 +252,33 @@ export function billboardTexture(
   return texture;
 }
 
+/** A shop fascia: the project's name sign-painted on a long board in the district color. */
+export function fasciaTexture(title: string, accent: string): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 768;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#f1ecdc';
+  ctx.fillRect(0, 0, 768, 128);
+  ctx.fillStyle = accent;
+  ctx.fillRect(0, 0, 768, 14);
+  ctx.fillRect(0, 114, 768, 14);
+  ctx.fillStyle = '#16181d';
+  ctx.fillRect(0, 14, 768, 4);
+  ctx.fillRect(0, 110, 768, 4);
+  const upper = title.toUpperCase();
+  ctx.font = `900 72px ${SIGN_FONT}`;
+  const size = Math.min(72, (72 * 720) / ctx.measureText(upper).width);
+  ctx.font = `900 ${size}px ${SIGN_FONT}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(upper, 384, 68, 730);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
+  return texture;
+}
+
 const artCache = new Map<string, Promise<HTMLImageElement>>();
 
 /** Loads a piece of art once and hands it to every sign that wants it. */

@@ -202,7 +202,8 @@ export class CityWorld {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    // Filtered shadow lookups: edges stay smooth in close-ups instead of showing the map's texels as steps.
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     // The sun never moves and nearly everything is static, so the shadow map is
     // drawn a few times at load and then left alone.
     this.renderer.shadowMap.autoUpdate = false;
@@ -445,6 +446,9 @@ export class CityWorld {
     this.city.add(lampField.group);
 
     this.city.add(createSigns(this.plan));
+    for (const sign of this.plan.signs) {
+      this.obstacles.push({ id: '', x: sign.x - this.plan.center.x, z: sign.z - this.plan.center.z, hw: 2.8, hd: 2.8, h: 4.6 });
+    }
 
     const sky = createSky();
     this.scene.add(sky.group);
@@ -504,6 +508,20 @@ export class CityWorld {
         hd: handle.footprint / 2,
         h: handle.height
       });
+      if (handle.craneJib) {
+        // A tower crane is thin but tall: it must not stand between the camera and anyone's building.
+        const reach = handle.footprint * 0.62 + 1;
+        const back = handle.footprint * 0.5 + 1;
+        const turn = Math.cos(placement.rotationY); // 1, or -1 for lots that face north
+        this.obstacles.push({
+          id: '',
+          x: placement.lot.x - this.plan.center.x + reach * turn,
+          z: placement.lot.z - this.plan.center.z - back * turn,
+          hw: 1.3,
+          hd: 1.3,
+          h: handle.height + 6
+        });
+      }
       const labelScale = handle.label.scale;
       this.labelBoxes.push({
         id: placement.project.id,
@@ -547,9 +565,9 @@ export class CityWorld {
       id: ABOUT_ID,
       x: this.plan.plaza.x - this.plan.center.x,
       z: this.plan.plaza.z - this.plan.center.z,
-      hw: 4.5,
-      hd: 4.5,
-      h: 30
+      hw: 5.5,
+      hd: 5.5,
+      h: 38
     });
     this.nightWindows.push({ mat: spire.faceMaterial, base: 1.1, dim: 0.75 });
     this.pickMeshes.push(...spire.pickMeshes);
@@ -709,12 +727,14 @@ export class CityWorld {
   private blocked(eye: THREE.Vector3, aim: THREE.Vector3, selfId: string): number {
     let hits = 0;
     const point = new THREE.Vector3();
-    for (let i = 0; i < 18; i += 1) {
-      point.lerpVectors(eye, aim, 0.02 + (i / 18) * 0.9);
+    // Sampled finely enough that a crane mast or a sign cannot slip between two samples.
+    for (let i = 0; i < 48; i += 1) {
+      point.lerpVectors(eye, aim, 0.02 + (i / 48) * 0.9);
       for (const o of this.obstacles) {
         if (o.id === selfId || point.y > o.h) continue;
-        if (Math.abs(point.x - o.x) < o.hw && Math.abs(point.z - o.z) < o.hd) {
-          hits += 1;
+        if (Math.abs(point.x - o.x) < o.hw + 0.5 && Math.abs(point.z - o.z) < o.hd + 0.5) {
+          // A mast or a sign is thin, so few samples land on it, but it still cuts the view in two.
+          hits += o.hw < 2 ? 8 : 1;
           break;
         }
       }
@@ -730,27 +750,50 @@ export class CityWorld {
     const facesNorth = !handle.landmark && Math.abs(handle.group.rotation.y) > 1;
     // Small buildings are viewed from closer and steeper, over their neighbours' roofs.
     const dist =
+      // On a phone the building has only the top half of the screen, so stand back far enough to fit it there.
       (handle.landmark ? 12 + handle.footprint * 2 + handle.height * 0.8 : 8 + handle.footprint * 1.5 + handle.height) *
-      (portrait ? 1.9 : 1);
+      (portrait ? (handle.landmark ? 2.5 : 2.1) : 1);
     const aim = new THREE.Vector3(pos.x, handle.height * (handle.landmark ? 0.4 : 0.45), pos.z);
 
     // Approach from the sunlit side the posters and front doors face. Of a few
     // bearings on that side, take the one with the clearest line of sight, so
     // the chosen building is the hero and no neighbour stands in front of it.
-    const bearings = handle.landmark ? [-33, -55, -12, -78, 14] : [-20, -45, 10, -70, 35];
+    // A lot that faces north is viewed from the north-west: its front door shows
+    // and so does its sunlit west wall, instead of a view straight into the shade.
+    // After the preferred bearings come the rest of the compass, so there is always a clear one to fall back on.
+    const bearings = handle.landmark
+      ? [-33, -55, -12, -78, 14, -100, 36, 60, -125, 90, 180]
+      : facesNorth
+        ? [-58, -74, -40, -88, -22, -105, 0, 25, 50, 90]
+        : [-20, -45, 10, -70, 35, -90, 60, 85, -115, 120];
     let best: { outward: THREE.Vector3; eye: THREE.Vector3; score: number } | null = null;
     for (const [rank, degrees] of bearings.entries()) {
       const bearing = THREE.MathUtils.degToRad(degrees);
       const outward = new THREE.Vector3(Math.sin(bearing), 0, Math.cos(bearing) * (facesNorth ? -1 : 1));
       const eye = aim.clone().addScaledVector(outward, dist);
       eye.y = handle.landmark ? aim.y + dist * 0.6 : dist * 0.8;
+      // Score from where the camera will really stand: on a wide screen it is
+      // slid sideways so the building sits left of the panel.
+      if (!portrait) eye.addScaledVector(new THREE.Vector3(outward.z, 0, -outward.x), dist * 0.17);
       // The sight line to the building, to its base, and to the space either
       // side of it: the hero should have air, not a neighbour's wall beside it.
       const across = new THREE.Vector3(outward.z, 0, -outward.x).multiplyScalar(handle.footprint * 1.6 + dist * 0.12);
       // Earlier bearings show the posters best, so a later one has to earn its place.
+      // ...and to the pavement in front of it, which a neighbour's roof must not fill.
+      const forecourt = aim.clone().setY(0.6).addScaledVector(outward, handle.footprint * 0.9 + 2);
+      // A camera parked beside something taller than itself gets a wall across half the frame.
+      let crowded = 0;
+      for (const o of this.obstacles) {
+        if (o.id === id || o.h < eye.y - 3) continue;
+        const gap = Math.max(Math.abs(eye.x - o.x) - o.hw, Math.abs(eye.z - o.z) - o.hd);
+        if (gap < 12) crowded += gap < 4 ? 20 : 8;
+      }
       const score =
-        rank * 0.7 +
+        rank * 2.2 +
+        crowded +
         this.blocked(eye, aim, id) +
+        this.blocked(eye, aim.clone().setY(handle.height * 0.85), id) * 0.8 +
+        this.blocked(eye, forecourt, id) * 0.8 +
         this.blocked(eye, aim.clone().setY(4), id) * 0.6 +
         this.blocked(eye, aim.clone().add(across), id) * 0.35 +
         this.blocked(eye, aim.clone().sub(across), id) * 0.35;
@@ -763,10 +806,14 @@ export class CityWorld {
     const right = new THREE.Vector3(outward.z, 0, -outward.x);
     const toTarget = aim.clone();
     const toPos = eye.clone();
-    if (portrait) toTarget.y -= dist * (handle.landmark ? 0.3 : 0.22);
-    else {
-      toTarget.addScaledVector(right, dist * 0.17);
-      toPos.addScaledVector(right, dist * 0.17);
+    if (portrait) {
+      // The panel is a bottom sheet over the lower half, so the hero belongs in
+      // the upper half: look at a point well below it, which lifts it up the screen.
+      const lift = dist * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2) * 0.62;
+      toTarget.y -= lift;
+      toPos.y -= lift * 0.35;
+    } else {
+      toTarget.addScaledVector(right, dist * 0.17); // the eye was already slid when it was scored
     }
     this.atOverview = false;
     this.startTween(toPos, toTarget);
@@ -864,7 +911,7 @@ export class CityWorld {
       THREE.MathUtils.lerp(NIGHT.glint, DAY.glint, k)
     );
 
-    setTownGlow(0.3 * night, this.plan.core.minZ - this.plan.center.z, this.plan.core.maxZ - this.plan.center.z);
+    setTownGlow(0.2 * night, this.plan.core.minZ - this.plan.center.z, this.plan.core.maxZ - this.plan.center.z);
 
     this.lampBulbMaterial.emissiveIntensity = 3.4 * night + 0.1;
     for (const glow of this.lampGlowMaterials) {
@@ -966,6 +1013,8 @@ export class CityWorld {
       // A plate is either up or down: a half-faded sign reads as a glitch.
       let target = forced || near > 0.04 ? 1 : 0;
       if (ndc.z > 1) target = 0;
+      // In a close-up the chosen building is the subject: its neighbours keep their names to themselves.
+      if (this.selectedId && this.selectedId !== ABOUT_ID && !forced) target = 0;
       if (growClock.value < (this.growAt.get(box.id) ?? 0) + GROW_RISE) target = 0; // not built yet
       // Sprite scale is in view-height units; convert to NDC half-extents.
       const halfW = box.halfW / aspect / tan;

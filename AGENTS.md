@@ -107,6 +107,11 @@ screenshots can be stale; `scripts/probe.mjs` is the reliable way to look.
   `userData.dynamic`; it is also kept out of the static shadow map.
 - `src/world/CityWorld.ts`: renderer, lighting constants (`DAY`, `NIGHT`), camera,
   day and night, labels, picking, adaptive resolution.
+- `scripts/sweep.mjs <url> <dir> [day|night] [desktop|phone]`: one screenshot of
+  every project's close-up. Run it after touching the camera, the plan, or any
+  building, and look at all forty: a click lands a visitor on one of these, and the
+  small ones break first. `CityWorld.focusProject` picks the bearing by scoring
+  sight lines against `this.obstacles`; anything tall and new belongs in that list.
 - `scripts/shots.mjs`, `probe.mjs`, `fps.mjs`: screenshots and frame rate through
   the system Edge. `probe.mjs` runs a snippet against the live world first, for
   example to move the camera with `debug.view(...)`.
