@@ -37,6 +37,18 @@ frame rate and look at screenshots instead of assuming.
   Ryan's machine. Style: screen-printed poster, 3 to 5 flat inks, paper grain, no
   text in the image. Pipe the prompt through stdin and tell Codex to pass it to the
   image tool word for word, or it rewrites the prompt.
+- Every project has a poster: 1024 x 512 webp, a flat empty band along the bottom
+  third (tower billboards letter the title there), the district color as one ink.
+  `python tools/art/posters.py <raw png>` crops to 2:1 and encodes it under about
+  56 KB. Raw art and the prompts used live outside the repo, in
+  `..\_project-city-art\`.
+- Size budget rule (`scripts/size-budget.mjs`): everything a cold visit can fetch,
+  including the posters on tower billboards (projects with 150 or more commits),
+  must fit in 2,000 KB gzip. Panel art, the poster of every project that is not a
+  tower, is only requested when its panel opens, so it is counted apart: 80 KB per
+  poster, 2,400 KB for all of it. Never move something that loads at startup into
+  the panel-art bucket to make room; check with `scripts/load-audit.mjs` that a
+  cold visit's transfer did not grow.
 
 ## Setup
 
@@ -51,7 +63,7 @@ npm run dev          # http://127.0.0.1:5173
 npm run typecheck    # tsc --noEmit
 npm test             # vitest: city plan and stats script
 npm run build        # production bundle in dist/
-npm run check:size   # gzip budget: 400 KB per file, 2 MB total
+npm run check:size   # gzip budget: 400 KB per file, 2 MB initial load, panel art apart
 npm run test:e2e     # Playwright, desktop and phone, against the built site
 ```
 
