@@ -264,7 +264,13 @@ export function createFabric(plan: CityPlan): { group: THREE.Group; windowMateri
       glazing(g, sash, 0.4, 0.44, w / 2 + over - 0.02, gableY, 0, 1, cell());
       if (form !== 0) glazing(g, sash, 0.4, 0.44, -w / 2 - over + 0.02, gableY, 0, 3, cell());
     }
-    if (form !== 1) for (const side of [-1, 1]) shrub(g, doorX + side * 0.95, d / 2 + 0.38, 0.27, r);
+    // Shrubs either side of the door: clear of the hipped house's porch, and none inside the side gable's wing.
+    if (form !== 1) {
+      for (const side of [-1, 1]) {
+        if (form === 3 && side > 0) continue;
+        shrub(g, doorX + side * (form === 2 ? 1.05 : 0.95), d / 2 + 0.38, 0.27, r);
+      }
+    }
   };
 
   // Parked cars: a body, a cabin, and a dark slab underneath standing in for a contact shadow.

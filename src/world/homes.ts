@@ -160,6 +160,7 @@ export function glazing(
   const g = new THREE.Group();
   g.position.set(x, y, z);
   g.rotation.y = (facing * Math.PI) / 2;
+  g.userData.prunable = true; // empty once baked
   block(g, sash.frame, w + 0.16, h + 0.16, 0.05, 0, 0, 0.025);
   const pane = new THREE.Mesh(paneGeometry(cell), houseGlass());
   pane.scale.set(w, h, 0.04);
@@ -384,9 +385,10 @@ const clothesline: Prop = (g, rand) => {
     block(g, STEEL, 0.06, 0.06, 0.5, x, 1.45, 0);
   }
   for (const z of [-0.2, 0.2]) block(g, ROPE, 1.9, 0.015, 0.015, 0, 1.43, z);
-  let x = -0.75;
-  while (x < 0.7) {
+  // Pegged out between the posts; nothing hangs past the end of the rope.
+  for (let x = -0.8; ; ) {
     const w = 0.24 + rand() * 0.2;
+    if (x + w > 0.82) break;
     const cloth = block(g, CLOTHES[Math.floor(rand() * CLOTHES.length)], w, 0.32 + rand() * 0.18, 0.02, x + w / 2, 1.22, rand() < 0.5 ? -0.2 : 0.2);
     cloth.rotation.y = (rand() - 0.5) * 0.3;
     x += w + 0.08 + rand() * 0.12;
@@ -560,7 +562,7 @@ export function buildShack(group: THREE.Group, rand: () => number, yard: number)
 
   // Out back: the outhouse, its door facing the yard, a crescent moon cut in it.
   const outhouse = new THREE.Group();
-  outhouse.position.set(-w / 2 - 0.4, 0, -d / 2 - 0.75);
+  outhouse.position.set(-w / 2 - 0.55, 0, -d / 2 - 1.05); // clear of the shack's eaves
   outhouse.rotation.y = 0.5;
   block(outhouse, plankMat(1), 0.85, 1.7, 0.85, 0, 0.85, 0);
   const lid = block(outhouse, tins[0], 1.05, 0.04, 1.1, 0, 1.76, 0);
@@ -579,13 +581,13 @@ export function buildShack(group: THREE.Group, rand: () => number, yard: number)
   clothesline(line, rand, TIMBER);
   group.add(line);
 
-  // Junk in the yard: a crate, a rain barrel under the eave, a tire.
+  // Junk in the yard: a crate, a rain barrel under the eave by the front corner, a tire.
   if (rand() < 0.9) {
     const crate = block(group, plankMat(2), 0.6, 0.6, 0.6, -w * 0.72, 0.3, d * 0.78 + 0.4);
     crate.rotation.y = rand();
   }
   const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.3, 0.7, 8), mat(0x3a3a30, { metalness: 0.3 }));
-  barrel.position.set(w / 2 + 0.3, 0.35, d / 2 + 0.2);
+  barrel.position.set(w / 2 + 0.42, 0.35, d / 2 - 0.35);
   group.add(barrel);
   if (rand() < 0.5) {
     const old = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.11, 6, 12), mat(0x141414, { roughness: 1 }));
@@ -660,24 +662,37 @@ export function buildHouse(lot: THREE.Group, rand: () => number, yard: number): 
   }
 
   const sillY = base + h * 0.56;
+  // Front windows either side of a centered door. With shutters they are narrower
+  // and set so each shutter clears both the door casing and the corner board.
+  const frontW = shutters ? 0.56 : 0.72;
+  const frontX = shutters ? w / 4 + 0.21 : w * 0.3;
+  const lamp = warmGlass(1.6);
   let doorX = 0;
   let walkFrom = d / 2 + 0.7;
   if (kind === 0) {
     porch(group, { deck: mat(0x7f7b74), post: trim, roof: roofMat, trim }, {
       x: 0, width: w + 0.1, depth: 1.2, wall: d / 2, roofAt: eave - 0.32, fall: 0.25, posts: 4, steps: 0, rail: 'spindles'
     });
-    for (const wx of [-w * 0.3, w * 0.3]) glazing(group, sash, 0.72, 0.95, wx, sillY, d / 2, 0, cell());
+    for (const wx of [-frontX, frontX]) glazing(group, sash, frontW, 0.95, wx, sillY, d / 2, 0, cell());
+    // The porch light hangs on a short rod from the sloping porch ceiling, in front of the door.
+    const ceiling = eave - 0.32 - 0.25 * (0.55 / 1.2); // underside of the shed roof 0.55 out from the wall
+    block(group, lamp, 0.13, 0.17, 0.13, 0, ceiling - 0.145, d / 2 + 0.55);
+    block(group, DARK, 0.03, 0.08, 0.03, 0, ceiling - 0.03, d / 2 + 0.55);
     walkFrom = d / 2 + 1.8;
   } else if (kind === 1) {
     // A gabled hood over the door on two brackets, and a stone stoop.
-    const hood = gableRoof(1.3, 0.62, 0.34, roofMat);
+    // The hood spans the door casing and no more, so the shutters beside it stay clear.
+    const hood = gableRoof(1.04, 0.62, 0.3, roofMat);
     hood.position.set(0, DECK_TOP + 1.72, d / 2 + 0.28);
     group.add(hood);
-    block(group, trim, 1.3, 0.08, 0.62, 0, DECK_TOP + 1.68, d / 2 + 0.28);
-    for (const s of [-1, 1]) block(group, trim, 0.08, 0.3, 0.26, s * 0.55, DECK_TOP + 1.52, d / 2 + 0.12);
+    block(group, trim, 1.04, 0.08, 0.62, 0, DECK_TOP + 1.68, d / 2 + 0.28);
+    for (const s of [-1, 1]) block(group, trim, 0.07, 0.3, 0.26, s * 0.45, DECK_TOP + 1.52, d / 2 + 0.12);
+    // A lantern hangs under the hood.
+    block(group, lamp, 0.12, 0.14, 0.12, 0, DECK_TOP + 1.52, d / 2 + 0.34);
+    block(group, DARK, 0.03, 0.06, 0.03, 0, DECK_TOP + 1.61, d / 2 + 0.34);
     block(group, stone, 1.2, DECK_TOP, 0.62, 0, DECK_TOP / 2, d / 2 + 0.31);
     block(group, stone, 0.9, 0.2, 0.3, 0, 0.1, d / 2 + 0.77);
-    for (const wx of [-w * 0.3, w * 0.3]) glazing(group, boxed, 0.72, 0.95, wx, sillY, d / 2, 0, cell());
+    for (const wx of [-frontX, frontX]) glazing(group, boxed, frontW, 0.95, wx, sillY, d / 2, 0, cell());
     // Two dormers on the front slope.
     // Each sits low on the slope, its back buried in the roof behind it.
     const slope = d / 2 + over;
@@ -709,27 +724,32 @@ export function buildHouse(lot: THREE.Group, rand: () => number, yard: number): 
     wing.position.set(wx, eave, wingDepth / 2);
     group.add(wing);
     block(group, trim, ww + 2 * over, 0.1, wingDepth, wx, eave + 0.02, wingDepth / 2);
-    for (const s of [-1, 1]) glazing(group, boxed, 0.48, 0.92, wx + s * 0.3, sillY, d / 2 + proj, 0, cell());
+    const planted: Sash = { frame: trim, flowers: blooms };
+    for (const s of [-1, 1]) glazing(group, planted, 0.48, 0.92, wx + s * 0.34, sillY, d / 2 + proj, 0, cell());
     glazing(group, { frame: trim }, 0.4, 0.42, wx, eave + peak * 0.82 * 0.33, d / 2 + proj + over - 0.02, 0, cell());
     const crook = w - ww;
     doorX = w / 2 - ww - 0.55;
     porch(group, { deck: mat(0x7f7b74), post: trim, roof: roofMat, trim }, {
       x: -w / 2 + crook / 2, width: crook, depth: proj, wall: d / 2, roofAt: eave - 0.3, fall: 0.22, posts: 2, steps: doorX, rail: null
     });
-    glazing(group, sash, 0.68, 0.95, -w / 2 + 0.6, sillY, d / 2, 0, cell());
+    // The window in the crook fills the wall between the corner board and the door casing.
+    const left = -w / 2 + 0.1;
+    const right = doorX - 0.52;
+    glazing(group, planted, Math.min(0.68, right - left - 0.26), 0.95, (left + right) / 2, sillY, d / 2, 0, cell());
+    block(group, lamp, 0.1, 0.16, 0.12, w / 2 - ww - 0.06, DECK_TOP + 1.45, d / 2 + 0.45);
     chimney(group, brick, -w * 0.28, -d * 0.18, eave, eave + peak * 0.85 + 0.35);
     walkFrom = d / 2 + proj + 0.6;
   }
   if (kind === 0) chimney(group, brick, w * 0.26, -d * 0.2, eave, eave + peak * 0.8 + 0.3);
 
-  // Front door, its frame, and the porch light.
+  // Front door and its frame (each kind hangs its own porch light above).
   block(group, doorMat, 0.72, 1.45, 0.08, doorX, DECK_TOP + 0.72, d / 2 + 0.03);
   block(group, trim, 0.92, 1.6, 0.05, doorX, DECK_TOP + 0.76, d / 2 + 0.01);
-  block(group, warmGlass(1.6), 0.12, 0.16, 0.12, doorX + 0.58, DECK_TOP + 1.45, d / 2 + 0.1);
 
   // The flanks (never inside the garage) and the back.
   if (!(garage && garageSide < 0)) {
-    for (const fz of kind === 1 ? [-d * 0.27, d * 0.27] : [0]) glazing(group, sash, 0.66, 0.9, -w / 2, sillY, fz, 3, cell());
+    const flank: Sash = kind === 1 ? { frame: trim, head: true } : sash; // the Cape's chimney stands between these
+    for (const fz of kind === 1 ? [-d * 0.27, d * 0.27] : [0]) glazing(group, flank, 0.66, 0.9, -w / 2, sillY, fz, 3, cell());
   }
   if (!(garage && garageSide > 0)) glazing(group, sash, 0.66, 0.9, w / 2, sillY, 0, 1, cell());
   for (const bx of [-w * 0.28, w * 0.28]) glazing(group, sash, 0.66, 0.9, bx, sillY, -d / 2, 2, cell());
@@ -760,7 +780,7 @@ export function buildHouse(lot: THREE.Group, rand: () => number, yard: number): 
   block(group, PATH, 0.7, 0.05, Math.max(0.2, yard - walkFrom), doorX, 0.075, (walkFrom + yard) / 2);
   const plantZ = kind === 0 ? d / 2 + 1.55 : d / 2 + 0.42;
   for (const px of [-w / 2 + 0.35, w / 2 - 0.35]) {
-    if (kind === 2 && px > 0) continue;
+    if (kind === 2) continue; // the wing and the crook porch fill the L's front
     if (Math.abs(px - doorX) > 0.8) shrub(group, px, plantZ, 0.32, rand);
   }
   block(group, mat(0x4a3d2b), 0.08, 0.7, 0.08, doorX - 0.65, 0.35, yard - 0.25);
@@ -776,9 +796,11 @@ export function buildHouse(lot: THREE.Group, rand: () => number, yard: number): 
 
   // The back yard, hedged on every side but the drive's.
   gardenHedges(lot, yard, garage ? [-garageSide] : [-1, 1]);
+  // Halfway between the back wall and the back hedge, but never into the hedge.
+  const backZ = Math.max(-(d / 2 + yard) / 2, -yard + 1.4);
   backYard(lot, rand, siding, [
-    [-yard * 0.5, -(d / 2 + yard) / 2, 0],
-    [yard * 0.48, -(d / 2 + yard) / 2 + 0.05, 0]
+    [-yard * 0.5, backZ, 0],
+    [yard * 0.48, backZ + 0.05, 0]
   ]);
 
   return eave + peak + 0.25;
@@ -830,10 +852,16 @@ export function buildLargeHouse(group: THREE.Group, rand: () => number, yard: nu
   for (const s of [-1, 1]) block(body, trimWhite, w + 2 * over, 0.09, 0.09, 0, bodyTop - 0.02, s * (d / 2 + over - 0.04));
   block(body, trimWhite, 0.08, bodyTop - 0.2, 0.08, -(w / 2 + 0.06), bodyTop / 2 + 0.1, d / 2 + 0.12);
   const gables = [[0], [-w * 0.24], [-w * 0.26, w * 0.26]][Math.floor(rand() * 3)];
+  // Height of the hipped roof over x at z = -0.2, where each gable's ridge runs into it.
+  const hipW = w + 2 * over;
+  const hipD = d + 2 * over;
+  const hipAt = (x: number) =>
+    peak * Math.min(1 - 0.2 / (hipD / 2), 1 - Math.max(0, Math.abs(x) - (hipW - hipD) / 2) / (hipD / 2));
   for (const gx of gables) {
     const gw = w * (gables.length > 1 ? 0.3 : 0.42);
     const depth = d / 2 + over + 0.2;
-    const rise = peak * (gables.length > 1 ? 0.6 : gx === 0 ? 0.8 : 0.7);
+    // Never higher than the hip it meets, so the ridge runs into the roof instead of over it.
+    const rise = Math.min(peak * (gables.length > 1 ? 0.6 : gx === 0 ? 0.8 : 0.7), hipAt(gx) - 0.06);
     const gable = gableRoof(gw, depth, rise, roofMat);
     gable.position.set(gx, bodyTop, d / 2 + over - depth / 2);
     body.add(gable);
@@ -843,15 +871,15 @@ export function buildLargeHouse(group: THREE.Group, rand: () => number, yard: nu
 
   for (const cx of [-w * 0.35, w * 0.4]) chimney(body, brick, cx, -d * 0.2, bodyTop, bodyTop + 1.6);
 
-  // Grand portico: pediment on four columns.
-  const colH = floor1 + 0.3;
+  // Grand portico: a low pediment on four columns, its apex under the upper windows' sills.
+  const colH = floor1 - 0.1;
   for (const cx of [-1.05, -0.35, 0.35, 1.05]) {
     const col = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.17, colH, 10), trimWhite);
     col.position.set(cx, colH / 2 + 0.2, d / 2 + 1.1);
     body.add(col);
   }
   block(body, trimWhite, 2.7, 0.3, 1.4, 0, colH + 0.35, d / 2 + 0.7); // entablature
-  const ped = gableRoof(2.7, 1.4, 0.62, trimWhite);
+  const ped = gableRoof(2.7, 1.4, 0.4, trimWhite);
   ped.position.set(0, colH + 0.5, d / 2 + 0.7);
   body.add(ped);
   block(body, mat(0x8a8378), 2.6, 0.14, 1.5, 0, 0.27, d / 2 + 0.75); // portico floor
@@ -865,7 +893,7 @@ export function buildLargeHouse(group: THREE.Group, rand: () => number, yard: nu
   const bx = -(w / 2 - 0.8);
   const bayY = 0.2 + floor1 * 0.48;
   block(body, brick, 1.3, 0.5, 0.62, bx, 0.45, d / 2 + 0.31);
-  block(body, trimWhite, 1.3, 1.25, 0.62, bx, bayY + 0.2, d / 2 + 0.31);
+  block(body, trimWhite, 1.3, 1.5, 0.62, bx, 1.45, d / 2 + 0.31); // from the brick base up to the bay's roof
   glazing(body, { frame: trimWhite }, 0.94, 1.0, bx, bayY + 0.2, d / 2 + 0.62, 0, cell());
   for (const s of [-1, 1]) glazing(body, { frame: trimWhite }, 0.32, 1.0, bx + s * 0.65, bayY + 0.2, d / 2 + 0.31, s > 0 ? 1 : 3, cell());
   const bayRoof = hipRoof(1.5, 0.8, 0.4, roofMat);
@@ -911,8 +939,8 @@ export function buildLargeHouse(group: THREE.Group, rand: () => number, yard: nu
     block(group, DARK, 0.07, 1.0, 0.07, ox + s * 0.75, 0.5, yard - 0.7);
     block(group, warmGlass(1.5), 0.17, 0.2, 0.17, ox + s * 0.75, 1.08, yard - 0.7);
   }
-  shrub(body, -w / 2 + 0.25, d / 2 + 0.5, 0.38, rand);
-  shrub(body, w / 2 - 0.25, d / 2 + 0.45, 0.34, rand);
+  // Under the right-hand window, clear of the drive (the bay fills the left).
+  shrub(body, w / 2 - 0.75, d / 2 + 0.45, 0.34, rand);
 
   gardenHedges(group, yard, [-1]);
 
@@ -928,7 +956,7 @@ export function buildLargeHouse(group: THREE.Group, rand: () => number, yard: nu
     }
   } else {
     const g = new THREE.Group();
-    g.position.set(ox - 0.6, 0.05, backZ);
+    g.position.set(ox - 0.6, 0.05, backZ - 0.2); // the umbrella clears the back wall
     patio(g, rand, trimWhite);
     group.add(g);
   }

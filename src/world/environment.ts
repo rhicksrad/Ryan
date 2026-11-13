@@ -1407,7 +1407,8 @@ export function createOutskirts(plan: CityPlan): {
   farMat.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader.replace(
       'if ( isPerspective ) gl_PointSize *= ( scale / - mvPosition.z );',
-      'if ( isPerspective ) gl_PointSize = min( gl_PointSize * ( scale / - mvPosition.z ), scale * 0.016 );'
+      // `size` already carries the pixel ratio, so the cap is the same on every screen.
+      'if ( isPerspective ) gl_PointSize = min( gl_PointSize * ( scale / - mvPosition.z ), size * 0.8 );'
     );
   };
   farMat.customProgramCacheKey = () => 'far-lights';
